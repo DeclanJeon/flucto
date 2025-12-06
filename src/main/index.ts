@@ -152,6 +152,7 @@ ipcMain.handle('download-multiple', async (event, { urls, format }: { urls: stri
         '--add-header', 'user-agent:googlebot',
         '--ffmpeg-location', path.dirname(ffmpegPath),
         '--yes-playlist', // Download entire playlist if URL contains playlist
+        '--flat-playlist', // Download all videos from playlist
       ];
 
       if (format === 'mp3') {
