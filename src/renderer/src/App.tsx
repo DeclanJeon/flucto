@@ -86,24 +86,34 @@ const App: React.FC = () => {
       
       // Check if this is a playlist URL
       const isPlaylist = trimmedUrl.includes('list=');
-      if (isPlaylist) {
-        setStatusMessage('⚠️ Playlist detected! Only the first video will be added to queue.');
-      }
       
       setStatusMessage('📥 Fetching video information...');
-      const info = await window.api.getVideoInfo(cleanUrl);
+      let videoInfo;
+      let videosToAdd = [];
       
-      // Store the original URL for downloading
-      setVideos((prev) => [...prev, { ...info, originalUrl: cleanUrl }]);
+      if (isPlaylist) {
+        setStatusMessage('📋 Fetching playlist information...');
+        // Get all videos from playlist
+        const playlistVideos = await window.api.getPlaylistInfo(cleanUrl);
+        videosToAdd = playlistVideos;
+        setStatusMessage(`✅ ${playlistVideos.length} videos from playlist added to queue!`);
+      } else {
+        // Get single video info
+        videoInfo = await window.api.getVideoInfo(cleanUrl);
+        videosToAdd = [{ ...videoInfo, originalUrl: cleanUrl }];
+        setStatusMessage('✅ Video added to queue successfully!');
+      }
+      
+      // Add videos to queue
+      setVideos((prev) => [...prev, ...videosToAdd]);
       setUrl('');
-      setStatusMessage(isPlaylist ? '✅ First video from playlist added to queue!' : '✅ Video added to queue successfully!');
       
       // Clear success message after 3 seconds for playlist, 2 seconds for single video
       setTimeout(() => setStatusMessage(null), isPlaylist ? 3000 : 2000);
     } catch (error: any) {
       setStatusMessage(`❌ Error: ${error.message}`);
-      // Clear error message after 3 seconds
-      setTimeout(() => setStatusMessage(null), 3000);
+      // Clear error message after 4 seconds
+      setTimeout(() => setStatusMessage(null), 4000);
     } finally {
       setIsLoadingInfo(false);
     }

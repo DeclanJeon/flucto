@@ -8,6 +8,7 @@ const api = {
   downloadMultiple: (urls: string[], format: 'mp4' | 'mp3') =>
     ipcRenderer.invoke('download-multiple', { urls, format }),
   getVideoInfo: (url: string) => ipcRenderer.invoke('get-video-info', url),
+  getPlaylistInfo: (url: string) => ipcRenderer.invoke('get-playlist-info', url),
   openDownloadsFolder: () => ipcRenderer.invoke('open-folder'),
   onDownloadProgress: (callback: (progress: any) => void) => {
     ipcRenderer.on('download-progress', (_event, progress) => callback(progress));

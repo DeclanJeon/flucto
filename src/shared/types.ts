@@ -47,6 +47,7 @@ export interface IElectronAPI {
   downloadVideo: (data: DownloadRequest) => Promise<DownloadResponse>;
   downloadMultiple: (urls: string[], format: 'mp4' | 'mp3') => Promise<void>;
   getVideoInfo: (url: string) => Promise<VideoInfo>;
+  getPlaylistInfo: (url: string) => Promise<VideoInfo[]>;
   openDownloadsFolder: () => Promise<void>;
   onDownloadProgress: (callback: (progress: DownloadProgress) => void) => void;
 }

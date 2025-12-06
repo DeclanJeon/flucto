@@ -77,7 +77,35 @@ app.on('window-all-closed', () => {
 
 // --- IPC Handlers ---
 
-// 1. Get Video Info Handler
+// 1. Get Playlist Info Handler
+ipcMain.handle('get-playlist-info', async (_event, url: string) => {
+  const ytDlpPath = getBinaryPath('yt-dlp');
+  
+  try {
+    const { stdout } = await execa(ytDlpPath, [
+      url,
+      '--flat-playlist',
+      '--dump-json',
+      '--no-warnings',
+    ]);
+    
+    const playlistData = JSON.parse(stdout);
+    return playlistData.map((item: any) => ({
+      id: item.id,
+      title: item.title,
+      thumbnail: item.thumbnail,
+      duration: item.duration,
+      uploader: item.uploader || item.channel,
+      view_count: item.view_count,
+      originalUrl: item.webpage_url || `https://www.youtube.com/watch?v=${item.id}`,
+    }));
+  } catch (error: any) {
+    logger.error('Get Playlist Info Error:', { url, error: error.message });
+    throw new Error('Failed to fetch playlist info');
+  }
+});
+
+// 2. Get Video Info Handler
 ipcMain.handle('get-video-info', async (_event, url: string) => {
   const ytDlpPath = getBinaryPath('yt-dlp');
   
