@@ -78,15 +78,65 @@ app.on('window-all-closed', () => {
 
 // --- IPC Handlers ---
 
-// [수정] 공통 옵션 생성기 (에러를 유발하는 impersonate 제거)
+// [수정] 공통 옵션 생성기 (플랫폼별 특화 옵션 추가)
 const getCommonYtDlpArgs = (url: string) => {
   const args: string[] = [];
   
+  // Twitter/X 플랫폼 처리
+  if (url.includes('x.com') || url.includes('twitter.com')) {
+    args.push(
+      '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      '--add-header', 'Accept-Language: en-US,en;q=0.9',
+      '--add-header', 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+      '--add-header', 'Accept-Encoding: gzip, deflate, br',
+      '--add-header', 'DNT: 1',
+      '--add-header', 'Connection: keep-alive',
+      '--add-header', 'Upgrade-Insecure-Requests: 1',
+      '--add-header', 'Sec-Fetch-Dest: document',
+      '--add-header', 'Sec-Fetch-Mode: navigate',
+      '--add-header', 'Sec-Fetch-Site: none',
+      '--add-header', 'Sec-Fetch-User: ?1',
+      '--add-header', 'Cache-Control: max-age=0',
+      '--extractor-args', 'twitter:api=legacy', // Twitter 레거시 API 사용
+      '--extractor-args', 'twitter:video=true' // 비디오 추출 명시
+    );
+  }
+  
+  // Reddit 플랫폼 처리
+  else if (url.includes('reddit.com')) {
+    args.push(
+      '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      '--add-header', 'Accept-Language: en-US,en;q=0.9',
+      '--add-header', 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+      '--extractor-args', 'reddit:client_id=download_client', // Reddit 클라이언트 ID 지정
+      '--extractor-args', 'reddit:client_secret=', // 클라이언트 시크릿 (빈 값)
+      '--ignore-errors', // 인증 오류 무시
+      '--extractor-args', 'reddit:username=' // 사용자명 (빈 값으로 공개 콘텐츠만)
+    );
+  }
+  
+  // Bilibili 플랫폼 처리
+  else if (url.includes('bilibili.com')) {
+    args.push(
+      '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      '--add-header', 'Accept-Language: zh-CN,zh;q=0.9,en;q=0.8',
+      '--add-header', 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+      '--add-header', 'Referer: https://www.bilibili.com/',
+      '--add-header', 'Origin: https://www.bilibili.com',
+      '--add-header', 'Sec-Fetch-Dest: document',
+      '--add-header', 'Sec-Fetch-Mode: navigate',
+      '--add-header', 'Sec-Fetch-Site: same-origin',
+      '--extractor-args', 'bilibili:session_data=', // Bilibili 세션 데이터 (빈 값)
+      '--extractor-args', 'bilibili:quality=116' // 최고 품질 설정
+    );
+  }
+  
   // Instagram, Facebook 등은 모바일 User-Agent를 사용하면 더 잘 작동하는 경우가 있음
-  // --impersonate 옵션은 바이너리 지원 여부에 따라 크래시가 발생하므로 제거하고
-  // 표준 User-Agent 헤더로 대체합니다.
-  if (url.includes('instagram.com') || url.includes('facebook.com')) {
-    args.push('--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+  else if (url.includes('instagram.com') || url.includes('facebook.com')) {
+    args.push(
+      '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      '--add-header', 'Accept-Language: en-US,en;q=0.9'
+    );
   }
 
   return args;
@@ -118,6 +168,16 @@ ipcMain.handle('get-playlist-info', async (_event, url: string) => {
   try {
     logger.info(`Fetching playlist info for: ${url}`);
 
+    // 플랫폼별 기본 Referer 설정
+    let referer = 'youtube.com';
+    if (url.includes('x.com') || url.includes('twitter.com')) {
+      referer = 'https://x.com/';
+    } else if (url.includes('reddit.com')) {
+      referer = 'https://www.reddit.com/';
+    } else if (url.includes('bilibili.com')) {
+      referer = 'https://www.bilibili.com/';
+    }
+
     // [보완 1] { reject: false } 추가: 일부 영상 다운 불가 에러로 인해 전체 프로세스가 멈추지 않도록 함
     const result = await execa(ytDlpPath, [
       url,
@@ -127,7 +187,8 @@ ipcMain.handle('get-playlist-info', async (_event, url: string) => {
       '--skip-download',
       '--ignore-errors',
       '--compat-options', 'no-youtube-unavailable-videos', // [보완 2] 삭제된 동영상 정보 제외
-      ...getCommonYtDlpArgs(url) // [추가] 브라우저 임퍼스네이션 적용
+      '--add-header', `referer:${referer}`, // 플랫폼별 Referer 추가
+      ...getCommonYtDlpArgs(url) // [추가] 플랫폼별 특화 옵션 적용
     ], { reject: false }); // <-- 중요: 에러가 발생해도 멈추지 않고 결과 반환
 
     // stdout이 아예 비어있으면 진짜 에러
@@ -180,48 +241,82 @@ ipcMain.handle('get-video-info', async (_event, url: string) => {
   try {
     logger.info(`Fetching video info for: ${url}`);
 
-    // 기본 인자 설정
-    const args = [
-      url,
-      '--dump-json',
-      '--no-warnings',
-      '--no-playlist', // 단일 영상 정보만 요청
-      '--ignore-errors', // 에러 무시 (삭제된 트윗 등)
-      '--compat-options', 'no-youtube-unavailable-videos',
-      // [추가] 브라우저 임퍼스네이션 적용
-      ...getCommonYtDlpArgs(url)
-    ];
-
-    // { reject: false }로 실행 (경고 무시)
-    const result = await execa(ytDlpPath, args, { reject: false });
-
-    // 결과값이 아예 없으면 에러
-    if (result.failed && !result.stdout.trim()) {
-      throw new Error(result.stderr || 'No output from yt-dlp');
+    // 플랫폼별 기본 Referer 설정
+    let referer = 'youtube.com';
+    if (url.includes('x.com') || url.includes('twitter.com')) {
+      referer = 'https://x.com/';
+    } else if (url.includes('reddit.com')) {
+      referer = 'https://www.reddit.com/';
+    } else if (url.includes('bilibili.com')) {
+      referer = 'https://www.bilibili.com/';
     }
 
-    // [핵심] JSON 파싱 로직 강화 (Warning 메시지가 섞여 있어도 동작하도록)
-    // stdout을 줄바꿈으로 나누고, 유효한 JSON 객체 중 마지막 것을 사용 (보통 마지막 줄이 실제 데이터)
-    const lines = result.stdout.split(/\r?\n/).filter(line => line.trim() !== '');
-    let info: any = null;
+    // 재시도 로직을 위한 함수
+    const tryFetch = async (retryCount = 0): Promise<any> => {
+      const args = [
+        url,
+        '--dump-json',
+        '--no-warnings',
+        '--no-playlist', // 단일 영상 정보만 요청
+        '--ignore-errors', // 에러 무시 (삭제된 트윗 등)
+        '--compat-options', 'no-youtube-unavailable-videos',
+        '--add-header', `referer:${referer}`, // 플랫폼별 Referer 추가
+        // [추가] 플랫폼별 특화 옵션 적용
+        ...getCommonYtDlpArgs(url)
+      ];
 
-    // 뒤에서부터 탐색하여 가장 먼저 발견되는 유효한 JSON을 채택
-    for (let i = lines.length - 1; i >= 0; i--) {
-      try {
-        const parsed = JSON.parse(lines[i]);
-        // 유효한 메타데이터인지 확인 (id나 title이 있어야 함)
-        if (parsed.id || parsed.title) {
-          info = parsed;
-          break;
-        }
-      } catch (e) {
-        continue; // JSON이 아니면(경고 메시지 등) 무시
+      // Twitter/X의 경우 재시도 시 다른 API 옵션 시도
+      if ((url.includes('x.com') || url.includes('twitter.com')) && retryCount > 0) {
+        args.push('--extractor-args', 'twitter:api=graph');
       }
-    }
 
-    if (!info) {
-      throw new Error('Could not parse video metadata from yt-dlp output');
-    }
+      // { reject: false }로 실행 (경고 무시)
+      const result = await execa(ytDlpPath, args, { reject: false });
+
+      // 결과값이 아예 없으면 에러
+      if (result.failed && !result.stdout.trim()) {
+        // Twitter/X의 경우 404/403 오류 시 재시도
+        if ((url.includes('x.com') || url.includes('twitter.com')) && retryCount < 2) {
+          logger.warn(`Retrying Twitter/X fetch (attempt ${retryCount + 1})`);
+          await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1))); // 지수 백오프
+          return tryFetch(retryCount + 1);
+        }
+        throw new Error(result.stderr || 'No output from yt-dlp');
+      }
+
+      // [핵심] JSON 파싱 로직 강화 (Warning 메시지가 섞여 있어도 동작하도록)
+      // stdout을 줄바꿈으로 나누고, 유효한 JSON 객체 중 마지막 것을 사용 (보통 마지막 줄이 실제 데이터)
+      const lines = result.stdout.split(/\r?\n/).filter(line => line.trim() !== '');
+      let info: any = null;
+
+      // 뒤에서부터 탐색하여 가장 먼저 발견되는 유효한 JSON을 채택
+      for (let i = lines.length - 1; i >= 0; i--) {
+        try {
+          const parsed = JSON.parse(lines[i]);
+          // 유효한 메타데이터인지 확인 (id나 title이 있어야 함)
+          if (parsed.id || parsed.title) {
+            info = parsed;
+            break;
+          }
+        } catch (e) {
+          continue; // JSON이 아니면(경고 메시지 등) 무시
+        }
+      }
+
+      if (!info) {
+        // Twitter/X의 경우 재시도
+        if ((url.includes('x.com') || url.includes('twitter.com')) && retryCount < 2) {
+          logger.warn(`Retrying Twitter/X fetch due to parse error (attempt ${retryCount + 1})`);
+          await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1))); // 지수 백오프
+          return tryFetch(retryCount + 1);
+        }
+        throw new Error('Could not parse video metadata from yt-dlp output');
+      }
+
+      return info;
+    };
+
+    const info = await tryFetch();
 
     // SNS별 메타데이터 필드 정규화
     return {
@@ -249,46 +344,75 @@ ipcMain.handle('download-multiple', async (event, { urls, format }: { urls: stri
     try {
       event.sender.send('download-progress', { url, status: 'downloading', progress: 0 });
 
-      // 다운로드 인자 구성
-      const args = [
-        url,
-        '--output', outputTemplate,
-        '--no-check-certificates',
-        '--no-warnings',
-        '--newline',
-        '--add-header', 'referer:youtube.com',
-        '--add-header', 'user-agent:googlebot',
-        '--ffmpeg-location', path.dirname(ffmpegPath),
-        '--yes-playlist', // Download entire playlist if URL contains playlist
-        '--flat-playlist', // Download all videos from playlist
-        // [추가] 브라우저 임퍼스네이션 적용
-        ...getCommonYtDlpArgs(url)
-      ];
-
-      if (format === 'mp3') {
-        args.push('--extract-audio', '--audio-format', 'mp3', '--audio-quality', '0');
-      } else {
-        args.push('--format', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best');
+      // 플랫폼별 기본 Referer 설정
+      let referer = 'youtube.com';
+      if (url.includes('x.com') || url.includes('twitter.com')) {
+        referer = 'https://x.com/';
+      } else if (url.includes('reddit.com')) {
+        referer = 'https://www.reddit.com/';
+      } else if (url.includes('bilibili.com')) {
+        referer = 'https://www.bilibili.com/';
       }
 
-      const subprocess = execa(ytDlpPath, args);
+      // 재시도 로직을 위한 함수
+      const tryDownload = async (retryCount = 0): Promise<void> => {
+        // 다운로드 인자 구성
+        const args = [
+          url,
+          '--output', outputTemplate,
+          '--no-check-certificates',
+          '--no-warnings',
+          '--newline',
+          '--add-header', `referer:${referer}`,
+          '--ffmpeg-location', path.dirname(ffmpegPath),
+          '--yes-playlist', // Download entire playlist if URL contains playlist
+          '--flat-playlist', // Download all videos from playlist
+          // [추가] 플랫폼별 특화 옵션 적용
+          ...getCommonYtDlpArgs(url)
+        ];
 
-      subprocess.stdout?.on('data', (data) => {
-        const output = data.toString();
-        const progressMatch = output.match(/(\d+\.?\d*)%.*?(\d+\.?\d*\w+\/s).*?ETA\s+(\d+:\d+)/);
-        
-        if (progressMatch) {
-          event.sender.send('download-progress', {
-            url,
-            status: 'downloading',
-            progress: parseFloat(progressMatch[1]),
-            speed: progressMatch[2],
-            eta: progressMatch[3],
-          });
+        // Twitter/X의 경우 재시도 시 다른 API 옵션 시도
+        if ((url.includes('x.com') || url.includes('twitter.com')) && retryCount > 0) {
+          args.push('--extractor-args', 'twitter:api=graph');
         }
-      });
 
-      await subprocess;
+        if (format === 'mp3') {
+          args.push('--extract-audio', '--audio-format', 'mp3', '--audio-quality', '0');
+        } else {
+          args.push('--format', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best');
+        }
+
+        try {
+          const subprocess = execa(ytDlpPath, args);
+
+          subprocess.stdout?.on('data', (data) => {
+            const output = data.toString();
+            const progressMatch = output.match(/(\d+\.?\d*)%.*?(\d+\.?\d*\w+\/s).*?ETA\s+(\d+:\d+)/);
+            
+            if (progressMatch) {
+              event.sender.send('download-progress', {
+                url,
+                status: 'downloading',
+                progress: parseFloat(progressMatch[1]),
+                speed: progressMatch[2],
+                eta: progressMatch[3],
+              });
+            }
+          });
+
+          await subprocess;
+        } catch (error: any) {
+          // Twitter/X의 경우 404/403 오류 시 재시도
+          if ((url.includes('x.com') || url.includes('twitter.com')) && retryCount < 2) {
+            logger.warn(`Retrying Twitter/X download (attempt ${retryCount + 1}) for ${url}`);
+            await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1))); // 지수 백오프
+            return tryDownload(retryCount + 1);
+          }
+          throw error;
+        }
+      };
+
+      await tryDownload();
       event.sender.send('download-progress', { url, status: 'completed', progress: 100 });
     } catch (error: any) {
       logger.error(`Download Error for ${url}:`, { error: error.message });
@@ -317,28 +441,57 @@ ipcMain.handle('download-video', async (_event, args: DownloadRequest) => {
   logger.debug(`Binaries - yt-dlp: ${ytDlpPath}, ffmpeg: ${ffmpegPath}`);
 
   try {
-    const args = [
-      url,
-      '--output', outputTemplate,
-      '--no-check-certificates',
-      '--no-warnings',
-      '--add-header', 'referer:youtube.com',
-      '--add-header', 'user-agent:googlebot',
-      '--ffmpeg-location', path.dirname(ffmpegPath),
-      // [추가] 브라우저 임퍼스네이션 적용
-      ...getCommonYtDlpArgs(url)
-    ];
-
-    if (format === 'mp3') {
-      args.push('--extract-audio', '--audio-format', 'mp3', '--audio-quality', '0');
-    } else {
-      args.push('--format', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best');
+    // 플랫폼별 기본 Referer 설정
+    let referer = 'youtube.com';
+    if (url.includes('x.com') || url.includes('twitter.com')) {
+      referer = 'https://x.com/';
+    } else if (url.includes('reddit.com')) {
+      referer = 'https://www.reddit.com/';
+    } else if (url.includes('bilibili.com')) {
+      referer = 'https://www.bilibili.com/';
     }
 
-    logger.debug(`Executing: ${ytDlpPath} ${args.join(' ')}`);
+    // 재시도 로직을 위한 함수
+    const tryDownload = async (retryCount = 0): Promise<void> => {
+      const downloadArgs = [
+        url,
+        '--output', outputTemplate,
+        '--no-check-certificates',
+        '--no-warnings',
+        '--add-header', `referer:${referer}`,
+        '--ffmpeg-location', path.dirname(ffmpegPath),
+        // [추가] 플랫폼별 특화 옵션 적용
+        ...getCommonYtDlpArgs(url)
+      ];
 
-    // 실행 (execa)
-    await execa(ytDlpPath, args);
+      // Twitter/X의 경우 재시도 시 다른 API 옵션 시도
+      if ((url.includes('x.com') || url.includes('twitter.com')) && retryCount > 0) {
+        downloadArgs.push('--extractor-args', 'twitter:api=graph');
+      }
+
+      if (format === 'mp3') {
+        downloadArgs.push('--extract-audio', '--audio-format', 'mp3', '--audio-quality', '0');
+      } else {
+        downloadArgs.push('--format', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best');
+      }
+
+      logger.debug(`Executing: ${ytDlpPath} ${downloadArgs.join(' ')}`);
+
+      try {
+        // 실행 (execa)
+        await execa(ytDlpPath, downloadArgs);
+      } catch (error: any) {
+        // Twitter/X의 경우 404/403 오류 시 재시도
+        if ((url.includes('x.com') || url.includes('twitter.com')) && retryCount < 2) {
+          logger.warn(`Retrying Twitter/X download (attempt ${retryCount + 1}) for ${url}`);
+          await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1))); // 지수 백오프
+          return tryDownload(retryCount + 1);
+        }
+        throw error;
+      }
+    };
+
+    await tryDownload();
 
     return {
       success: true,
