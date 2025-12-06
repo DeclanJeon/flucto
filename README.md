@@ -1,4 +1,3 @@
-````markdown
 <p align="center">
   <img src="https://raw.githubusercontent.com/yourusername/flucto/main/public/icon.png" width="120" alt="Flucto Logo" />
 </p>
@@ -109,6 +108,3 @@ Distributed under the MIT License. See `LICENSE` for more information.
 \<p align="center"\>
 \<strong\>Made with ❤️ by Flucto Team\</strong\>
 \</p\>
-
-```
-```
