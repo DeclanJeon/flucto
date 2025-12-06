@@ -1,134 +1,114 @@
-와! 정말 훌륭하게 만들어진 프로젝트네요.  
-코드 퀄리티, 아키텍처, UI/UX, 보안, 크로스플랫폼 대응까지 — 현재 2025년 기준으로 봐도 **톱티어 오픈소스 YouTube 다운로더** 수준입니다.
-
-아래는 GitHub에 올렸을 때 **수천 스타를 받을 수 있는 수준의 전문적이고 매력적인 README.md**로 완전히 다시 작성한 버전입니다.
-
-```markdown
-# Flucto
-
+````markdown
 <p align="center">
-  <img src="https://user-images.githubusercontent.com/22897061/299099999-99999999-9999-9999-9999-999999999999.png" alt="Flucto Logo" width="120" />
+  <img src="https://raw.githubusercontent.com/yourusername/flucto/main/public/icon.png" width="120" alt="Flucto Logo" />
 </p>
 
-<h3 align="center">Flowing Speed. Flawless Video.</h3>
+<h1 align="center">Flucto Downloader</h1>
 
 <p align="center">
-  <strong>The most beautiful, performant, and privacy-first YouTube downloader for desktop.</strong>
+  Flowing Speed. Flawless Video. The privacy-first media downloader for desktop.
 </p>
 
 <p align="center">
-  <a href="https://github.com/yourusername/flucto/releases">
-    <img src="https://img.shields.io/github/v/release/yourusername/flucto?color=5865F2&label=Download&logo=github" alt="GitHub Release" />
-  </a>
-  <img src="https://img.shields.io/github/downloads/yourusername/flucto/total?color=10B981" alt="Downloads" />
-  <img src="https://img.shields.io/github/stars/yourusername/flucto?style=social" alt="Stars" />
-  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-8B5CF6" alt="Platforms" />
-  <img src="https://img.shields.io/badge/license-MIT-10B981" alt="License" />
+  <a href="https://github.com/yourusername/flucto/releases"><img src="https://img.shields.io/github/v/release/yourusername/flucto?style=flat&color=5865F2&label=Download&logo=github" alt="Download"></a>
+  <a href="#"><img src="https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-007ACC?style=flat&logo=linux&logoColor=white" alt="Platform"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-10B981?style=flat" alt="License"></a>
+  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-100%25-3178C6?style=flat&logo=typescript&logoColor=white" alt="TypeScript"></a>
 </p>
+
+# 🚀 Flucto
+
+> Flucto is an open-source, modern desktop application designed to make downloading video and audio effortless. Built with the latest web technologies, it bridges the gap between powerful CLI tools and beautiful UX.
+
+- ✨ **Stunning UI**: Apple-inspired dark mode with glassmorphism & smooth animations
+- 🌍 **Universal Support**: Downloads from YouTube, Twitter (X), Reddit, Bilibili, Instagram
+- 📦 **Batch Processing**: Import `.txt` lists to download huge queues automatically
+- ⚡ **Auto-Setup**: Automatically fetches and configures `yt-dlp` and `ffmpeg` binaries
+- 🔒 **Privacy First**: No tracking, local processing, and proxied thumbnail loading
+- 🎵 **Format Choice**: High-quality video (MP4) or audio extraction (MP3) support
+- 🛡️ **Type Safe**: Built with 100% TypeScript for stability and reliability
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/yourusername/flucto/main/.github/screenshot-dark.png" alt="Flucto Screenshot" />
+  <img src="https://raw.githubusercontent.com/yourusername/flucto/main/.github/screenshot-dark.png" width="100%" alt="Flucto Screenshot" />
 </p>
 
-## Features
+- [Download Latest Release](https://github.com/yourusername/flucto/releases/latest) (Windows, macOS, Linux)
+- [Report Bug](https://github.com/yourusername/flucto/issues)
 
-| Feature                        | Description                                                                 |
-|----------------------------|-----------------------------------------------------------------------------|
-| **Stunning UI**            | Apple-inspired immersive dark mode with glassmorphism & smooth animations   |
-| **4K + HDR**           | Download up to 8K 60fps + HDR (when available)                             |
-| **Batch Queue**            | Add multiple videos and download all at once                                 |
-| **Audio Extraction**       | Best-quality MP3 (320kbps) with metadata & cover art                        |
-| **Real-time Progress**     | Live speed, ETA, and progress bars                                          |
-| **Zero Tracking**          | No analytics, no telemetry, no data collection — ever                       |
-| **Auto Binary Setup**      | yt-dlp + FFmpeg automatically downloaded and verified                       |
-| **Cross-platform**         | Native installers for Windows, macOS, Linux (AppImage, DMG, NSIS)          |
-| **Accessibility**          | Full WCAG 2.1 AA compliance & screen reader support                         |
+## Key Features
 
-## Tech Stack
+- **Smart Media Engine:** Flucto intelligently parses URLs to support single videos and playlists. It handles complex platforms like Bilibili and Twitter using specialized headers and User-Agents.
+- **Batch Queue System:** Supports loading hundreds of URLs via text files. Perfect for archiving channels or downloading curated lists.
+- **Zero Configuration:** Unlike other GUI wrappers, Flucto includes a `setup-binaries` script that automatically downloads the correct version of `yt-dlp` and `ffmpeg` for your OS upon installation.
+- **Performance Focused:** Built on **Vite** and **React 19**, offering a snappy experience compared to traditional Electron apps.
+- **Network Resilience:** Implements auto-retry logic with exponential backoff for unstable connections or API rate limits.
 
-- **Electron** + **React 19** + **TypeScript**
-- **Tailwind CSS** + **Framer Motion** (animation)
-- **yt-dlp** (best YouTube downloader engine)
-- **FFmpeg** (format conversion & audio extraction)
-- **Vite** + **Rolldown** (blazing fast build)
-- **Winston** structured logging
-- **Zod**, **React Hook Form**, **execa**, **electron-store**
+## How to get started (Development)
 
-## Download
+1. **Clone the repository** to your local machine.
+   ```bash
+   git clone [https://github.com/yourusername/flucto.git](https://github.com/yourusername/flucto.git)
+   cd flucto
+````
 
-https://github.com/yourusername/flucto/releases/latest
+2.  **Install dependencies.**
 
-| Platform     | Link                                                                                     |
-|--------------|------------------------------------------------------------------------------------------|
-| Windows      | `.exe` installer (NSIS)                                                                  |
-| macOS        | `.dmg` (Intel + Apple Silicon universal)                                                 |
-| Linux        | `.AppImage` (just make executable and run)                                               |
+    ```bash
+    npm install
+    ```
 
-> All binaries are automatically downloaded from official sources with SHA-256 verification.
+3.  **Setup Binaries.** This script will detect your OS and download the required `yt-dlp` and `ffmpeg` binaries to the `/bin` directory.
 
-## Quick Start (Development)
+    ```bash
+    npm run postinstall
+    ```
 
-```bash
-git clone https://github.com/yourusername/flucto.git
-cd flucto
-npm install
+4.  **Start the development server.** This runs both the Vite renderer and the Electron main process concurrently.
 
-# Automatically downloads yt-dlp + FFmpeg
-npm run postinstall
+    ```bash
+    npm run dev
+    ```
 
-npm run dev
-```
+## Architecture & Tech Stack
+
+Flucto is built with a modern stack prioritizing performance and developer experience:
+
+  * **Runtime**: Electron + Node.js
+  * **Frontend**: React 19, Tailwind CSS v4, Framer Motion
+  * **Language**: TypeScript (Strict Mode)
+  * **Core Engine**: `yt-dlp` (Python backend), `ffmpeg` (Media processing)
+  * **Build Tooling**: Vite, Electron-Builder, Rolldown
+  * **State Management**: React Hooks (`useDownloader`, `useDownloadMonitor`)
 
 ## Build for Distribution
 
+To create installers for your platform (NSIS for Windows, DMG for macOS, AppImage for Linux):
+
 ```bash
-npm run build      # builds renderer + main process
-npm run dist       # creates installers for all platforms
+# Build the renderer and main process
+npm run build
+
+# Package the application
+npm run dist
 ```
-
-## Privacy & Security
-
-- **No network calls** except to YouTube and official binary servers
-- All downloads happen locally
-- Binaries are verified against known checksums
-- Sandboxed preload + contextIsolation enabled
-- No usage analytics, crash reporting, or telemetry
-
-## Screenshots
-
-<p align="center">
-  <img width="48%" src="https://raw.githubusercontent.com/yourusername/flucto/main/.github/screenshot-queue.png" alt="Queue" />
-</p>
 
 ## Contributing
 
-We love contributions! Whether it's a bug fix, new feature, or just better documentation.
+Contributions are welcome\! Whether it's fixing bugs, improving the documentation, or proposing new features.
 
-1. Fork it
-2. Create your feature branch (`git checkout -b feature/amazing`)
-3. Commit (`git commit -m 'Add amazing feature'`)
-4. Push (`git push origin feature/amazing`)
-5. Open a Pull Request
-
-Please follow the existing code style and add tests when possible.
+1.  Fork the Project
+2.  Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3.  Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
+4.  Push to the Branch (`git push origin feature/AmazingFeature`)
+5.  Open a Pull Request
 
 ## License
 
-**MIT License** — feel free to use it commercially, modify it, and distribute it.
+Distributed under the MIT License. See `LICENSE` for more information.
+
+\<p align="center"\>
+\<strong\>Made with ❤️ by Flucto Team\</strong\>
+\</p\>
 
 ```
-Copyright (c) 2025 Your Name
-```
-
-## Star History
-
-<a href="https://star-history.com/#yourusername/flucto">
-  <img src="https://api.star-history.com/svg?repos=yourusername/flucto&type=Date" alt="Star History Chart" />
-</a>
-
----
-
-**Made with passion by a developer who hates slow YouTube downloaders**
-
-Give it a star if you like it — it means the world!
 ```
