@@ -13,6 +13,53 @@ import { DownloadProgress } from './components/DownloadProgress';
 import { useDownloadMonitor } from './hooks/useDownloadMonitor';
 import type { VideoInfo } from '../../shared/types';
 
+/**
+ * Extract YouTube video ID from various URL formats
+ * Supports: youtube.com/watch?v=ID, youtu.be/ID, youtube.com/embed/ID, etc.
+ */
+const extractYouTubeVideoId = (url: string): string | null => {
+  const patterns = [
+    /youtube\.com\/watch\?v=([^&]+)/,
+    /youtube\.com\/embed\/([^/?]+)/,
+    /youtu\.be\/([^/?]+)/,
+    /youtube\.com\/v\/([^/?]+)/,
+  ];
+
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match) {
+      return match[1];
+    }
+  }
+
+  return null;
+};
+
+/**
+ * Clean and validate YouTube URL
+ * Preserves original URL parameters while ensuring it's a valid YouTube URL
+ */
+const cleanYouTubeUrl = (url: string): string | null => {
+  try {
+    // If it's already a clean YouTube URL, return as-is
+    if (url.includes('youtube.com/watch?v=') || url.includes('youtu.be/')) {
+      return url;
+    }
+
+    // Extract video ID and create a standard URL
+    const videoId = extractYouTubeVideoId(url);
+    if (!videoId) {
+      return null;
+    }
+
+    // Create a clean YouTube URL with the original video ID
+    return `https://www.youtube.com/watch?v=${videoId}`;
+  } catch (error) {
+    console.error('URL parsing error:', error);
+    return null;
+  }
+};
+
 const App: React.FC = () => {
   const [url, setUrl] = useState('');
   const [format, setFormat] = useState<'mp4' | 'mp3'>('mp4');
@@ -25,15 +72,32 @@ const App: React.FC = () => {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const handleAddVideo = async () => {
-    if (!url.trim()) return;
+    const trimmedUrl = url.trim();
+    if (!trimmedUrl) return;
     setIsLoadingInfo(true);
+    setStatusMessage('🔍 Analyzing video URL...');
+    
     try {
-      const info = await window.api.getVideoInfo(url);
-      setVideos((prev) => [...prev, info]);
+      // Clean and validate the URL
+      const cleanUrl = cleanYouTubeUrl(trimmedUrl);
+      if (!cleanUrl) {
+        throw new Error('Invalid YouTube URL. Please check and try again.');
+      }
+      
+      setStatusMessage('📥 Fetching video information...');
+      const info = await window.api.getVideoInfo(cleanUrl);
+      
+      // Store the original URL for downloading
+      setVideos((prev) => [...prev, { ...info, originalUrl: cleanUrl }]);
       setUrl('');
-      setStatusMessage(null);
+      setStatusMessage('✅ Video added to queue successfully!');
+      
+      // Clear success message after 2 seconds
+      setTimeout(() => setStatusMessage(null), 2000);
     } catch (error: any) {
-      setStatusMessage(`❌ ${error.message}`);
+      setStatusMessage(`❌ Error: ${error.message}`);
+      // Clear error message after 3 seconds
+      setTimeout(() => setStatusMessage(null), 3000);
     } finally {
       setIsLoadingInfo(false);
     }
@@ -48,15 +112,23 @@ const App: React.FC = () => {
     if (videos.length === 0) return;
 
     setIsDownloading(true);
-    setStatusMessage('Starting downloads...');
+    setStatusMessage('🚀 Starting downloads...');
 
     try {
-      const urls = videos.map((v) => `https://youtube.com/watch?v=${v.id}`);
+      // Use the original URLs that were stored with the video info
+      const urls = videos.map((v) => v.originalUrl || `https://www.youtube.com/watch?v=${v.id}`);
+      setStatusMessage(`📥 Downloading ${videos.length} video${videos.length > 1 ? 's' : ''}...`);
+      
       await window.api.downloadMultiple(urls, format);
-      setStatusMessage('✅ All downloads completed!');
+      setStatusMessage('✅ All downloads completed successfully!');
       setVideos([]);
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setStatusMessage(null), 3000);
     } catch (error: any) {
       setStatusMessage(`❌ Download failed: ${error.message}`);
+      // Clear error message after 4 seconds
+      setTimeout(() => setStatusMessage(null), 4000);
     } finally {
       setIsDownloading(false);
     }

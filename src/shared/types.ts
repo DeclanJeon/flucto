@@ -25,6 +25,7 @@ export interface VideoInfo {
   duration: number;
   uploader: string;
   view_count?: number;
+  originalUrl?: string; // Store original URL with parameters
 }
 
 /**
