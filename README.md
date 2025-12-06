@@ -1,8 +1,4 @@
-<p align="center">
-  <img src="https://raw.githubusercontent.com/yourusername/flucto/main/public/icon.png" width="120" alt="Flucto Logo" />
-</p>
-
-<h1 align="center">Flucto Downloader</h1>
+# 🚀 Flucto Downloader
 
 <p align="center">
   Flowing Speed. Flawless Video. The privacy-first media downloader for desktop.
@@ -14,8 +10,6 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-10B981?style=flat" alt="License"></a>
   <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-100%25-3178C6?style=flat&logo=typescript&logoColor=white" alt="TypeScript"></a>
 </p>
-
-# 🚀 Flucto
 
 > Flucto is an open-source, modern desktop application designed to make downloading video and audio effortless. Built with the latest web technologies, it bridges the gap between powerful CLI tools and beautiful UX.
 
@@ -46,38 +40,38 @@
 
 1. **Clone the repository** to your local machine.
    ```bash
-   git clone [https://github.com/yourusername/flucto.git](https://github.com/yourusername/flucto.git)
+   git clone https://github.com/yourusername/flucto.git
    cd flucto
-````
+   ```
 
-2.  **Install dependencies.**
+2. **Install dependencies**
 
-    ```bash
-    npm install
-    ```
+   ```bash
+   npm install
+   ```
 
-3.  **Setup Binaries.** This script will detect your OS and download the required `yt-dlp` and `ffmpeg` binaries to the `/bin` directory.
+3. **Setup Binaries** - This script will detect your OS and download the required `yt-dlp` and `ffmpeg` binaries to the `/bin` directory.
 
-    ```bash
-    npm run postinstall
-    ```
+   ```bash
+   npm run postinstall
+   ```
 
-4.  **Start the development server.** This runs both the Vite renderer and the Electron main process concurrently.
+4. **Start the development server** - This runs both the Vite renderer and the Electron main process concurrently.
 
-    ```bash
-    npm run dev
-    ```
+   ```bash
+   npm run dev
+   ```
 
 ## Architecture & Tech Stack
 
 Flucto is built with a modern stack prioritizing performance and developer experience:
 
-  * **Runtime**: Electron + Node.js
-  * **Frontend**: React 19, Tailwind CSS v4, Framer Motion
-  * **Language**: TypeScript (Strict Mode)
-  * **Core Engine**: `yt-dlp` (Python backend), `ffmpeg` (Media processing)
-  * **Build Tooling**: Vite, Electron-Builder, Rolldown
-  * **State Management**: React Hooks (`useDownloader`, `useDownloadMonitor`)
+- **Runtime**: Electron + Node.js
+- **Frontend**: React 19, Tailwind CSS v4, Framer Motion
+- **Language**: TypeScript (Strict Mode)
+- **Core Engine**: `yt-dlp` (Python backend), `ffmpeg` (Media processing)
+- **Build Tooling**: Vite, Electron-Builder, Rolldown
+- **State Management**: React Hooks (`useDownloader`, `useDownloadMonitor`)
 
 ## Build for Distribution
 
@@ -93,18 +87,18 @@ npm run dist
 
 ## Contributing
 
-Contributions are welcome\! Whether it's fixing bugs, improving the documentation, or proposing new features.
+Contributions are welcome! Whether it's fixing bugs, improving the documentation, or proposing new features.
 
-1.  Fork the Project
-2.  Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3.  Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4.  Push to the Branch (`git push origin feature/AmazingFeature`)
-5.  Open a Pull Request
+1. Fork the Project
+2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the Branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
 ## License
 
 Distributed under the MIT License. See `LICENSE` for more information.
 
-\<p align="center"\>
-\<strong\>Made with ❤️ by Flucto Team\</strong\>
-\</p\>
+<p align="center">
+<strong>Made with ❤️ by Flucto Team</strong>
+</p>
