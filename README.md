@@ -22,10 +22,9 @@
 - 🛡️ **Type Safe**: Built with 100% TypeScript for stability and reliability
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/yourusername/flucto/main/.github/screenshot-dark.png" width="100%" alt="Flucto Screenshot" />
+  <img src="https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExMmZiM2g1MmJiZHk0am8xcXkxMXBrb3I2OWxrMXJ2a3BuczAxN3NwbSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/arv0uz1yGEtdL8Xkqq/giphy.gif" width="100%" alt="Flucto Screenshot" />
 </p>
 
-- [Download Latest Release](https://github.com/yourusername/flucto/releases/latest) (Windows, macOS, Linux)
 - [Report Bug](https://github.com/yourusername/flucto/issues)
 
 ## Key Features
