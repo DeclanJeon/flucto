@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { execa } from 'execa';
 import { getBinaryPath, checkSystemHealth } from './utils.js';
@@ -77,31 +78,64 @@ app.on('window-all-closed', () => {
 
 // --- IPC Handlers ---
 
-// 1. Get Playlist Info Handler
+// 1. Get Playlist Info Handler [최종 수정]
 ipcMain.handle('get-playlist-info', async (_event, url: string) => {
   const ytDlpPath = getBinaryPath('yt-dlp');
   
   try {
-    const { stdout } = await execa(ytDlpPath, [
+    logger.info(`Fetching playlist info for: ${url}`);
+
+    // [보완 1] { reject: false } 추가: 일부 영상 다운 불가 에러로 인해 전체 프로세스가 멈추지 않도록 함
+    const result = await execa(ytDlpPath, [
       url,
       '--flat-playlist',
       '--dump-json',
       '--no-warnings',
-    ]);
+      '--skip-download',
+      '--ignore-errors',
+      '--compat-options', 'no-youtube-unavailable-videos' // [보완 2] 삭제된 동영상 정보 제외
+    ], { reject: false }); // <-- 중요: 에러가 발생해도 멈추지 않고 결과 반환
+
+    // stdout이 아예 비어있으면 진짜 에러
+    if (result.failed && !result.stdout.trim()) {
+      throw new Error(result.stderr || 'Failed to fetch playlist info (No output)');
+    }
     
-    const playlistData = JSON.parse(stdout);
-    return playlistData.map((item: any) => ({
+    const playlistItems = result.stdout
+      .split(/\r?\n/) // [보완 3] 윈도우(\r\n)와 리눅스(\n) 줄바꿈 모두 대응하는 정규식 사용
+      .filter((line) => line.trim() !== '')
+      .map((line) => {
+        try {
+          return JSON.parse(line);
+        } catch (e) {
+          // 파싱 실패한 줄은 경고 로그만 남기고 무시
+          logger.warn('Skipping invalid JSON line', { error: e });
+          return null;
+        }
+      })
+      .filter((item) => {
+        // [보완 4] 유효한 비디오 아이템인지 검증 (플레이리스트 자체 메타데이터 제외)
+        return item !== null && item.id && item._type !== 'playlist';
+      });
+
+    if (playlistItems.length === 0) {
+      logger.warn('Playlist is empty or all items were filtered out', { url });
+    }
+
+    return playlistItems.map((item: any) => ({
       id: item.id,
-      title: item.title,
-      thumbnail: item.thumbnail,
-      duration: item.duration,
-      uploader: item.uploader || item.channel,
-      view_count: item.view_count,
-      originalUrl: item.webpage_url || `https://www.youtube.com/watch?v=${item.id}`,
+      title: item.title || 'Untitled Video',
+      // flat-playlist 모드에서는 썸네일 배열이 없을 수도 있음
+      thumbnail: item.thumbnails ? item.thumbnails[item.thumbnails.length - 1]?.url : null,
+      duration: item.duration || 0,
+      uploader: item.uploader || item.channel || 'Unknown',
+      view_count: item.view_count || 0,
+      originalUrl: item.url || `https://www.youtube.com/watch?v=${item.id}`,
     }));
+
   } catch (error: any) {
-    logger.error('Get Playlist Info Error:', { url, error: error.message });
-    throw new Error('Failed to fetch playlist info');
+    logger.error('Get Playlist Info Error:', { url, error: error.message, stderr: error.stderr });
+    throw new Error(`Failed to fetch playlist info: ${error.message}`);
   }
 });
 
@@ -239,7 +273,43 @@ ipcMain.handle('download-video', async (_event, args: DownloadRequest) => {
   }
 });
 
-// 2. Open Folder Handler
+// 4. Read Batch File Handler
+ipcMain.handle('read-batch-file', async () => {
+  if (!mainWindow) return null;
+
+  const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+    title: 'Select Batch File (URL List)',
+    properties: ['openFile'],
+    filters: [{ name: 'Text Files', extensions: ['txt', 'list'] }],
+  });
+
+  if (canceled || filePaths.length === 0) {
+    return null;
+  }
+
+  try {
+    const content = fs.readFileSync(filePaths[0], 'utf-8');
+    
+    // yt-dlp --batch-file 규칙에 따른 파싱
+    const urls = content
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => {
+        // 빈 줄 제거
+        if (!line) return false;
+        // 주석 제거 (#, ;, ])
+        const firstChar = line.charAt(0);
+        return !['#', ';', ']'].includes(firstChar);
+      });
+
+    return urls;
+  } catch (error: any) {
+    logger.error('Batch File Read Error:', { error: error.message });
+    throw new Error('Failed to read batch file');
+  }
+});
+
+// 5. Open Folder Handler
 ipcMain.handle('open-downloads-folder', async () => {
   await shell.openPath(config.paths.downloads);
 });

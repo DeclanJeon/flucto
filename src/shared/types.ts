@@ -50,6 +50,8 @@ export interface IElectronAPI {
   getPlaylistInfo: (url: string) => Promise<VideoInfo[]>;
   openDownloadsFolder: () => Promise<void>;
   onDownloadProgress: (callback: (progress: DownloadProgress) => void) => void;
+  // [추가] 배치 파일 읽기 API
+  readBatchFile: () => Promise<string[] | null>;
 }
 
 // Global window extension
