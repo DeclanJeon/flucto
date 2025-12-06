@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react'; // useState 추가
 import { motion } from 'framer-motion';
-import { Clock, Eye, User, X } from 'lucide-react';
+import { Clock, Eye, User, X, ImageOff } from 'lucide-react'; // ImageOff 아이콘 추가
 import type { VideoInfo } from '../../../shared/types';
 
 interface VideoPreviewProps {
@@ -8,7 +8,24 @@ interface VideoPreviewProps {
   onRemove: () => void;
 }
 
+// [추가] 이미지 로딩 차단 우회(CORS Bypass)를 위한 프록시 URL 생성기
+const getProxiedImageUrl = (url: string) => {
+  if (!url) return '';
+  
+  // 이미 wsrv.nl을 쓰고 있거나 로컬 파일이면 그대로 반환
+  if (url.startsWith('https://wsrv.nl') || url.startsWith('file://')) return url;
+
+  // 유튜브는 구글 서버가 잘 처리해주므로 프록시 불필요 (속도 최적화)
+  if (url.includes('ytimg.com') || url.includes('youtube.com')) return url;
+
+  // 인스타그램, 트위터, 틱톡, Bilibili 등은 프록시 필수
+  // wsrv.nl은 오픈소스 이미지 캐싱 서비스입니다.
+  return `https://wsrv.nl/?url=${encodeURIComponent(url)}&w=400&h=225&fit=cover&a=top`;
+};
+
 export const VideoPreview: React.FC<VideoPreviewProps> = ({ info, onRemove }) => {
+  const [imgError, setImgError] = useState(false); // 이미지 로드 실패 상태 관리
+
   // 숫자 포맷팅 유틸리티
   const formatViews = (views?: number) => {
     if (!views) return 'N/A';
@@ -34,12 +51,24 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({ info, onRemove }) =>
       className="group relative bg-gray-800/40 backdrop-blur-md border border-white/10 rounded-2xl overflow-hidden hover:border-white/20 transition-colors"
     >
       {/* 썸네일 영역 */}
-      <div className="relative aspect-video">
-        <img 
-          src={info.thumbnail} 
-          alt={info.title} 
-          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-        />
+      <div className="relative aspect-video bg-gray-900 flex items-center justify-center">
+        {!imgError && info.thumbnail ? (
+          <img 
+            src={getProxiedImageUrl(info.thumbnail)} 
+            alt={info.title} 
+            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            onError={() => setImgError(true)} // 로딩 실패 시 에러 상태로 전환
+            loading="lazy"
+          />
+        ) : (
+          // 썸네일이 없거나 로드 실패 시 보여줄 Fallback UI
+          <div className="flex flex-col items-center text-gray-600 gap-1">
+            <ImageOff size={24} />
+            <span className="text-[10px] font-medium">No Preview</span>
+          </div>
+        )}
+        
+        {/* 그라데이션 및 뱃지 */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60" />
         <span className="absolute bottom-2 right-2 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded font-medium">
           {formatDuration(info.duration)}

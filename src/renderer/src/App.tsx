@@ -8,43 +8,51 @@ import {
   Settings2,
   Youtube,
   FileText,
-  ListVideo
+  ListVideo,
+  Globe, // 범용 아이콘 추가
+  Grid3X3,
+  List
 } from 'lucide-react';
 import { VideoPreview } from './components/VideoPreview';
+import { VideoPreviewList } from './components/VideoPreviewList';
 import { DownloadProgress } from './components/DownloadProgress';
 import { useDownloadMonitor } from './hooks/useDownloadMonitor';
 import type { VideoInfo } from '../../shared/types';
 
-// ... (extractYouTubeVideoId, cleanYouTubeUrl 함수는 기존 코드 유지) ...
-const extractYouTubeVideoId = (url: string): string | null => {
-  const patterns = [
-    /youtube\.com\/watch\?v=([^&]+)/,
-    /youtube\.com\/embed\/([^/?]+)/,
-    /youtu\.be\/([^/?]+)/,
-    /youtube\.com\/v\/([^/?]+)/,
-  ];
-  for (const pattern of patterns) {
-    const match = url.match(pattern);
-    if (match) return match[1];
-  }
-  return null;
-};
-
-const cleanYouTubeUrl = (url: string): string | null => {
+// [수정] 범용 URL 클리너 (YouTube ID 추출 로직 제거 및 범용화)
+const cleanMediaUrl = (url: string): string | null => {
   try {
-    if (url.includes('youtube.com/watch?v=') || url.includes('youtu.be/')) return url;
-    const videoId = extractYouTubeVideoId(url);
-    if (!videoId) return null;
-    return `https://www.youtube.com/watch?v=${videoId}`;
+    const trimmed = url.trim();
+    if (!trimmed) return null;
+    
+    // 기본적으로 http/https로 시작하는지 확인
+    if (!trimmed.startsWith('http')) {
+        return `https://${trimmed}`;
+    }
+    return trimmed;
   } catch (error) {
     return null;
   }
+};
+
+// [수정] 플랫폼 아이콘 도우미 (TikTok 제거, Reddit/Bilibili 추가)
+const getPlatformIcon = (url: string) => {
+    if (url.includes('youtube') || url.includes('youtu.be')) return <Youtube size={18} className="text-red-500" />;
+    if (url.includes('twitter') || url.includes('x.com')) return <span className="text-white font-bold text-xs">𝕏</span>;
+    if (url.includes('instagram')) return <span className="text-purple-500 font-bold text-xs">IG</span>;
+    // [추가] Reddit
+    if (url.includes('reddit.com') || url.includes('redd.it')) return <span className="text-orange-500 font-bold text-xs">Reddit</span>;
+    // [추가] Bilibili
+    if (url.includes('bilibili.com')) return <span className="text-sky-400 font-bold text-xs">Bili</span>;
+    
+    return <Globe size={18} className="text-blue-400" />;
 };
 
 const App: React.FC = () => {
   const [url, setUrl] = useState('');
   const [format, setFormat] = useState<'mp4' | 'mp3'>('mp4');
   const [videos, setVideos] = useState<VideoInfo[]>([]);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('list'); // 뷰어 모드 상태 추가 (기본값: 리스트)
   
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -53,51 +61,41 @@ const App: React.FC = () => {
   const downloadProgress = useDownloadMonitor();
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
-  // [수정] 단일/플레이리스트 URL 처리 로직 분리 (재사용을 위해 함수화)
+  // [수정] URL 처리 로직 (YouTube Playlist 감지 로직만 유지하고 나머지는 범용 처리)
   const processUrl = async (rawUrl: string): Promise<VideoInfo[]> => {
-    // 1. URL이 유효한지 1차 검증 (플레이리스트는 video ID가 없을 수도 있으므로 list= 체크)
-    const isPlaylist = rawUrl.includes('list=');
-    const cleanUrl = isPlaylist ? rawUrl : cleanYouTubeUrl(rawUrl);
-
+    const cleanUrl = cleanMediaUrl(rawUrl);
     if (!cleanUrl) throw new Error('Invalid URL');
 
-    // 2. 플레이리스트인 경우
-    if (isPlaylist) {
-      // --flat-playlist 옵션을 사용하여 영상 목록만 빠르게 가져옴
+    // YouTube Playlist만 특별 취급 (list 파라미터 확인)
+    const isYoutubePlaylist = (cleanUrl.includes('youtube.com') || cleanUrl.includes('youtu.be')) && cleanUrl.includes('list=');
+
+    if (isYoutubePlaylist) {
       const playlistItems = await window.api.getPlaylistInfo(cleanUrl);
-      return playlistItems; // 배열 반환
-    } 
-    // 3. 단일 영상인 경우
-    else {
+      return playlistItems;
+    } else {
+      // 그 외 모든 URL(Twitter, TikTok, Instagram, YouTube Single)은 단일 처리 시도
       const videoInfo = await window.api.getVideoInfo(cleanUrl);
-      return [{ ...videoInfo, originalUrl: cleanUrl }]; // 배열로 감싸서 반환
+      return [{ ...videoInfo, originalUrl: cleanUrl }];
     }
   };
 
-  // [수정] URL 직접 추가 핸들러
   const handleAddVideo = async () => {
     const trimmedUrl = url.trim();
     if (!trimmedUrl) return;
 
     setIsAnalyzing(true);
-    setStatusMessage('🔍 Analyzing URL...');
+    setStatusMessage('🔍 Analyzing Media URL...');
     
     try {
       const newVideos = await processUrl(trimmedUrl);
       
       setVideos((prev) => {
-        // 중복 제거 (기존 리스트에 없는 영상만 추가)
         const existingIds = new Set(prev.map(v => v.id));
         const uniqueNewVideos = newVideos.filter(v => !existingIds.has(v.id));
         return [...prev, ...uniqueNewVideos];
       });
 
-      if (newVideos.length > 1) {
-        setStatusMessage(`✅ Playlist loaded: ${newVideos.length} videos added!`);
-      } else {
-        setStatusMessage('✅ Video added to list!');
-      }
-      
+      setStatusMessage(`✅ Added ${newVideos.length} media item(s)!`);
       setUrl('');
       setTimeout(() => setStatusMessage(null), 2000);
     } catch (error: any) {
@@ -108,7 +106,6 @@ const App: React.FC = () => {
     }
   };
 
-  // [수정] 배치 파일 로드 핸들러 (플레이리스트 확장 기능 적용)
   const handleBatchFile = async () => {
     try {
       const urls = await window.api.readBatchFile();
@@ -125,27 +122,21 @@ const App: React.FC = () => {
         setBatchProgress({ current: i + 1, total: urls.length });
 
         try {
-          // 위에서 만든 processUrl 재사용 (플레이리스트면 펼쳐서 가져옴)
           const newVideos = await processUrl(rawUrl);
-
           setVideos(prev => {
             const existingIds = new Set(prev.map(v => v.id));
             const uniqueNewVideos = newVideos.filter(v => !existingIds.has(v.id));
-            totalAdded += uniqueNewVideos.length; // 실제로 추가된 개수 누적
+            totalAdded += uniqueNewVideos.length;
             return [...prev, ...uniqueNewVideos];
           });
-
         } catch (e) {
           console.error(`Failed to load ${rawUrl}`, e);
           failCount++;
         }
       }
-
       setBatchProgress(null);
-      // 메시지: "3개의 링크 처리 완료 (총 150개 영상 추가됨)"
-      setStatusMessage(`✅ Batch complete: ${totalAdded} videos added from ${urls.length} links.`);
+      setStatusMessage(`✅ Batch complete: ${totalAdded} items added.`);
       setTimeout(() => setStatusMessage(null), 4000);
-
     } catch (error: any) {
       setBatchProgress(null);
       setStatusMessage(`❌ Batch File Error: ${error.message}`);
@@ -165,6 +156,7 @@ const App: React.FC = () => {
     setStatusMessage('🚀 Initializing downloads...');
 
     try {
+      // id가 없는 경우(일부 사이트) 대비 안전장치
       const downloadUrls = videos.map((v) => v.originalUrl || `https://www.youtube.com/watch?v=${v.id}`);
       await window.api.downloadMultiple(downloadUrls, format);
       setStatusMessage('✅ All downloads started!');
@@ -185,8 +177,9 @@ const App: React.FC = () => {
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 px-6 py-4 flex items-center justify-between bg-[#0d0d0d]/80 backdrop-blur-md border-b border-white/5">
         <div className="flex items-center gap-2">
-          <div className="bg-gradient-to-br from-blue-600 to-purple-600 p-1.5 rounded-lg">
-            <Youtube size={18} className="text-white" />
+          {/* 로고 영역 살짝 수정 */}
+          <div className="bg-gradient-to-br from-blue-600 to-purple-600 p-1.5 rounded-lg flex items-center justify-center">
+            <Globe size={18} className="text-white" />
           </div>
           <span className="font-bold text-lg tracking-tight">Flucto</span>
         </div>
@@ -210,14 +203,17 @@ const App: React.FC = () => {
           className="text-center mb-12 space-y-4"
         >
           <h2 className="text-blue-500 font-semibold tracking-wide text-sm uppercase">
-            YouTube Downloader
+            Universal Media Downloader
           </h2>
           <h1 className="text-5xl md:text-7xl font-bold tracking-tight text-white leading-[1.1]">
-            Flowing Speed.<br />
+            Any Platform.<br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-gray-200 to-gray-500">
-              Flawless Video.
+              One Downloader.
             </span>
           </h1>
+          <p className="text-gray-500 text-sm mt-2">
+            Support for YouTube, Twitter (X), Reddit, Bilibili & Instagram
+          </p>
         </motion.div>
 
         {/* Input Section */}
@@ -234,7 +230,7 @@ const App: React.FC = () => {
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleAddVideo()}
-                  placeholder="Paste YouTube Video or Playlist URL"
+                  placeholder="Paste URL (YouTube, Reddit, Bilibili, X...)"
                   className="w-full bg-[#1c1c1e] text-lg text-white placeholder-gray-500 px-6 py-4 rounded-full border border-white/10 focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/20 outline-none transition-all shadow-2xl disabled:opacity-50"
                   disabled={isLoading || isDownloading}
                 />
@@ -251,7 +247,7 @@ const App: React.FC = () => {
             <button
                 onClick={handleBatchFile}
                 disabled={isLoading || isDownloading}
-                title="Load playlists.txt"
+                title="Load URL list (.txt)"
                 className="bg-[#1c1c1e] border border-white/10 text-gray-400 hover:text-white hover:border-white/30 rounded-full w-14 h-auto flex items-center justify-center transition-all active:scale-95 disabled:opacity-50"
             >
                 {batchProgress ? <Loader2 className="animate-spin text-blue-500" /> : <FileText size={20} />}
@@ -293,11 +289,39 @@ const App: React.FC = () => {
                 className="space-y-8"
               >
                 <div className="flex items-center justify-between px-2">
-                  <div className="flex items-center gap-2">
-                    <ListVideo className="text-blue-500" size={24} />
-                    <h3 className="text-xl font-semibold text-white">
-                      Download List <span className="text-gray-500 text-lg font-normal ml-1">({videos.length})</span>
-                    </h3>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <ListVideo className="text-blue-500" size={24} />
+                      <h3 className="text-xl font-semibold text-white">
+                        Download List <span className="text-gray-500 text-lg font-normal ml-1">({videos.length})</span>
+                      </h3>
+                    </div>
+                    
+                    {/* 뷰어 모드 전환 버튼 */}
+                    <div className="bg-[#1c1c1e] p-1 rounded-full border border-white/10 flex items-center">
+                      <button
+                        onClick={() => setViewMode('grid')}
+                        className={`p-2 rounded-full transition-all ${
+                          viewMode === 'grid'
+                            ? 'bg-gray-700 text-white shadow-sm'
+                            : 'text-gray-400 hover:text-white'
+                        }`}
+                        title="Grid View"
+                      >
+                        <Grid3X3 size={16} />
+                      </button>
+                      <button
+                        onClick={() => setViewMode('list')}
+                        className={`p-2 rounded-full transition-all ${
+                          viewMode === 'list'
+                            ? 'bg-gray-700 text-white shadow-sm'
+                            : 'text-gray-400 hover:text-white'
+                        }`}
+                        title="List View"
+                      >
+                        <List size={16} />
+                      </button>
+                    </div>
                   </div>
                   
                   <button
@@ -319,17 +343,42 @@ const App: React.FC = () => {
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <AnimatePresence>
-                    {videos.map((video, index) => (
-                      <VideoPreview
-                        key={video.id}
-                        info={video}
-                        onRemove={() => handleRemoveVideo(index)}
-                      />
-                    ))}
-                  </AnimatePresence>
-                </div>
+                {/* 뷰어 모드에 따른 렌더링 */}
+                {viewMode === 'grid' ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <AnimatePresence>
+                      {videos.map((video, index) => (
+                        <div key={`${video.id}-${index}`} className="relative group">
+                          {/* 플랫폼 아이콘 뱃지 */}
+                          <div className="absolute top-3 left-3 z-10 bg-black/60 backdrop-blur-sm p-1.5 rounded-md border border-white/10">
+                              {getPlatformIcon(video.originalUrl || '')}
+                          </div>
+                          <VideoPreview
+                              info={video}
+                              onRemove={() => handleRemoveVideo(index)}
+                          />
+                        </div>
+                      ))}
+                    </AnimatePresence>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <AnimatePresence>
+                      {videos.map((video, index) => (
+                        <div key={`${video.id}-${index}`} className="relative group">
+                          <VideoPreviewList
+                              info={video}
+                              onRemove={() => handleRemoveVideo(index)}
+                          />
+                          {/* 플랫폼 아이콘 뱃지 */}
+                          <div className="absolute top-3 left-3 z-10 bg-black/60 backdrop-blur-sm p-1.5 rounded-md border border-white/10">
+                              {getPlatformIcon(video.originalUrl || '')}
+                          </div>
+                        </div>
+                      ))}
+                    </AnimatePresence>
+                  </div>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
@@ -346,12 +395,10 @@ const App: React.FC = () => {
             className="fixed bottom-0 left-0 right-0 bg-[#1c1c1e]/90 backdrop-blur-xl border-t border-white/10 p-4 z-50"
           >
             <div className="max-w-3xl mx-auto space-y-3">
-              
-              {/* Batch Processing Status */}
               {batchProgress && (
                 <div className="space-y-2">
                   <div className="flex justify-between text-xs font-medium text-blue-400">
-                    <span>Analyzing Playlists & URLs...</span>
+                    <span>Analyzing URLs...</span>
                     <span>{Math.round((batchProgress.current / batchProgress.total) * 100)}%</span>
                   </div>
                   <div className="w-full bg-gray-700/50 rounded-full h-1.5 overflow-hidden">
@@ -368,14 +415,12 @@ const App: React.FC = () => {
                 </div>
               )}
 
-              {/* Status Message */}
               {statusMessage && !batchProgress && (
                 <div className="text-center text-sm font-medium text-gray-300 animate-pulse">
                   {statusMessage}
                 </div>
               )}
 
-              {/* Download Progress List */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-32 overflow-y-auto custom-scrollbar">
                  {Object.values(downloadProgress).map((progress) => (
                     <DownloadProgress key={progress.url} progress={progress} />

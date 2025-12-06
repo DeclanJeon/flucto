@@ -78,6 +78,39 @@ app.on('window-all-closed', () => {
 
 // --- IPC Handlers ---
 
+// [수정] 공통 옵션 생성기 (에러를 유발하는 impersonate 제거)
+const getCommonYtDlpArgs = (url: string) => {
+  const args: string[] = [];
+  
+  // Instagram, Facebook 등은 모바일 User-Agent를 사용하면 더 잘 작동하는 경우가 있음
+  // --impersonate 옵션은 바이너리 지원 여부에 따라 크래시가 발생하므로 제거하고
+  // 표준 User-Agent 헤더로 대체합니다.
+  if (url.includes('instagram.com') || url.includes('facebook.com')) {
+    args.push('--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+  }
+
+  return args;
+};
+
+// [추가] 최적의 썸네일 추출 헬퍼 함수
+const extractBestThumbnail = (info: any): string | null => {
+  // 1. 최우선: thumbnail 필드에 유효한 URL이 있는 경우
+  if (info.thumbnail && typeof info.thumbnail === 'string' && info.thumbnail.startsWith('http')) {
+    return info.thumbnail;
+  }
+
+  // 2. 차선: thumbnails 배열이 있는 경우 가장 마지막 항목(통상적으로 고화질) 선택
+  if (info.thumbnails && Array.isArray(info.thumbnails) && info.thumbnails.length > 0) {
+    // url 필드가 있는 마지막 아이템을 찾음
+    const validItems = info.thumbnails.filter((t: any) => t.url && typeof t.url === 'string');
+    if (validItems.length > 0) {
+      return validItems[validItems.length - 1].url;
+    }
+  }
+
+  return null;
+};
+
 // 1. Get Playlist Info Handler [최종 수정]
 ipcMain.handle('get-playlist-info', async (_event, url: string) => {
   const ytDlpPath = getBinaryPath('yt-dlp');
@@ -93,7 +126,8 @@ ipcMain.handle('get-playlist-info', async (_event, url: string) => {
       '--no-warnings',
       '--skip-download',
       '--ignore-errors',
-      '--compat-options', 'no-youtube-unavailable-videos' // [보완 2] 삭제된 동영상 정보 제외
+      '--compat-options', 'no-youtube-unavailable-videos', // [보완 2] 삭제된 동영상 정보 제외
+      ...getCommonYtDlpArgs(url) // [추가] 브라우저 임퍼스네이션 적용
     ], { reject: false }); // <-- 중요: 에러가 발생해도 멈추지 않고 결과 반환
 
     // stdout이 아예 비어있으면 진짜 에러
@@ -125,8 +159,8 @@ ipcMain.handle('get-playlist-info', async (_event, url: string) => {
     return playlistItems.map((item: any) => ({
       id: item.id,
       title: item.title || 'Untitled Video',
-      // flat-playlist 모드에서는 썸네일 배열이 없을 수도 있음
-      thumbnail: item.thumbnails ? item.thumbnails[item.thumbnails.length - 1]?.url : null,
+      // [수정] 썸네일 추출 로직 강화
+      thumbnail: extractBestThumbnail(item),
       duration: item.duration || 0,
       uploader: item.uploader || item.channel || 'Unknown',
       view_count: item.view_count || 0,
@@ -139,30 +173,69 @@ ipcMain.handle('get-playlist-info', async (_event, url: string) => {
   }
 });
 
-// 2. Get Video Info Handler
+// 2. Get Video Info Handler [수정됨: SNS 지원 및 에러 방지 강화]
 ipcMain.handle('get-video-info', async (_event, url: string) => {
   const ytDlpPath = getBinaryPath('yt-dlp');
   
   try {
-    const { stdout } = await execa(ytDlpPath, [
+    logger.info(`Fetching video info for: ${url}`);
+
+    // 기본 인자 설정
+    const args = [
       url,
       '--dump-json',
       '--no-warnings',
-      '--no-playlist', // Don't download entire playlist, just get info for the video
-    ]);
-    
-    const info = JSON.parse(stdout);
+      '--no-playlist', // 단일 영상 정보만 요청
+      '--ignore-errors', // 에러 무시 (삭제된 트윗 등)
+      '--compat-options', 'no-youtube-unavailable-videos',
+      // [추가] 브라우저 임퍼스네이션 적용
+      ...getCommonYtDlpArgs(url)
+    ];
+
+    // { reject: false }로 실행 (경고 무시)
+    const result = await execa(ytDlpPath, args, { reject: false });
+
+    // 결과값이 아예 없으면 에러
+    if (result.failed && !result.stdout.trim()) {
+      throw new Error(result.stderr || 'No output from yt-dlp');
+    }
+
+    // [핵심] JSON 파싱 로직 강화 (Warning 메시지가 섞여 있어도 동작하도록)
+    // stdout을 줄바꿈으로 나누고, 유효한 JSON 객체 중 마지막 것을 사용 (보통 마지막 줄이 실제 데이터)
+    const lines = result.stdout.split(/\r?\n/).filter(line => line.trim() !== '');
+    let info: any = null;
+
+    // 뒤에서부터 탐색하여 가장 먼저 발견되는 유효한 JSON을 채택
+    for (let i = lines.length - 1; i >= 0; i--) {
+      try {
+        const parsed = JSON.parse(lines[i]);
+        // 유효한 메타데이터인지 확인 (id나 title이 있어야 함)
+        if (parsed.id || parsed.title) {
+          info = parsed;
+          break;
+        }
+      } catch (e) {
+        continue; // JSON이 아니면(경고 메시지 등) 무시
+      }
+    }
+
+    if (!info) {
+      throw new Error('Could not parse video metadata from yt-dlp output');
+    }
+
+    // SNS별 메타데이터 필드 정규화
     return {
       id: info.id,
-      title: info.title,
-      thumbnail: info.thumbnail,
-      duration: info.duration,
-      uploader: info.uploader,
-      view_count: info.view_count,
+      title: info.title || info.description?.slice(0, 50) || 'Untitled Media', // 트위터/인스타는 제목이 없을 수 있음
+      // [수정] 썸네일 추출 로직 강화
+      thumbnail: extractBestThumbnail(info),
+      duration: info.duration || 0,
+      uploader: info.uploader || info.uploader_id || 'Unknown',
+      view_count: info.view_count || info.like_count || 0, // 뷰 카운트 없으면 좋아요 수로 대체
     };
   } catch (error: any) {
     logger.error('Get Info Error:', { url, error: error.message });
-    throw new Error('Failed to fetch video info');
+    throw new Error(`Failed to fetch video info: ${error.message}`);
   }
 });
 
@@ -176,6 +249,7 @@ ipcMain.handle('download-multiple', async (event, { urls, format }: { urls: stri
     try {
       event.sender.send('download-progress', { url, status: 'downloading', progress: 0 });
 
+      // 다운로드 인자 구성
       const args = [
         url,
         '--output', outputTemplate,
@@ -187,6 +261,8 @@ ipcMain.handle('download-multiple', async (event, { urls, format }: { urls: stri
         '--ffmpeg-location', path.dirname(ffmpegPath),
         '--yes-playlist', // Download entire playlist if URL contains playlist
         '--flat-playlist', // Download all videos from playlist
+        // [추가] 브라우저 임퍼스네이션 적용
+        ...getCommonYtDlpArgs(url)
       ];
 
       if (format === 'mp3') {
@@ -249,6 +325,8 @@ ipcMain.handle('download-video', async (_event, args: DownloadRequest) => {
       '--add-header', 'referer:youtube.com',
       '--add-header', 'user-agent:googlebot',
       '--ffmpeg-location', path.dirname(ffmpegPath),
+      // [추가] 브라우저 임퍼스네이션 적용
+      ...getCommonYtDlpArgs(url)
     ];
 
     if (format === 'mp3') {
