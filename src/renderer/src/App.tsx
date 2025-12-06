@@ -84,16 +84,22 @@ const App: React.FC = () => {
         throw new Error('Invalid YouTube URL. Please check and try again.');
       }
       
+      // Check if this is a playlist URL
+      const isPlaylist = trimmedUrl.includes('list=');
+      if (isPlaylist) {
+        setStatusMessage('⚠️ Playlist detected! Only the first video will be added to queue.');
+      }
+      
       setStatusMessage('📥 Fetching video information...');
       const info = await window.api.getVideoInfo(cleanUrl);
       
       // Store the original URL for downloading
       setVideos((prev) => [...prev, { ...info, originalUrl: cleanUrl }]);
       setUrl('');
-      setStatusMessage('✅ Video added to queue successfully!');
+      setStatusMessage(isPlaylist ? '✅ First video from playlist added to queue!' : '✅ Video added to queue successfully!');
       
-      // Clear success message after 2 seconds
-      setTimeout(() => setStatusMessage(null), 2000);
+      // Clear success message after 3 seconds for playlist, 2 seconds for single video
+      setTimeout(() => setStatusMessage(null), isPlaylist ? 3000 : 2000);
     } catch (error: any) {
       setStatusMessage(`❌ Error: ${error.message}`);
       // Clear error message after 3 seconds

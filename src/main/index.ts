@@ -86,6 +86,7 @@ ipcMain.handle('get-video-info', async (_event, url: string) => {
       url,
       '--dump-json',
       '--no-warnings',
+      '--no-playlist', // Don't download entire playlist, just get info for the video
     ]);
     
     const info = JSON.parse(stdout);
@@ -122,6 +123,7 @@ ipcMain.handle('download-multiple', async (event, { urls, format }: { urls: stri
         '--add-header', 'referer:youtube.com',
         '--add-header', 'user-agent:googlebot',
         '--ffmpeg-location', path.dirname(ffmpegPath),
+        '--yes-playlist', // Download entire playlist if URL contains playlist
       ];
 
       if (format === 'mp3') {
