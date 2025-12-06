@@ -165,3 +165,5 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+.github
