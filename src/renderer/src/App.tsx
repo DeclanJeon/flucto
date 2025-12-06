@@ -93,10 +93,17 @@ const App: React.FC = () => {
       
       if (isPlaylist) {
         setStatusMessage('📋 Fetching playlist information...');
+        // Temporarily disable playlist feature due to build issue
         // Get all videos from playlist
-        const playlistVideos = await window.api.getPlaylistInfo(cleanUrl);
-        videosToAdd = playlistVideos;
-        setStatusMessage(`✅ ${playlistVideos.length} videos from playlist added to queue!`);
+        // const playlistVideos = await window.api.getPlaylistInfo(cleanUrl);
+        // videosToAdd = playlistVideos;
+        // setStatusMessage(`✅ ${playlistVideos.length} videos from playlist added to queue!`);
+        
+        // For now, just get the first video from playlist
+        setStatusMessage('📥 Fetching first video from playlist...');
+        const videoInfo = await window.api.getVideoInfo(cleanUrl);
+        videosToAdd = [{ ...videoInfo, originalUrl: cleanUrl }];
+        setStatusMessage('✅ First video from playlist added to queue!');
       } else {
         // Get single video info
         videoInfo = await window.api.getVideoInfo(cleanUrl);
