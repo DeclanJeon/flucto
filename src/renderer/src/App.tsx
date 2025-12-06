@@ -230,7 +230,7 @@ const App: React.FC = () => {
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleAddVideo()}
-                  placeholder="Paste URL (YouTube, Reddit, Bilibili, X...)"
+                  placeholder="Paste URL (YouTube, Reddit, Bilibili, X, Instagram)"
                   className="w-full bg-[#1c1c1e] text-lg text-white placeholder-gray-500 px-6 py-4 rounded-full border border-white/10 focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/20 outline-none transition-all shadow-2xl disabled:opacity-50"
                   disabled={isLoading || isDownloading}
                 />
