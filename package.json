@@ -2,7 +2,7 @@
   "name": "flucto",
   "productName": "Flucto",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Flowing Speed. Flawless Video. Experience Flucto.",
   "type": "module",
   "main": "./dist-electron/main/index.js",
@@ -79,7 +79,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     },
@@ -87,11 +89,17 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         },
         {
           "target": "zip",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         }
       ],
       "category": "public.app-category.utilities"
@@ -100,7 +108,9 @@
       "target": [
         {
           "target": "AppImage",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "category": "Utility"
