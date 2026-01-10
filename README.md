@@ -35,6 +35,31 @@
 - **Performance Focused:** Built on **Vite** and **React 19**, offering a snappy experience compared to traditional Electron apps.
 - **Network Resilience:** Implements auto-retry logic with exponential backoff for unstable connections or API rate limits.
 
+## 📦 CI/CD & Automated Releases
+
+Flucto uses GitHub Actions for automated CI/CD:
+
+- **Automatic Versioning**: Semantic versioning based on commit messages
+- **Multi-Platform Builds**: Windows, macOS, and Linux binaries built automatically
+- **Auto-Release**: New GitHub releases created on push to main/master branch
+
+### Commit Conventions
+
+Follow [Conventional Commits](./COMMIT_CONVENTIONS.md) to trigger automatic releases:
+
+```bash
+# Feature release
+git commit -m "feat: add new feature"
+
+# Bug fix
+git commit -m "fix: resolve download issue"
+
+# Breaking change
+git commit -m "feat!: redesign API"
+```
+
+See [COMMIT_CONVENTIONS.md](./COMMIT_CONVENTIONS.md) for full guidelines.
+
 ## How to get started (Development)
 
 1. **Clone the repository** to your local machine.
