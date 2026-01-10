@@ -122,7 +122,7 @@ bin/*.tar
 bin/*.tar.xz
 
 # Package manager lock files (keep one)
-package-lock.json
+# package-lock.json
 # yarn.lock
 # pnpm-lock.yaml
 
@@ -166,4 +166,3 @@ Thumbs.db
 *.swp
 *.swo
 
-.github
