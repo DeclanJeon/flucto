@@ -1,3 +1,10 @@
+## [1.0.4](https://github.com/DeclanJeon/flucto/compare/v1.0.3...v1.0.4) (2026-01-10)
+
+
+### Bug Fixes
+
+* add extraResources to include binaries in electron build ([662844e](https://github.com/DeclanJeon/flucto/commit/662844e67f94731e8b88c78d7b37e37849af64cd))
+
 ## [1.0.3](https://github.com/DeclanJeon/flucto/compare/v1.0.2...v1.0.3) (2026-01-10)
 
 
