@@ -82,12 +82,41 @@ async function setup() {
     
     if (OS === 'win32') {
       const zipPath = path.join(BIN_DIR, 'ffmpeg.zip');
+      console.log(`⬇️  Downloading FFmpeg from ${URLS.ffmpeg.win32}...`);
       await downloadFile(URLS.ffmpeg.win32, zipPath);
-      console.log(`📦 FFmpeg downloaded as zip.`);
-      console.log(`⚠️  Manual extraction required:`);
-      console.log(`   1. Extract ${zipPath}`);
-      console.log(`   2. Copy ffmpeg.exe to ${BIN_DIR}`);
-      console.log(`   3. Delete the zip file`);
+      console.log(`📦 Extracting FFmpeg...`);
+      
+      const extractTemp = path.join(BIN_DIR, 'ffmpeg-temp');
+      await extractZip(zipPath, extractTemp);
+      
+      // Find ffmpeg.exe recursively
+      const findFfmpeg = (dir) => {
+        const files = fs.readdirSync(dir);
+        for (const file of files) {
+          const fullPath = path.join(dir, file);
+          const stat = fs.statSync(fullPath);
+          if (stat.isDirectory()) {
+            const found = findFfmpeg(fullPath);
+            if (found) return found;
+          } else if (file === 'ffmpeg.exe') {
+            return fullPath;
+          }
+        }
+        return null;
+      };
+
+      const ffmpegSrc = findFfmpeg(extractTemp);
+      if (ffmpegSrc) {
+        fs.copyFileSync(ffmpegSrc, ffmpegPath);
+        console.log(`✅ FFmpeg extracted to ${ffmpegPath}`);
+      } else {
+        throw new Error('ffmpeg.exe not found in downloaded zip');
+      }
+
+      // Cleanup
+      fs.unlinkSync(zipPath);
+      fs.rmSync(extractTemp, { recursive: true, force: true });
+      
     } else if (OS === 'darwin') {
       const zipPath = path.join(BIN_DIR, 'ffmpeg.zip');
       await downloadFile(URLS.ffmpeg.darwin, zipPath);
@@ -125,4 +154,7 @@ async function setup() {
   console.log('🔧 If FFmpeg extraction failed, please manually copy the binary to the bin directory.');
 }
 
-setup().catch(console.error);
+setup().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
