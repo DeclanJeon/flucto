@@ -1,3 +1,10 @@
+## [1.0.10](https://github.com/DeclanJeon/flucto/compare/v1.0.9...v1.0.10) (2026-01-23)
+
+
+### Bug Fixes
+
+* **main:** resolve yt-dlp 403 error and filename encoding ([cfeec85](https://github.com/DeclanJeon/flucto/commit/cfeec85d2d61e28dcc799531b8fdaba15158944c))
+
 ## [1.0.9](https://github.com/DeclanJeon/flucto/compare/v1.0.8...v1.0.9) (2026-01-23)
 
 
