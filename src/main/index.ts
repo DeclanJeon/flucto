@@ -176,7 +176,6 @@ const getCommonYtDlpArgs = (url: string) => {
     args.push(
       "--extractor-args",
       "youtube:player_client=android",
-      "--restrict-filenames",
       "--force-ipv4",
     );
   }
@@ -238,10 +237,10 @@ ipcMain.handle("get-playlist-info", async (_event, url: string) => {
         "--flat-playlist",
         "--dump-json",
         "--no-warnings",
+        "--encoding",
+        "utf-8",
         "--skip-download",
         "--ignore-errors",
-        "--compat-options",
-        "no-youtube-unavailable-videos", // [보완 2] 삭제된 동영상 정보 제외
         "--compat-options",
         "no-youtube-unavailable-videos", // [보완 2] 삭제된 동영상 정보 제외
         ...(referer ? ["--add-header", `referer:${referer}`] : []), // 플랫폼별 Referer 추가
@@ -321,10 +320,10 @@ ipcMain.handle("get-video-info", async (_event, url: string) => {
         url,
         "--dump-json",
         "--no-warnings",
+        "--encoding",
+        "utf-8",
         "--no-playlist", // 단일 영상 정보만 요청
         "--ignore-errors", // 에러 무시 (삭제된 트윗 등)
-        "--compat-options",
-        "no-youtube-unavailable-videos",
         "--compat-options",
         "no-youtube-unavailable-videos",
         ...(referer ? ["--add-header", `referer:${referer}`] : []), // 플랫폼별 Referer 추가
@@ -459,6 +458,8 @@ ipcMain.handle(
             outputTemplate,
             "--no-check-certificates",
             "--no-warnings",
+            "--encoding",
+            "utf-8",
             "--newline",
             ...(referer ? ["--add-header", `referer:${referer}`] : []),
             "--ffmpeg-location",
@@ -585,6 +586,8 @@ ipcMain.handle("download-video", async (_event, args: DownloadRequest) => {
         outputTemplate,
         "--no-check-certificates",
         "--no-warnings",
+        "--encoding",
+        "utf-8",
         ...(referer ? ["--add-header", `referer:${referer}`] : []),
         "--ffmpeg-location",
         path.dirname(ffmpegPath),
