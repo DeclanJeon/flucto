@@ -1,3 +1,10 @@
+## [1.0.8](https://github.com/DeclanJeon/flucto/compare/v1.0.7...v1.0.8) (2026-01-23)
+
+
+### Bug Fixes
+
+* re-trigger release build ([c63d529](https://github.com/DeclanJeon/flucto/commit/c63d52971c8446423b805a48050bd555369dbfdc))
+
 ## [1.0.4](https://github.com/DeclanJeon/flucto/compare/v1.0.3...v1.0.4) (2026-01-10)
 
 
