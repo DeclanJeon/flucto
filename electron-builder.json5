@@ -1,30 +1,24 @@
 {
-  "appId": "com.yourname.fluctoDownloader",
-  "productName": "flucto-downloader",
-  "directories": {
-    "output": "release",
-    "buildResources": "assets"
+  appId: "com.yourname.fluctoDownloader",
+  productName: "flucto-downloader",
+  directories: {
+    output: "release",
+    buildResources: "assets",
   },
-  "files": [
-    "dist-electron/**/*",
-    "dist/**/*",
-    "!bin/*"
-  ],
-  "asarUnpack": [
-    "bin/*"
-  ],
-  "win": {
-    "target": "nsis",
-    "icon": "assets/icon.ico"
+  files: ["dist-electron/**/*", "dist/**/*", "bin/**/*"],
+  asarUnpack: ["bin/*"],
+  win: {
+    target: "nsis",
+    icon: "assets/icon.ico",
   },
-  "mac": {
-    "target": "dmg",
-    "icon": "assets/icon.icns",
-    "hardenedRuntime": true,
-    "gatekeeperAssess": false
+  mac: {
+    target: "dmg",
+    icon: "assets/icon.icns",
+    hardenedRuntime: true,
+    gatekeeperAssess: false,
   },
-  "linux": {
-    "target": "AppImage",
-    "category": "Utility"
-  }
+  linux: {
+    target: "AppImage",
+    category: "Utility",
+  },
 }
