@@ -69,12 +69,12 @@ jobs:
         with:
           name: artifacts-${{ matrix.os }}
           path: |
-            dist/*.exe
-            dist/*.dmg
-            dist/*.zip
-            dist/*.AppImage
-            dist/*.yml
-            dist/*.blockmap
+            release/*.exe
+            release/*.dmg
+            release/*.zip
+            release/*.AppImage
+            release/*.yml
+            release/*.blockmap
           retention-days: 1
 
   release:
@@ -101,19 +101,19 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: artifacts-windows-latest
-          path: dist
+          path: release
 
       - name: Download macOS Artifacts
         uses: actions/download-artifact@v4
         with:
           name: artifacts-macos-latest
-          path: dist
+          path: release
 
       - name: Download Linux Artifacts
         uses: actions/download-artifact@v4
         with:
           name: artifacts-ubuntu-latest
-          path: dist
+          path: release
 
       - name: Semantic Release
         uses: cycjimmy/semantic-release-action@v4

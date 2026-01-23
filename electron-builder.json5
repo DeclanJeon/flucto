@@ -2,7 +2,7 @@
   "appId": "com.yourname.fluctoDownloader",
   "productName": "flucto-downloader",
   "directories": {
-    "output": "dist",
+    "output": "release",
     "buildResources": "assets"
   },
   "files": [
