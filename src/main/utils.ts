@@ -9,8 +9,8 @@ export const getBinaryPath = (binaryName: string): string => {
   const binaryWithExt = `${binaryName}${platform}`;
 
   if (isProd) {
-    // 배포 후: resources 폴더 내부
-    return path.join(process.resourcesPath, 'bin', binaryWithExt);
+    // 배포 후: app.asar.unpacked 폴더 내부 (electron-builder asarUnpack 설정)
+    return path.join(process.resourcesPath, 'app.asar.unpacked', 'bin', binaryWithExt);
   } else {
     // 개발 중: 프로젝트 루트의 bin 폴더
     return path.join(app.getAppPath(), 'bin', binaryWithExt);
