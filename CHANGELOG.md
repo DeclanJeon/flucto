@@ -1,3 +1,10 @@
+## [1.0.9](https://github.com/DeclanJeon/flucto/compare/v1.0.8...v1.0.9) (2026-01-23)
+
+
+### Bug Fixes
+
+* **build:** include bin directory in package ([880b815](https://github.com/DeclanJeon/flucto/commit/880b8153a32275ec790f40576a4dd4c6c516c82d))
+
 ## [1.0.8](https://github.com/DeclanJeon/flucto/compare/v1.0.7...v1.0.8) (2026-01-23)
 
 
