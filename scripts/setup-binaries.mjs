@@ -6,7 +6,7 @@ import { execSync } from 'child_process';
 
 const BIN_DIR = path.join(process.cwd(), 'bin');
 const OS = platform(); // 'win32', 'darwin', 'linux'
-
+const YTDLP_VERSION = 'latest'; // 'latest' for auto-update, or specify version like '2025.11.12'
 // URL Configuration
 const URLS = {
   yt_dlp: {

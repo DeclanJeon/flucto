@@ -14,9 +14,7 @@ export const config = {
     logs: path.join(app.getPath('userData'), 'logs'),
     // 기본 다운로드 폴더 (환경변수로 오버라이드 가능)
     downloads: process.env.DEFAULT_DOWNLOAD_DIR || app.getPath('downloads'),
+    // YouTube 쿠키 파일 경로 (설정된 경우)
+    cookies: process.env.YOUTUBE_COOKIES_PATH || null,
   },
-  ytdlp: {
-    // 4K 이상 다운로드 허용 여부 등 향후 확장 가능
-    allow4k: process.env.ALLOW_4K === 'true',
-  }
 };

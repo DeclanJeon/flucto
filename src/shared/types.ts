@@ -4,8 +4,8 @@
 export interface DownloadRequest {
   url: string;
   format: 'mp4' | 'mp3';
+  cookiesPath?: string; // YouTube 쿠키 파일 경로 (옵션)
 }
-
 /**
  * Response payload after download attempt.
  */
@@ -44,6 +44,7 @@ export interface DownloadProgress {
  * Type definition for the window.api object exposed via preload script.
  */
 export interface IElectronAPI {
+  setCookiesPath: (path: string) => Promise<void>; // 쿠키 경로 설정
   downloadVideo: (data: DownloadRequest) => Promise<DownloadResponse>;
   downloadMultiple: (urls: string[], format: 'mp4' | 'mp3') => Promise<void>;
   getVideoInfo: (url: string) => Promise<VideoInfo>;
