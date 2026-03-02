@@ -1,3 +1,10 @@
+## [1.0.11](https://github.com/DeclanJeon/flucto/compare/v1.0.10...v1.0.11) (2026-01-23)
+
+
+### Bug Fixes
+
+* **main:** remove restrict-filenames and enforce utf-8 encoding ([f1ead06](https://github.com/DeclanJeon/flucto/commit/f1ead0617e83c4b3e67fb13f1496b4eef1d2ec56))
+
 ## [1.0.10](https://github.com/DeclanJeon/flucto/compare/v1.0.9...v1.0.10) (2026-01-23)
 
 
