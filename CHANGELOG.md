@@ -1,3 +1,15 @@
+## [1.0.12](https://github.com/DeclanJeon/flucto/compare/v1.0.11...v1.0.12) (2026-03-02)
+
+
+### Bug Fixes
+
+* App.tsx 파일 손상 복구 ([db4f23e](https://github.com/DeclanJeon/flucto/commit/db4f23e46d45fd841ca928258d3803f24e0302c9))
+* CI에서 npm ci 대신 npm install 사용 ([7e1d02d](https://github.com/DeclanJeon/flucto/commit/7e1d02d10169f12200aca1316bf57b16023f3fcd))
+* electron을 devDependencies로 이동 및 author 필드 추가 ([c134681](https://github.com/DeclanJeon/flucto/commit/c13468112c2f88c2cfe2940152828ceeec2cd052))
+* main/preload index.ts 파일 손상 복구 ([ebc5ee1](https://github.com/DeclanJeon/flucto/commit/ebc5ee1cb4802c5db290f95091b9f3c9c610b907))
+* package.json 의존성 수정 - electron을 devDependencies로 이동 ([3db5037](https://github.com/DeclanJeon/flucto/commit/3db503706a2257de6443e0440759fc75f93783c0))
+* YouTube 403 오류 해결 및 쿠키 지원 추가 ([d4383a7](https://github.com/DeclanJeon/flucto/commit/d4383a7e895780b8219562e83590d03153a71314))
+
 ## [1.0.11](https://github.com/DeclanJeon/flucto/compare/v1.0.10...v1.0.11) (2026-01-23)
 
 
