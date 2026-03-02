@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import type { DownloadRequest } from '../shared/types.js';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Download,
@@ -9,7 +10,7 @@ import {
   Youtube,
   FileText,
   ListVideo,
-  Globe, // 범용 아이콘 추가
+  Globe,
   Grid3X3,
   List
 } from 'lucide-react';
