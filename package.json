@@ -6,7 +6,7 @@
   "description": "Flowing Speed. Flawless Video. Experience Flucto.",
   "type": "module",
   "main": "./dist-electron/main/index.js",
-  "author": "Flucto Team <https://github.com/DeclanJeon/flucto>",
+  "author": "Flucto Team",
   "scripts": {
     "dev": "concurrently \"npm run dev:vite\" \"npm run dev:electron\"",
     "dev:vite": "vite",
@@ -14,21 +14,34 @@
     "build": "npm run build:renderer && npm run build:electron",
     "build:renderer": "vite build",
     "build:electron": "tsc -p tsconfig.electron.json",
-    "dist": "npm run build && electron-builder --publish never",
+    "dist": "npm run build && electron-builder",
     "postinstall": "node scripts/setup-binaries.mjs",
-    "lint": "eslint . --ext .ts,.tsx",
-    "lint:fix": "eslint . --fix --ext .ts,.tsx"
+    "lint": "eslint .",
+    "preview": "vite preview"
   },
   "dependencies": {
-    "@electron-toolkit/preload": "^4.0.2",
-    "@electron-toolkit/utils": "^4.0.0",
-    "framer-motion": "^12.18.0",
-    "lucide-react": "^0.514.0",
+    "@tailwindcss/postcss": "^4.1.17",
+    "adm-zip": "^0.5.16",
+    "axios": "^1.13.2",
+    "clsx": "^2.1.1",
+    "dotenv": "^17.2.3",
+    "electron-store": "^11.0.2",
+    "execa": "^9.6.1",
+    "fix-path": "^5.0.0",
+    "framer-motion": "^12.23.25",
+    "lucide-react": "^0.555.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "winston": "^3.17.0"
+    "react-hook-form": "^7.67.0",
+    "tailwind-merge": "^3.4.0",
+    "winston": "^3.18.3",
+    "yt-dlp-exec": "^1.0.2",
+    "zod": "^4.1.13"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
@@ -49,5 +62,8 @@
     "typescript-eslint": "^8.46.4",
     "vite": "npm:rolldown-vite@7.2.5",
     "wait-on": "^9.0.3"
+  },
+  "overrides": {
+    "vite": "npm:rolldown-vite@7.2.5"
   }
 }
