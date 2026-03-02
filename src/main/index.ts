@@ -171,16 +171,17 @@ const getCommonYtDlpArgs = (url: string) => {
     );
   }
 
-  // YouTube 플랫폼 처리 (2026년 PO 토큰 대응 - mweb + impersonate 사용)
+  // YouTube 플랫폼 처리 (Android 클라이언트로 우회 & 파일명 인코딩 문제 해결)
   else if (url.includes("youtube.com") || url.includes("youtu.be")) {
     args.push(
-      "--impersonate",
-      "chrome", // TLS/HTTP 지문 위장
       "--extractor-args",
-      "youtube:player_client=mweb", // 가장 안정적인 클라이언트
+      "youtube:player_client=android",
+      "--restrict-filenames",
       "--force-ipv4",
     );
   }
+
+  return args;
 };
 
 // [추가] 최적의 썸네일 추출 헬퍼 함수
@@ -237,24 +238,10 @@ ipcMain.handle("get-playlist-info", async (_event, url: string) => {
         "--flat-playlist",
         "--dump-json",
         "--no-warnings",
-        "--encoding",
-        "utf-8",
         "--skip-download",
         "--ignore-errors",
         "--compat-options",
         "no-youtube-unavailable-videos", // [보완 2] 삭제된 동영상 정보 제외
-        ...(referer ? ["--add-header", `referer:${referer}`] : []), // 플랫폼별 Referer 추가
-        ...(config.paths.cookies ? ["--cookies", config.paths.cookies] : []), // YouTube 쿠키 파일 사용
-        ...getCommonYtDlpArgs(url), // [추가] 플랫폼별 특화 옵션 적용
-      ],
-        url,
-        "--flat-playlist",
-        "--dump-json",
-        "--no-warnings",
-        "--encoding",
-        "utf-8",
-        "--skip-download",
-        "--ignore-errors",
         "--compat-options",
         "no-youtube-unavailable-videos", // [보완 2] 삭제된 동영상 정보 제외
         ...(referer ? ["--add-header", `referer:${referer}`] : []), // 플랫폼별 Referer 추가
@@ -334,24 +321,10 @@ ipcMain.handle("get-video-info", async (_event, url: string) => {
         url,
         "--dump-json",
         "--no-warnings",
-        "--encoding",
-        "utf-8",
         "--no-playlist", // 단일 영상 정보만 요청
         "--ignore-errors", // 에러 무시 (삭제된 트윗 등)
         "--compat-options",
         "no-youtube-unavailable-videos",
-        ...(referer ? ["--add-header", `referer:${referer}`] : []), // 플랫폼별 Referer 추가
-        ...(config.paths.cookies ? ["--cookies", config.paths.cookies] : []), // YouTube 쿠키 파일 사용
-        // [추가] 플랫폼별 특화 옵션 적용
-        ...getCommonYtDlpArgs(url),
-      ];
-        url,
-        "--dump-json",
-        "--no-warnings",
-        "--encoding",
-        "utf-8",
-        "--no-playlist", // 단일 영상 정보만 요청
-        "--ignore-errors", // 에러 무시 (삭제된 트윗 등)
         "--compat-options",
         "no-youtube-unavailable-videos",
         ...(referer ? ["--add-header", `referer:${referer}`] : []), // 플랫폼별 Referer 추가
@@ -486,25 +459,6 @@ ipcMain.handle(
             outputTemplate,
             "--no-check-certificates",
             "--no-warnings",
-            "--encoding",
-            "utf-8",
-            "--newline",
-            ...(referer ? ["--add-header", `referer:${referer}`] : []),
-            ...(config.paths.cookies ? ["--cookies", config.paths.cookies] : []), // YouTube 쿠키 파일 사용
-            "--ffmpeg-location",
-            path.dirname(ffmpegPath),
-            "--yes-playlist", // Download entire playlist if URL contains playlist
-            "--flat-playlist", // Download all videos from playlist
-            // [추가] 플랫폼별 특화 옵션 적용
-            ...getCommonYtDlpArgs(url),
-          ];
-            url,
-            "--output",
-            outputTemplate,
-            "--no-check-certificates",
-            "--no-warnings",
-            "--encoding",
-            "utf-8",
             "--newline",
             ...(referer ? ["--add-header", `referer:${referer}`] : []),
             "--ffmpeg-location",
@@ -631,22 +585,6 @@ ipcMain.handle("download-video", async (_event, args: DownloadRequest) => {
         outputTemplate,
         "--no-check-certificates",
         "--no-warnings",
-        "--encoding",
-        "utf-8",
-        ...(referer ? ["--add-header", `referer:${referer}`] : []),
-        ...(config.paths.cookies ? ["--cookies", config.paths.cookies] : []), // YouTube 쿠키 파일 사용
-        "--ffmpeg-location",
-        path.dirname(ffmpegPath),
-        // [추가] 플랫폼별 특화 옵션 적용
-        ...getCommonYtDlpArgs(url),
-      ];
-        url,
-        "--output",
-        outputTemplate,
-        "--no-check-certificates",
-        "--no-warnings",
-        "--encoding",
-        "utf-8",
         ...(referer ? ["--add-header", `referer:${referer}`] : []),
         "--ffmpeg-location",
         path.dirname(ffmpegPath),
@@ -749,17 +687,6 @@ ipcMain.handle("read-batch-file", async () => {
   }
 });
 
-// 5. Open Folder Handler
-ipcMain.handle("open-downloads-folder", async () => {
-  await shell.openPath(config.paths.downloads);
-});
-
-// 6. Set Cookies Path Handler (YouTube 쿠키 파일 설정)
-ipcMain.handle("set-cookies-path", async (_event, cookiesPath: string) => {
-  logger.info("Setting cookies path:", { cookiesPath });
-  config.paths.cookies = cookiesPath;
-  return { success: true };
-});
 // 5. Open Folder Handler
 ipcMain.handle("open-downloads-folder", async () => {
   await shell.openPath(config.paths.downloads);

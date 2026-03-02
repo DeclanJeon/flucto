@@ -12,7 +12,10 @@ const api = {
   openDownloadsFolder: () => ipcRenderer.invoke('open-downloads-folder'),
   // [추가] 배치 파일 읽기 노출
   readBatchFile: () => ipcRenderer.invoke('read-batch-file'),
-  setCookiesPath: (path: string) => ipcRenderer.invoke('set-cookies-path', path), // YouTube 쿠키 경로 설정
+  onDownloadProgress: (callback: (progress: any) => void) => {
+    ipcRenderer.on('download-progress', (_event, progress) => callback(progress));
+  },
+};
 
 // 보안을 위해 contextBridge를 통해서만 노출
 if (process.contextIsolated) {
