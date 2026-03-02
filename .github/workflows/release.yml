@@ -49,7 +49,7 @@ jobs:
           cache: 'npm'
 
       - name: Install Dependencies
-        run: npm ci
+        run: npm install
 
       - name: Setup Binaries
         run: npm run postinstall
@@ -95,7 +95,7 @@ jobs:
           cache: 'npm'
 
       - name: Install Dependencies
-        run: npm ci
+        run: npm install
 
       - name: Download Windows Artifacts
         uses: actions/download-artifact@v4
