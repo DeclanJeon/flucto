@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import type { DownloadRequest } from '../../shared/types.js';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Download,
@@ -20,7 +19,7 @@ import { VideoPreview } from './VideoPreview';
 import { VideoPreviewList } from './VideoPreviewList';
 import { DownloadProgress } from './DownloadProgress';
 import { useDownloadMonitor } from '../hooks/useDownloadMonitor';
-import type { VideoInfo } from '../../shared/types';
+import type { VideoInfo } from '../../../shared/types';
 
 // [수정] 범용 URL 클리너 (YouTube ID 추출 로직 제거 및 범용화)
 const cleanMediaUrl = (url: string): string | null => {
@@ -33,7 +32,7 @@ const cleanMediaUrl = (url: string): string | null => {
         return `https://${trimmed}`;
     }
     return trimmed;
-  } catch (error) {
+  } catch {
     return null;
   }
 };
@@ -102,8 +101,9 @@ export const MainDownloader: React.FC = () => {
       setStatusMessage(`✅ Added ${newVideos.length} media item(s)!`);
       setUrl('');
       setTimeout(() => setStatusMessage(null), 2000);
-    } catch (error: any) {
-      setStatusMessage(`❌ Error: ${error.message}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      setStatusMessage(`❌ Error: ${message}`);
       setTimeout(() => setStatusMessage(null), 4000);
     } finally {
       setIsAnalyzing(false);
@@ -133,17 +133,22 @@ export const MainDownloader: React.FC = () => {
             totalAdded += uniqueNewVideos.length;
             return [...prev, ...uniqueNewVideos];
           });
-        } catch (e) {
-          console.error(`Failed to load ${rawUrl}`, e);
+        } catch (error) {
+          console.error(`Failed to load ${rawUrl}`, error);
           failCount++;
         }
       }
       setBatchProgress(null);
-      setStatusMessage(`✅ Batch complete: ${totalAdded} items added.`);
+      setStatusMessage(
+        failCount > 0
+          ? `✅ Batch complete: ${totalAdded} items added. ${failCount} failed.`
+          : `✅ Batch complete: ${totalAdded} items added.`,
+      );
       setTimeout(() => setStatusMessage(null), 4000);
-    } catch (error: any) {
+    } catch (error: unknown) {
       setBatchProgress(null);
-      setStatusMessage(`❌ Batch File Error: ${error.message}`);
+      const message = error instanceof Error ? error.message : String(error);
+      setStatusMessage(`❌ Batch File Error: ${message}`);
       setTimeout(() => setStatusMessage(null), 4000);
     }
   };
@@ -166,8 +171,9 @@ export const MainDownloader: React.FC = () => {
       setStatusMessage('✅ All downloads started!');
       setVideos([]);
       setTimeout(() => setStatusMessage(null), 3000);
-    } catch (error: any) {
-      setStatusMessage(`❌ Download failed: ${error.message}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      setStatusMessage(`❌ Download failed: ${message}`);
       setTimeout(() => setStatusMessage(null), 4000);
     } finally {
       setIsDownloading(false);
@@ -191,10 +197,10 @@ export const MainDownloader: React.FC = () => {
           <button
             onClick={() => navigate('/posts')}
             className="p-2 hover:bg-white/10 rounded-full transition-colors text-gray-400 hover:text-white flex items-center gap-2 px-4"
-            title="Reviews"
+            title="게시글"
           >
             <MessageSquare size={20} />
-            <span className="text-sm font-medium">리뷰달기</span>
+            <span className="text-sm font-medium">게시글 목록</span>
           </button>
           <button
             onClick={() => window.api.openDownloadsFolder()}

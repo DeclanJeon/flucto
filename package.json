@@ -15,6 +15,7 @@
     "build:renderer": "vite build",
     "build:electron": "tsc -p tsconfig.electron.json",
     "dist": "npm run build && electron-builder",
+    "supabase:smoke": "node scripts/supabase-smoke-check.mjs",
     "postinstall": "node scripts/setup-binaries.mjs",
     "lint": "eslint .",
     "preview": "vite preview"

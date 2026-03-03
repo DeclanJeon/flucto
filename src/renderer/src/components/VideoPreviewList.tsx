@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Clock, Eye, User, X, ImageOff } from 'lucide-react';
+import { Eye, User, X, ImageOff } from 'lucide-react';
 import type { VideoInfo } from '../../../shared/types';
 
 interface VideoPreviewListProps {

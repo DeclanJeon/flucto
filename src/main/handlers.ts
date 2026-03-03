@@ -1,189 +1,393 @@
-import { ipcMain } from 'electron';
+import { BrowserWindow, ipcMain } from 'electron';
+import { execa } from 'execa';
 import { logger } from './logger.js';
-import { supabase } from './supabase.js';
-import type { Post, Review } from '../shared/types.js';
+import {
+  ensureAuthenticatedSession,
+  getSupabaseClient,
+  getServerAuthorIdentity,
+} from './supabase.js';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { getBinaryPath } from './utils.js';
+import { getUpdateSettingsDefaults, settingsStore } from './store.js';
+import type { NetworkStatusEvent, Review, UpdateSettings } from '../shared/types.js';
 
-// --- Posts & Reviews Handlers ---
+interface SupabaseErrorLike {
+  message: string;
+  code?: string;
+  details?: string | null;
+  hint?: string | null;
+}
 
-ipcMain.handle('posts-list', async () => {
-  try {
-    const { data, error } = await supabase
-      .from('posts')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(50);
+interface ReviewRow {
+  id: string;
+  rating: number;
+  content: string;
+  github_url?: string | null;
+  author: Review['author'];
+  created_at: string;
+  updated_at: string;
+}
 
-    if (error) throw error;
-    return { posts: data || [] };
-  } catch (error: unknown) {
-    logger.error('Posts List Error:', { error: error instanceof Error ? error.message : 'Unknown error' });
-    throw new Error('Failed to fetch posts');
+type ReviewInsertPayload = ReturnType<typeof toReviewInsertPayload>;
+
+const isSupabaseError = (error: unknown): error is SupabaseErrorLike => {
+  if (!error || typeof error !== 'object') return false;
+  return 'message' in error && typeof (error as { message?: unknown }).message === 'string';
+};
+
+const serializeError = (error: unknown) => {
+  if (isSupabaseError(error)) {
+    return {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+    };
   }
+
+  if (error instanceof Error) {
+    return {
+      message: error.message,
+      stack: error.stack,
+    };
+  }
+
+  return { message: String(error) };
+};
+
+const toUserErrorMessage = (prefix: string, error: unknown) => {
+  if (isSupabaseError(error)) {
+    return `${prefix}: ${error.message}${error.code ? ` (${error.code})` : ''}`;
+  }
+
+  if (error instanceof Error) {
+    return `${prefix}: ${error.message}`;
+  }
+
+  return `${prefix}: Unknown error`;
+};
+
+const isMissingColumnError = (error: unknown, columnName: string): boolean => {
+  if (!isSupabaseError(error)) {
+    return false;
+  }
+
+  return (
+    error.code === '42703' ||
+    error.message.toLowerCase().includes(`could not find the '${columnName}' column`) ||
+    error.message.toLowerCase().includes(`column ${columnName}`)
+  );
+};
+
+let reviewGithubUrlColumnSupport: boolean | null = null;
+
+const inspectReviewGithubUrlColumn = async (client: SupabaseClient): Promise<boolean> => {
+  if (reviewGithubUrlColumnSupport !== null) {
+    return reviewGithubUrlColumnSupport;
+  }
+
+  const { error } = await client.from('reviews').select('github_url').limit(0);
+
+  if (!error) {
+    reviewGithubUrlColumnSupport = true;
+    return true;
+  }
+
+  if (isMissingColumnError(error, 'github_url')) {
+    reviewGithubUrlColumnSupport = false;
+    return false;
+  }
+
+  throw error;
+};
+
+const stripMissingReviewGithubUrlField = (payload: ReviewInsertPayload): Omit<ReviewInsertPayload, 'github_url'> => {
+  const { github_url: githubUrl, ...rest } = payload;
+  void githubUrl;
+  return rest;
+};
+
+const isFetchFailure = (error: unknown): boolean => {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  if (error.message.toLowerCase().includes('fetch failed')) {
+    return true;
+  }
+
+  const cause = (error as { cause?: unknown }).cause;
+  if (cause && typeof cause === 'object') {
+    const maybeErrorCode = (cause as { code?: string }).code;
+    if (maybeErrorCode === 'ENOTFOUND' || maybeErrorCode === 'EAI_AGAIN' || maybeErrorCode === 'ECONNREFUSED') {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+const mapReviewRowToReview = (row: ReviewRow): Review => ({
+  id: row.id,
+  rating: row.rating,
+  content: row.content,
+  githubUrl: row.github_url ?? undefined,
+  author: row.author,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
 });
 
-ipcMain.handle('posts-create', async (_event, post: Omit<Post, 'id' | 'createdAt' | 'updatedAt'>) => {
+const withAuthenticatedDbSession = async <T>(query: (client: SupabaseClient) => Promise<T>): Promise<T> => {
+  await ensureAuthenticatedSession();
+  const dbClient = getSupabaseClient();
   try {
-    const newPostData = {
-      ...post,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      author: {
-        id: 'current-user',
-        name: '현재 사용자',
-        avatar: ''
-      }
+    return await query(dbClient);
+  } catch (error: unknown) {
+    if (isFetchFailure(error)) {
+      throw new Error(`Forum backend is unavailable: Supabase network error. ${
+        error instanceof Error ? error.message : 'Unknown error'
+      }`);
+    }
+    throw error;
+  }
+};
+
+const toReviewInsertPayload = (review: Omit<Review, 'id' | 'createdAt' | 'updatedAt'> & Partial<Pick<Review, 'createdAt' | 'updatedAt'>>) => ({
+  rating: review.rating,
+  content: review.content,
+  github_url: review.githubUrl ?? null,
+  author: review.author,
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+});
+
+const NETWORK_STATUS_CHANNEL = 'network-status-change';
+
+const isUpdateSettings = (value: unknown): value is UpdateSettings => {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    typeof candidate.autoUpdate === 'boolean' &&
+    typeof candidate.checkInterval === 'number' &&
+    Number.isInteger(candidate.checkInterval) &&
+    candidate.checkInterval > 0 &&
+    typeof candidate.notifyOnStart === 'boolean'
+  );
+};
+
+const getStoredUpdateSettings = (): UpdateSettings => {
+  const stored = settingsStore.get('updateSettings');
+  if (isUpdateSettings(stored)) {
+    return {
+      ...stored,
     };
+  }
 
-    const { data, error } = await supabase
-      .from('posts')
-      .insert([newPostData])
-      .select();
+  const defaults = getUpdateSettingsDefaults();
+  settingsStore.set('updateSettings', defaults);
+  return defaults;
+};
 
-    if (error) throw error;
+let networkStatus: NetworkStatusEvent = {
+  online: true,
+  message: '',
+};
 
-    if (data && data.length > 0) {
-      const insertedPost = data[0];
-      logger.info('Post created:', { id: insertedPost.id, title: insertedPost.title });
-      return { ...insertedPost, id: insertedPost.id };
+const emitNetworkStatus = (status: NetworkStatusEvent): void => {
+  networkStatus = status;
+  const windows = BrowserWindow.getAllWindows();
+  windows.forEach((window) => {
+    window.webContents.send(NETWORK_STATUS_CHANNEL, status);
+  });
+});
+
+ipcMain.handle('reviews-list', async () => {
+  try {
+    const hasGithubUrl = await withAuthenticatedDbSession(async (client) => inspectReviewGithubUrlColumn(client));
+    if (hasGithubUrl) {
+      const { data, error } = await withAuthenticatedDbSession(async (client) =>
+        client
+          .from('reviews')
+          .select('id,rating,content,github_url,author,created_at,updated_at')
+          .order('created_at', { ascending: false })
+          .limit(50),
+      );
+
+      if (error) {
+        throw error;
+      }
+
+      return { reviews: (data as ReviewRow[] | null)?.map(mapReviewRowToReview) || [] };
     }
 
-    throw new Error('Failed to create post');
+    const { data, error } = await withAuthenticatedDbSession(async (client) =>
+      client
+        .from('reviews')
+        .select('id,rating,content,author,created_at,updated_at')
+        .order('created_at', { ascending: false })
+        .limit(50),
+    );
+
+    if (error) {
+      throw error;
+    }
+
+    return { reviews: (data as ReviewRow[] | null)?.map(mapReviewRowToReview) || [] };
   } catch (error: unknown) {
-    logger.error('Post Create Error:', { error: error instanceof Error ? error.message : 'Unknown error' });
-    throw new Error('Failed to create post');
+    logger.error('Reviews List Error:', serializeError(error));
+    throw new Error(toUserErrorMessage('Failed to fetch reviews', error));
   }
 });
 
-ipcMain.handle('posts-get', async (_event, id: string) => {
+ipcMain.handle('reviews-get', async (_event, id: string) => {
   try {
-    const { data, error } = await supabase
-      .from('posts')
-      .select('*')
-      .eq('id', id)
-      .single();
+    const hasGithubUrl = await withAuthenticatedDbSession(async (client) => inspectReviewGithubUrlColumn(client));
+    
+    if (hasGithubUrl) {
+      const { data, error } = await withAuthenticatedDbSession(async (client) =>
+        client
+          .from('reviews')
+          .select('id,rating,content,github_url,author,created_at,updated_at')
+          .eq('id', id)
+          .single(),
+      );
+
+      if (error) throw error;
+      return data ? mapReviewRowToReview(data as ReviewRow) : null;
+    }
+
+    const { data, error } = await withAuthenticatedDbSession(async (client) =>
+      client
+        .from('reviews')
+        .select('id,rating,content,author,created_at,updated_at')
+        .eq('id', id)
+        .single(),
+    );
 
     if (error) throw error;
-    return data || null;
+    return data ? mapReviewRowToReview(data as ReviewRow) : null;
   } catch (error: unknown) {
-    logger.error('Post Get Error:', { error: error instanceof Error ? error.message : 'Unknown error' });
-    throw new Error('Failed to get post');
+    logger.error('Review Get Error:', serializeError(error));
+    throw new Error(toUserErrorMessage('Failed to get review', error));
   }
 });
 
-ipcMain.handle('posts-update', async (_event, { id, post }: { id: string; post: Partial<Post> }) => {
+ipcMain.handle('reviews-create', async (_event, review: Omit<Review, 'id' | 'createdAt' | 'updatedAt'> & Partial<Pick<Review, 'createdAt' | 'updatedAt'>>) => {
   try {
-    const { error } = await supabase
-      .from('posts')
-      .update({
-        ...post,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', id)
-      .select();
-
-    if (error) throw error;
-
-    const { data } = await supabase
-      .from('posts')
-      .select('*')
-      .eq('id', id)
-      .single();
-
-    if (error) throw error;
-
-    logger.info('Post updated:', { id });
-    return data;
-  } catch (error: unknown) {
-    logger.error('Post Update Error:', { error: error instanceof Error ? error.message : 'Unknown error' });
-    throw new Error('Failed to update post');
-  }
-});
-
-ipcMain.handle('posts-delete', async (_event, id: string) => {
-  try {
-    const { error } = await supabase
-      .from('posts')
-      .delete()
-      .eq('id', id);
-
-    if (error) throw error;
-
-    logger.info('Post deleted:', { id });
-  } catch (error: unknown) {
-    logger.error('Post Delete Error:', { error: error instanceof Error ? error.message : 'Unknown error' });
-    throw new Error('Failed to delete post');
-  }
-});
-
-ipcMain.handle('reviews-list', async (_event, postId: string) => {
-  try {
-    const { data, error } = await supabase
-      .from('reviews')
-      .select('*')
-      .eq('post_id', postId)
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-    return { reviews: data || [] };
-  } catch (error: unknown) {
-    logger.error('Reviews List Error:', { error: error instanceof Error ? error.message : 'Unknown error' });
-    throw new Error('Failed to fetch reviews');
-  }
-});
-
-ipcMain.handle('reviews-create', async (_event, review: Omit<Review, 'id' | 'createdAt' | 'updatedAt'>) => {
-  try {
-    const newReviewData = {
+    const author = await getServerAuthorIdentity(review.author);
+    const newReviewData = toReviewInsertPayload({
       ...review,
-      post_id: review.postId,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      author: {
-        id: 'current-user',
-        name: '현재 사용자',
-        avatar: ''
-      }
-    };
+      author,
+    });
 
-    const { data, error } = await supabase
-      .from('reviews')
-      .insert([newReviewData])
-      .select();
+    const hasGithubUrl = await withAuthenticatedDbSession(async (client) => inspectReviewGithubUrlColumn(client));
+    const payloadForInsert: Omit<ReviewInsertPayload, 'github_url'> | ReviewInsertPayload = hasGithubUrl
+      ? newReviewData
+      : stripMissingReviewGithubUrlField(newReviewData);
+
+    const { data, error } = await withAuthenticatedDbSession(async (client) =>
+      client
+        .from('reviews')
+        .insert([payloadForInsert])
+        .select(),
+    );
+
+    if (error && isMissingColumnError(error, 'github_url')) {
+      reviewGithubUrlColumnSupport = false;
+      const fallbackPayload = stripMissingReviewGithubUrlField(newReviewData);
+
+      const retryResult = await withAuthenticatedDbSession(async (client) =>
+        client
+          .from('reviews')
+          .insert([fallbackPayload])
+          .select(),
+      );
+
+      if (retryResult.error) {
+        throw retryResult.error;
+      }
+
+      if (retryResult.data && retryResult.data.length > 0) {
+        const insertedReview = mapReviewRowToReview(retryResult.data[0] as ReviewRow);
+        logger.info('Review created:', { id: insertedReview.id, withoutGithubUrl: true });
+        return insertedReview;
+      }
+
+      throw new Error('Failed to create review');
+    }
 
     if (error) throw error;
 
     if (data && data.length > 0) {
-      const insertedReview = data[0];
-      logger.info('Review created:', { id: insertedReview.id, postId: review.postId });
-      return { ...insertedReview, id: insertedReview.id };
+      const insertedReview = mapReviewRowToReview(data[0] as ReviewRow);
+      logger.info('Review created:', { id: insertedReview.id });
+      return insertedReview;
     }
 
     throw new Error('Failed to create review');
   } catch (error: unknown) {
-    logger.error('Review Create Error:', { error: error instanceof Error ? error.message : 'Unknown error' });
-    throw new Error('Failed to create review');
+    logger.error('Review Create Error:', serializeError(error));
+    throw new Error(toUserErrorMessage('Failed to create review', error));
   }
 });
 
 ipcMain.handle('reviews-delete', async (_event, id: string) => {
   try {
-    const { error } = await supabase
-      .from('reviews')
-      .delete()
-      .eq('id', id);
+    const { error } = await withAuthenticatedDbSession(async (client) =>
+      client
+        .from('reviews')
+        .delete()
+        .eq('id', id),
+    );
 
     if (error) throw error;
 
     logger.info('Review deleted:', { id });
   } catch (error: unknown) {
-  } catch (error) {
-    const err = error as Error;
-    logger.error('Review Delete Error:', {
-      message: err.message,
-      stack: err.stack
+    logger.error('Review Delete Error:', serializeError(error));
+    throw new Error(toUserErrorMessage('Failed to delete review', error));
+  }
+});
+
+ipcMain.handle('get-update-settings', () => {
+  return getStoredUpdateSettings();
+});
+
+ipcMain.handle('save-update-settings', (_event, settings: unknown): void => {
+  if (!isUpdateSettings(settings)) {
+    throw new Error('Invalid update settings payload');
+  }
+
+  settingsStore.set('updateSettings', settings);
+});
+
+ipcMain.handle('check-binary-updates', async () => {
+  try {
+    const ytDlpPath = getBinaryPath('yt-dlp');
+    const ffmpegPath = getBinaryPath('ffmpeg');
+
+    await Promise.all([
+      execa(ytDlpPath, ['--version']),
+      execa(ffmpegPath, ['-version']),
+    ]);
+
+    const settings = getStoredUpdateSettings();
+    emitNetworkStatus({
+      ...networkStatus,
+      online: settings.autoUpdate ? networkStatus.online : true,
+      message: settings.autoUpdate ? networkStatus.message : '',
     });
-    throw new Error(`Failed to delete review: ${err.message}`);
+    logger.info('Binary update check passed', { ytDlpPath, ffmpegPath });
+  } catch (error: unknown) {
+    logger.error('Check Binary Updates Error:', serializeError(error));
+    emitNetworkStatus({
+      online: false,
+      message: '바이너리 업데이트를 확인할 수 없습니다.',
+    });
+    throw new Error(toUserErrorMessage('Failed to check binary updates', error));
   }
-    throw new Error('Failed to delete review');
-  }
+});
+
+ipcMain.on('render-ready', () => {
+  emitNetworkStatus(networkStatus);
 });

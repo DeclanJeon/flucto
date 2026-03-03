@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Settings, CheckCircle, Wifi, WifiOff, Save, RefreshCw } from 'lucide-react';
-import type { UpdateSettings as UpdateSettingsType } from '../../shared/types.js';
+import { CheckCircle, RefreshCw, Settings, Wifi } from 'lucide-react';
+import type { UpdateSettings as UpdateSettingsType } from '../../../shared/types';
 
 /**
  * 업데이트 알림 설정 컴포넌트

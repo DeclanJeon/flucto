@@ -1,6 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Star, StarOff } from 'lucide-react';
-import type { GitHubRepo } from '../../shared/types';
+import { useState, useEffect, useCallback } from 'react';
+import { Star } from 'lucide-react';
 
 interface GitHubStarButtonProps {
   owner: string;
@@ -11,11 +10,7 @@ export const GitHubStarButton = ({ owner, repo }: GitHubStarButtonProps) => {
   const [starCount, setStarCount] = useState<number>(0);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    loadStarCount();
-  }, [owner, repo]);
-
-  const loadStarCount = async () => {
+  const loadStarCount = useCallback(async () => {
     setLoading(true);
     try {
       // GitHub REST API call to get star count
@@ -37,11 +32,15 @@ export const GitHubStarButton = ({ owner, repo }: GitHubStarButtonProps) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [owner, repo]);
+
+  useEffect(() => {
+    loadStarCount();
+  }, [loadStarCount]);
 
   const handleStar = async () => {
     const url = `https://github.com/${owner}/${repo}`;
-    window.githubAPI.openRepo(owner, repo);
+    window.open(url, '_blank', 'noopener,noreferrer');
 
     // Wait 1 second then refresh star count
     setTimeout(() => {

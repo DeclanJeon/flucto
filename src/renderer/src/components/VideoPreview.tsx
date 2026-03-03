@@ -1,6 +1,6 @@
 import React, { useState } from 'react'; // useState 추가
 import { motion } from 'framer-motion';
-import { Clock, Eye, User, X, ImageOff } from 'lucide-react'; // ImageOff 아이콘 추가
+import { Eye, User, X, ImageOff } from 'lucide-react'; // ImageOff 아이콘 추가
 import type { VideoInfo } from '../../../shared/types';
 
 interface VideoPreviewProps {

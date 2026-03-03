@@ -1,62 +1,38 @@
-import { useEditor, EditorContent } from '@tiptap/react'
-import StarterKit from '@tiptap/starter-kit'
-import { Bold, Italic, List, Link } from '@tiptap/extension-bold'
-import { Star } from 'lucide-react'
+import { type ChangeEvent, useEffect, useState } from 'react'
 
 interface PostEditorProps {
   initialContent?: string;
-  onSave?: (html: string, json: any) => void;
-  placeholder?: string;
+  onSave?: (html: string, json: Record<string, unknown>) => void;
 }
 
-export const PostEditor = ({ initialContent, onSave, placeholder = 'Start writing your post...' }: PostEditorProps) => {
-  const editor = useEditor({
-    extensions: [
-      StarterKit,
-      Bold,
-      Italic,
-      List.configure({
-        HTMLAttributes: { class: 'list-disc' }
-      }),
-      Link.configure({
-        openOnClick: false
-      })
-    ],
-    content: initialContent || '',
-    editorProps: {
-      attributes: {
-        class: 'prose prose max-w-none focus:outline-none min-h-[400px] px-4'
-      }
-    },
-    onUpdate: ({ editor }) => {
-      const html = editor.getHTML();
-      const json = editor.getJSON();
-      onSave?.(html, json);
-    }
-  });
+export const PostEditor = ({ initialContent, onSave }: PostEditorProps) => {
+  const [content, setContent] = useState<string>(initialContent || '')
 
-  if (!editor) return null;
+  const normalizedContent = content || ''
+
+  useEffect(() => {
+    const html = normalizedContent
+    const json: Record<string, unknown> = {
+      type: 'doc',
+      content: normalizedContent
+        ? [{ type: 'paragraph', content: [{ type: 'text', text: normalizedContent }] }]
+        : []
+    }
+    onSave?.(html, json)
+  }, [normalizedContent, onSave])
+
+  const handleChange = (event: ChangeEvent<HTMLTextAreaElement>): void => {
+    setContent(event.target.value)
+  }
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Simple Toolbar */}
-      <div className="border-b p-2 flex gap-2">
-        <button
-          onClick={() => editor.chain().focus().toggleBold().run()}
-          className={editor.isActive('bold') ? 'bg-blue-500 text-white px-3 py-1 rounded' : 'bg-gray-700 text-white px-3 py-1 rounded'}
-        >
-          Bold
-        </button>
-        <button
-          onClick={() => editor.chain().focus().toggleItalic().run()}
-          className={editor.isActive('italic') ? 'bg-blue-500 text-white px-3 py-1 rounded' : 'bg-gray-700 text-white px-3 py-1 rounded'}
-        >
-          Italic
-        </button>
-      </div>
-
-      {/* Editor Content */}
-      <EditorContent editor={editor} />
+      <textarea
+        aria-label="post-content-editor"
+        value={content}
+        onChange={handleChange}
+        className="min-h-[400px] w-full rounded border border-white/10 bg-white/5 p-4 text-sm leading-6 focus:outline-none"
+      />
     </div>
   );
 };

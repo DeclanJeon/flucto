@@ -12,6 +12,32 @@ import './handlers.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+type YtDlpMetadata = Record<string, unknown>;
+
+const toStringValue = (value: unknown): string | null => {
+  return typeof value === "string" ? value : null;
+};
+
+const toNumberValue = (value: unknown): number => {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  return 0;
+};
+
+const toMetadata = (value: unknown): YtDlpMetadata | null => {
+  return typeof value === "object" && value !== null ? (value as YtDlpMetadata) : null;
+};
+
+const getErrorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
 // 가비지 컬렉션 방지를 위한 전역 변수
 let mainWindow: BrowserWindow | null = null;
 
@@ -51,7 +77,7 @@ app.whenReady().then(async () => {
   if (!health.valid) {
     logger.error("Missing required binaries:", { missing: health.missing });
 
-    const response = dialog.showMessageBoxSync({
+    dialog.showMessageBoxSync({
       type: "error",
       title: "Flucto - System Error",
       message: "Required system components are missing.",
@@ -187,7 +213,7 @@ const getCommonYtDlpArgs = (url: string) => {
 };
 
 // [추가] 최적의 썸네일 추출 헬퍼 함수
-const extractBestThumbnail = (info: any): string | null => {
+const extractBestThumbnail = (info: YtDlpMetadata): string | null => {
   // 1. 최우선: thumbnail 필드에 유효한 URL이 있는 경우
   if (
     info.thumbnail &&
@@ -205,10 +231,16 @@ const extractBestThumbnail = (info: any): string | null => {
   ) {
     // url 필드가 있는 마지막 아이템을 찾음
     const validItems = info.thumbnails.filter(
-      (t: any) => t.url && typeof t.url === "string",
-    );
+      (thumbnail) =>
+        typeof thumbnail === "object" &&
+        thumbnail !== null &&
+        "url" in thumbnail &&
+        typeof (thumbnail as { url: unknown }).url === "string",
+    ) as Array<{ url: unknown }>;
     if (validItems.length > 0) {
-      return validItems[validItems.length - 1].url;
+      const candidate = validItems[validItems.length - 1];
+      const candidateUrl = candidate?.url;
+      return typeof candidateUrl === "string" ? candidateUrl : null;
     }
   }
 
@@ -265,38 +297,49 @@ ipcMain.handle("get-playlist-info", async (_event, url: string) => {
       .map((line) => {
         try {
           return JSON.parse(line);
-        } catch (e) {
+        } catch {
           // 파싱 실패한 줄은 경고 로그만 남기고 무시
-          logger.warn("Skipping invalid JSON line", { error: e });
+          logger.warn("Skipping invalid JSON line");
           return null;
         }
       })
-      .filter((item) => {
+      .filter((item): item is YtDlpMetadata => {
         // [보완 4] 유효한 비디오 아이템인지 검증 (플레이리스트 자체 메타데이터 제외)
-        return item !== null && item.id && item._type !== "playlist";
+        const metadata = toMetadata(item);
+
+        return (
+          metadata !== null &&
+          typeof metadata.id === "string" &&
+          metadata._type !== "playlist"
+        );
       });
 
     if (playlistItems.length === 0) {
       logger.warn("Playlist is empty or all items were filtered out", { url });
     }
 
-    return playlistItems.map((item: any) => ({
-      id: item.id,
-      title: item.title || "Untitled Video",
+    return playlistItems.map((item) => ({
+      id: toStringValue(item.id) ?? "Unknown",
+      title: toStringValue(item.title) ?? "Untitled Video",
       // [수정] 썸네일 추출 로직 강화
       thumbnail: extractBestThumbnail(item),
-      duration: item.duration || 0,
-      uploader: item.uploader || item.channel || "Unknown",
-      view_count: item.view_count || 0,
-      originalUrl: item.url || `https://www.youtube.com/watch?v=${item.id}`,
+      duration: toNumberValue(item.duration),
+      uploader:
+        toStringValue(item.uploader) ??
+        toStringValue(item.channel) ??
+        "Unknown",
+      view_count: toNumberValue(item.view_count),
+      originalUrl:
+        toStringValue(item.url) ??
+        `https://www.youtube.com/watch?v=${toStringValue(item.id) ?? ""}`,
     }));
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = getErrorMessage(error);
     logger.error("Get Playlist Info Error:", {
       url,
-      error: error.message,
-      stderr: error.stderr,
+      error: errorMessage,
     });
-    throw new Error(`Failed to fetch playlist info: ${error.message}`);
+    throw new Error(`Failed to fetch playlist info: ${errorMessage}`);
   }
 });
 
@@ -318,7 +361,7 @@ ipcMain.handle("get-video-info", async (_event, url: string) => {
     }
 
     // 재시도 로직을 위한 함수
-    const tryFetch = async (retryCount = 0): Promise<any> => {
+    const tryFetch = async (retryCount = 0): Promise<YtDlpMetadata> => {
       const args = [
         url,
         "--dump-json",
@@ -366,18 +409,18 @@ ipcMain.handle("get-video-info", async (_event, url: string) => {
       const lines = result.stdout
         .split(/\r?\n/)
         .filter((line) => line.trim() !== "");
-      let info: any = null;
+      let info: YtDlpMetadata | null = null;
 
       // 뒤에서부터 탐색하여 가장 먼저 발견되는 유효한 JSON을 채택
       for (let i = lines.length - 1; i >= 0; i--) {
         try {
           const parsed = JSON.parse(lines[i]);
           // 유효한 메타데이터인지 확인 (id나 title이 있어야 함)
-          if (parsed.id || parsed.title) {
+          if (typeof parsed === "object" && parsed !== null && ("id" in parsed || "title" in parsed)) {
             info = parsed;
             break;
           }
-        } catch (e) {
+        } catch {
           continue; // JSON이 아니면(경고 메시지 등) 무시
         }
       }
@@ -399,24 +442,32 @@ ipcMain.handle("get-video-info", async (_event, url: string) => {
         throw new Error("Could not parse video metadata from yt-dlp output");
       }
 
-      return info;
+      return info as YtDlpMetadata;
     };
 
     const info = await tryFetch();
 
     // SNS별 메타데이터 필드 정규화
     return {
-      id: info.id,
-      title: info.title || info.description?.slice(0, 50) || "Untitled Media", // 트위터/인스타는 제목이 없을 수 있음
+      id: toStringValue(info.id) ?? "",
+      title:
+        toStringValue(info.title) ||
+        toStringValue(info.description)?.slice(0, 50) ||
+        "Untitled Media", // 트위터/인스타는 제목이 없을 수 있음
       // [수정] 썸네일 추출 로직 강화
       thumbnail: extractBestThumbnail(info),
-      duration: info.duration || 0,
-      uploader: info.uploader || info.uploader_id || "Unknown",
-      view_count: info.view_count || info.like_count || 0, // 뷰 카운트 없으면 좋아요 수로 대체
+      duration: toNumberValue(info.duration),
+      uploader:
+        toStringValue(info.uploader) ??
+        toStringValue(info.uploader_id) ??
+        "Unknown",
+      view_count:
+        toNumberValue(info.view_count) || toNumberValue(info.like_count), // 뷰 카운트 없으면 좋아요 수로 대체
     };
-  } catch (error: any) {
-    logger.error("Get Info Error:", { url, error: error.message });
-    throw new Error(`Failed to fetch video info: ${error.message}`);
+  } catch (error: unknown) {
+    const errorMessage = getErrorMessage(error);
+    logger.error("Get Info Error:", { url, error: errorMessage });
+    throw new Error(`Failed to fetch video info: ${errorMessage}`);
   }
 });
 
@@ -515,7 +566,7 @@ ipcMain.handle(
             });
 
             await subprocess;
-          } catch (error: any) {
+          } catch (error: unknown) {
             // Twitter/X의 경우 404/403 오류 시 재시도
             if (
               (url.includes("x.com") || url.includes("twitter.com")) &&
@@ -539,13 +590,14 @@ ipcMain.handle(
           status: "completed",
           progress: 100,
         });
-      } catch (error: any) {
-        logger.error(`Download Error for ${url}:`, { error: error.message });
+      } catch (error: unknown) {
+        const errorMessage = getErrorMessage(error);
+        logger.error(`Download Error for ${url}:`, { error: errorMessage });
         event.sender.send("download-progress", {
           url,
           status: "error",
           progress: 0,
-          error: error.message,
+          error: errorMessage,
         });
       }
     });
@@ -622,7 +674,7 @@ ipcMain.handle("download-video", async (_event, args: DownloadRequest) => {
       try {
         // 실행 (execa)
         await execa(ytDlpPath, downloadArgs);
-      } catch (error: any) {
+      } catch (error: unknown) {
         // Twitter/X의 경우 404/403 오류 시 재시도
         if (
           (url.includes("x.com") || url.includes("twitter.com")) &&
@@ -647,9 +699,10 @@ ipcMain.handle("download-video", async (_event, args: DownloadRequest) => {
       message: "Download Complete!",
       filePath: outputTemplate,
     };
-  } catch (error: any) {
-    logger.error("Download Error:", { error: error.message });
-    return { success: false, message: error.message || "Process Failed" };
+  } catch (error: unknown) {
+    const errorMessage = getErrorMessage(error);
+    logger.error("Download Error:", { error: errorMessage });
+    return { success: false, message: errorMessage || "Process Failed" };
   }
 });
 
@@ -683,8 +736,9 @@ ipcMain.handle("read-batch-file", async () => {
       });
 
     return urls;
-  } catch (error: any) {
-    logger.error("Batch File Read Error:", { error: error.message });
+  } catch (error: unknown) {
+    const errorMessage = getErrorMessage(error);
+    logger.error("Batch File Read Error:", { error: errorMessage });
     throw new Error("Failed to read batch file");
   }
 });

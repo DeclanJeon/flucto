@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { DownloadRequest, DownloadResponse } from '../../../shared/types';
+import type { DownloadResponse } from '../../../shared/types';
 
 interface UseDownloaderReturn {
   isLoading: boolean;
@@ -37,10 +37,11 @@ export const useDownloader = (): UseDownloaderReturn => {
       } else {
         throw new Error(response.message);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Download Hook Error:', error);
+      const message = error instanceof Error ? error.message : String(error);
       setStatusMessage(
-        `❌ Error: ${error.message || 'Unknown error occurred'}`
+        `❌ Error: ${message || 'Unknown error occurred'}`
       );
     } finally {
       setIsLoading(false);

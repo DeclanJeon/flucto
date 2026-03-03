@@ -80,7 +80,25 @@ See [COMMIT_CONVENTIONS.md](./COMMIT_CONVENTIONS.md) for full guidelines.
    npm run postinstall
    ```
 
-4. **Start the development server** - This runs both the Vite renderer and the Electron main process concurrently.
+4. **Set Supabase environment variables** before running forum features
+
+   ```bash
+   cp .env.example .env
+   ```
+
+   Required values:
+
+   - `SUPABASE_URL`
+   - `SUPABASE_PUBLISHABLE_KEY` (or `SUPABASE_ANON_KEY`)
+   - `SUPABASE_SERVICE_ROLE_KEY` (optional)
+
+   You can verify Supabase auth/RLS write behavior with:
+
+   ```bash
+   npm run supabase:smoke
+   ```
+
+5. **Start the development server** - This runs both the Vite renderer and the Electron main process concurrently.
 
    ```bash
    npm run dev
