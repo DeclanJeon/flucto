@@ -33,26 +33,26 @@ export const PostsList = () => {
             onClick={() => navigate('/')}
             className="text-gray-400 hover:text-white transition-colors"
           >
-            ← Back
+            ← 돌아가기
           </button>
-          <h1 className="text-xl font-bold text-white ml-4">Posts</h1>
+          <h1 className="text-xl font-bold text-white ml-4">리뷰 목록</h1>
         </div>
         <button
           onClick={() => navigate('/posts/create')}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-full font-medium transition-all active:scale-95 flex items-center gap-2 text-sm"
         >
           <Plus size={16} />
-          Create Post
+          새 리뷰 작성
         </button>
       </header>
 
       {/* Content */}
       <main className="pt-32 pb-24 px-6 max-w-4xl mx-auto">
         {loading ? (
-          <div className="text-center text-gray-400">Loading posts...</div>
+          <div className="text-center text-gray-400">리뷰 로드 중...</div>
         ) : posts.length === 0 ? (
           <div className="text-center text-gray-400 py-20">
-            No posts yet. Create your first post!
+            아직 리뷰가 없습니다. 첫 번째 리뷰를 작성해보세요!
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

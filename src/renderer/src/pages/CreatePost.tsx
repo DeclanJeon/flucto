@@ -12,7 +12,7 @@ export const CreatePost = () => {
     e.preventDefault();
 
     if (!title.trim() || !content.trim()) {
-      alert('Title and content are required');
+      alert('제목과 내용은 필수입니다');
       return;
     }
 
@@ -49,9 +49,9 @@ export const CreatePost = () => {
             onClick={() => navigate('/posts')}
             className="text-gray-400 hover:text-white transition-colors"
           >
-            ← Back
+            ← 취소
           </button>
-          <h1 className="text-xl font-bold text-white ml-4">Create New Post</h1>
+          <h1 className="text-xl font-bold text-white ml-4">새 리뷰 작성</h1>
         </div>
       </header>
 
@@ -61,14 +61,14 @@ export const CreatePost = () => {
           {/* Title Input */}
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
-              Title
+              제목
             </label>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="w-full px-4 py-3 rounded-lg bg-gray-800 text-white border border-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-              placeholder="Enter post title..."
+              placeholder="제목을 입력하세요..."
               required
             />
           </div>
@@ -76,7 +76,7 @@ export const CreatePost = () => {
           {/* Content Input - WYSIWYG Editor */}
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
-              Content
+              내용
             </label>
             <div className="min-h-[300px] border border-gray-700 rounded-lg bg-gray-800 p-2">
               {/* TODO: Integrate Tiptap editor */}
@@ -84,7 +84,7 @@ export const CreatePost = () => {
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 className="w-full h-full min-h-[200px] bg-transparent text-white resize-none focus:outline-none"
-                placeholder="Write your post content here..."
+                placeholder="여기에 리뷰 내용을 작성하세요..."
                 required
               />
             </div>
@@ -93,7 +93,7 @@ export const CreatePost = () => {
           {/* Tags Input */}
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
-              Tags (comma-separated)
+              태그 (쉼표로 구분)
             </label>
             <input
               type="text"
@@ -111,13 +111,13 @@ export const CreatePost = () => {
               onClick={() => navigate('/posts')}
               className="px-6 py-2 rounded-lg font-medium text-gray-400 hover:text-white transition-colors"
             >
-              Cancel
+              취소
             </button>
             <button
               type="submit"
               className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
             >
-              Create Post
+              리뷰 작성
             </button>
           </div>
         </form>
