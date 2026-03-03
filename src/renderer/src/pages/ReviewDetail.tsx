@@ -94,7 +94,7 @@ export const ReviewDetail = () => {
         <div className="bg-gray-800 rounded-lg p-6">
           <div className="flex items-center gap-4 mb-4">
             <img
-              src={review.author.avatar || 'https://ui-avatars.com/api/?name='placeholder'}
+              src={review.author.avatar || `https://ui-avatars.herokuapp.com/api/?name=${encodeURIComponent(review.author.name)}&background=random`}
               alt={review.author.name}
               className="w-14 h-14 rounded-full"
             />

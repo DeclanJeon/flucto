@@ -195,12 +195,13 @@ export const MainDownloader: React.FC = () => {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => navigate('/posts')}
+            type="button"
+            onClick={() => navigate('/reviews')}
             className="p-2 hover:bg-white/10 rounded-full transition-colors text-gray-400 hover:text-white flex items-center gap-2 px-4"
-            title="게시글"
+            title="리뷰"
           >
             <MessageSquare size={20} />
-            <span className="text-sm font-medium">게시글 목록</span>
+            <span className="text-sm font-medium">리뷰 목록</span>
           </button>
           <button
             onClick={() => window.api.openDownloadsFolder()}

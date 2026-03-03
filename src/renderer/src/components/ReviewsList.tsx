@@ -32,17 +32,17 @@ export const ReviewsList = () => {
         fill="currentColor"
         viewBox="0 0 24 24"
       >
-        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L6.18 6.88 12 2z" />
+        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
       </svg>
     ));
   };
 
   return (
-    <div className="min-h-screen bg-[#0d0d0 text-gray-100 font-sans">
-      {/* Header */}
+    <div className="min-h-screen bg-[#0d0d0] text-gray-100 font-sans">
       <header className="fixed top-0 left-0 right-0 z-50 px-6 py-4 flex items-center justify-between bg-[#0d0d0]/80 backdrop-blur-md border-b border-white/5">
         <div className="flex items-center gap-2">
           <button
+            type="button"
             onClick={() => navigate('/')}
             className="text-gray-400 hover:text-white transition-colors"
           >
@@ -59,11 +59,14 @@ export const ReviewsList = () => {
         </button>
       </header>
 
-      {/* Content */}
       <main className="pt-32 pb-24 px-6 max-w-4xl mx-auto">
         {loading ? (
-          <div className="text-center text-gray-400">게시글 로드 중...</div>
-        ) : posts.length === 0 ? (
+          <div className="text-center text-gray-400">리뷰 로드 중...</div>
+        ) : reviews.length === 0 ? (
+          <div className="text-center text-gray-400 py-20">
+            아직 리뷰가 없습니다. 첫 번째 리뷰를 작성해보세요!
+          </div>
+        ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {reviews.map((review) => (
               <div
@@ -71,10 +74,9 @@ export const ReviewsList = () => {
                 onClick={() => navigate(`/reviews/${review.id}`)}
                 className="bg-gray-800 rounded-lg p-6 cursor-pointer hover:bg-gray-700 transition-colors duration-200 border border-gray-700"
               >
-                {/* 작성자 정보 */}
-                <div className="flex items-center gap-3 mb-2">
+                <div className="flex items-center gap-3 mb-3">
                   <img
-                    src={review.author.avatar || 'https://ui-avatars.herokuapp.com/150'}
+                    src={review.author.avatar || `https://ui-avatars.herokuapp.com/api/?name=${encodeURIComponent(review.author.name)}&background=random`}
                     alt={review.author.name}
                     className="w-10 h-10 rounded-full"
                   />
@@ -87,12 +89,10 @@ export const ReviewsList = () => {
                     </div>
                   </div>
 
-                {/* 별점 */}
                 <div className="flex gap-1 mb-2">
                   {renderStars(review.rating)}
                 </div>
 
-                {/* 리뷰 내용 */}
                 <p className="text-gray-300 mt-2 line-clamp-2">{review.content}</p>
               </div>
             ))}
