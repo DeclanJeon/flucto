@@ -7,7 +7,7 @@ import { getBinaryPath, checkSystemHealth } from "./utils.js";
 import { logger } from "./logger.js";
 import { config } from "./config.js";
 import type { DownloadRequest } from "../shared/types.js";
-import './handlers.js';
+import './supabase.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
