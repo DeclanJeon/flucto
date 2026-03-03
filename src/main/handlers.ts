@@ -20,6 +20,7 @@ interface SupabaseErrorLike {
 
 interface ReviewRow {
   id: string;
+  post_id: string;
   rating: number;
   content: string;
   github_url?: string | null;
@@ -29,6 +30,11 @@ interface ReviewRow {
 }
 
 type ReviewInsertPayload = ReturnType<typeof toReviewInsertPayload>;
+
+type ReviewAuthorRow = {
+  id: string;
+  author: Review['author'];
+};
 
 const isSupabaseError = (error: unknown): error is SupabaseErrorLike => {
   if (!error || typeof error !== 'object') return false;
@@ -129,6 +135,7 @@ const isFetchFailure = (error: unknown): boolean => {
 
 const mapReviewRowToReview = (row: ReviewRow): Review => ({
   id: row.id,
+  postId: row.post_id,
   rating: row.rating,
   content: row.content,
   githubUrl: row.github_url ?? undefined,
@@ -153,6 +160,7 @@ const withAuthenticatedDbSession = async <T>(query: (client: SupabaseClient) => 
 };
 
 const toReviewInsertPayload = (review: Omit<Review, 'id' | 'createdAt' | 'updatedAt'> & Partial<Pick<Review, 'createdAt' | 'updatedAt'>>) => ({
+  post_id: review.postId,
   rating: review.rating,
   content: review.content,
   github_url: review.githubUrl ?? null,
@@ -162,6 +170,40 @@ const toReviewInsertPayload = (review: Omit<Review, 'id' | 'createdAt' | 'update
 });
 
 const NETWORK_STATUS_CHANNEL = 'network-status-change';
+
+const UUID_V4_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const isUuid = (value: string): boolean => UUID_V4_RE.test(value);
+
+type PostRow = { id: string };
+
+const resolveReviewPostId = async (client: SupabaseClient, requestedPostId: string): Promise<string> => {
+  const normalizedPostId = requestedPostId?.trim() || '';
+
+  if (isUuid(normalizedPostId)) {
+    return normalizedPostId;
+  }
+
+  const { data, error } = await client.from('posts').select('id').order('created_at', { ascending: false }).limit(1).maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  const fallbackPostId = data ? (data as PostRow).id : '';
+  if (isUuid(fallbackPostId)) {
+    return fallbackPostId;
+  }
+
+  throw new Error('Cannot create review: valid postId is required.');
+};
+
+const getRequestingAuthor = async () =>
+  getServerAuthorIdentity({
+    id: 'anonymous',
+    name: '익명',
+    avatar: '',
+  });
 
 const isUpdateSettings = (value: unknown): value is UpdateSettings => {
   if (!value || typeof value !== 'object') return false;
@@ -208,7 +250,7 @@ ipcMain.handle('reviews-list', async () => {
       const { data, error } = await withAuthenticatedDbSession(async (client) =>
         client
           .from('reviews')
-          .select('id,rating,content,github_url,author,created_at,updated_at')
+          .select('id,post_id,rating,content,github_url,author,created_at,updated_at')
           .order('created_at', { ascending: false })
           .limit(50),
       );
@@ -223,7 +265,7 @@ ipcMain.handle('reviews-list', async () => {
     const { data, error } = await withAuthenticatedDbSession(async (client) =>
       client
         .from('reviews')
-        .select('id,rating,content,author,created_at,updated_at')
+        .select('id,post_id,rating,content,author,created_at,updated_at')
         .order('created_at', { ascending: false })
         .limit(50),
     );
@@ -242,12 +284,12 @@ ipcMain.handle('reviews-list', async () => {
 ipcMain.handle('reviews-get', async (_event, id: string) => {
   try {
     const hasGithubUrl = await withAuthenticatedDbSession(async (client) => inspectReviewGithubUrlColumn(client));
-    
+
     if (hasGithubUrl) {
       const { data, error } = await withAuthenticatedDbSession(async (client) =>
         client
           .from('reviews')
-          .select('id,rating,content,github_url,author,created_at,updated_at')
+          .select('id,post_id,rating,content,github_url,author,created_at,updated_at')
           .eq('id', id)
           .single(),
       );
@@ -259,7 +301,7 @@ ipcMain.handle('reviews-get', async (_event, id: string) => {
     const { data, error } = await withAuthenticatedDbSession(async (client) =>
       client
         .from('reviews')
-        .select('id,rating,content,author,created_at,updated_at')
+        .select('id,post_id,rating,content,author,created_at,updated_at')
         .eq('id', id)
         .single(),
     );
@@ -275,9 +317,15 @@ ipcMain.handle('reviews-get', async (_event, id: string) => {
 ipcMain.handle('reviews-create', async (_event, review: Omit<Review, 'id' | 'createdAt' | 'updatedAt'> & Partial<Pick<Review, 'createdAt' | 'updatedAt'>>) => {
   try {
     const author = await getServerAuthorIdentity(review.author);
+    const authorWithoutAvatar = {
+      ...author,
+      avatar: '',
+    };
+    const resolvedPostId = await withAuthenticatedDbSession(async (client) => resolveReviewPostId(client, review.postId));
     const newReviewData = toReviewInsertPayload({
       ...review,
-      author,
+      postId: resolvedPostId,
+      author: authorWithoutAvatar,
     });
 
     const hasGithubUrl = await withAuthenticatedDbSession(async (client) => inspectReviewGithubUrlColumn(client));
@@ -285,23 +333,25 @@ ipcMain.handle('reviews-create', async (_event, review: Omit<Review, 'id' | 'cre
       ? newReviewData
       : stripMissingReviewGithubUrlField(newReviewData);
 
-    const { data, error } = await withAuthenticatedDbSession(async (client) =>
-      client
+    const { data, error } = await withAuthenticatedDbSession(async (client) => {
+      const { data, error } = await client
         .from('reviews')
         .insert([payloadForInsert])
-        .select(),
-    );
+        .select();
+      return { data, error };
+    });
 
     if (error && isMissingColumnError(error, 'github_url')) {
       reviewGithubUrlColumnSupport = false;
       const fallbackPayload = stripMissingReviewGithubUrlField(newReviewData);
 
-      const retryResult = await withAuthenticatedDbSession(async (client) =>
-        client
+      const retryResult = await withAuthenticatedDbSession(async (client) => {
+        const { data, error } = await client
           .from('reviews')
           .insert([fallbackPayload])
-          .select(),
-      );
+          .select();
+        return { data, error };
+      });
 
       if (retryResult.error) {
         throw retryResult.error;
@@ -331,18 +381,53 @@ ipcMain.handle('reviews-create', async (_event, review: Omit<Review, 'id' | 'cre
   }
 });
 
+ipcMain.handle('reviews-current-author', async () => {
+  try {
+    return await getRequestingAuthor();
+  } catch (error: unknown) {
+    logger.error('Current Review Author Error:', serializeError(error));
+    throw new Error(toUserErrorMessage('Failed to get current author', error));
+  }
+});
+
 ipcMain.handle('reviews-delete', async (_event, id: string) => {
   try {
-    const { error } = await withAuthenticatedDbSession(async (client) =>
+    const currentAuthor = await getRequestingAuthor();
+
+    const { data, error: getError } = await withAuthenticatedDbSession(async (client) =>
+      client
+        .from('reviews')
+        .select('id,author')
+        .eq('id', id)
+        .maybeSingle(),
+    );
+
+    if (getError) {
+      throw getError;
+    }
+
+    const targetReview = data as ReviewAuthorRow | null;
+
+    if (!targetReview) {
+      throw new Error('Failed to delete review: target review not found.');
+    }
+
+    if (targetReview.author.id !== currentAuthor.id) {
+      throw new Error('Failed to delete review: only the author can delete this review.');
+    }
+
+    const { error: deleteError } = await withAuthenticatedDbSession(async (client) =>
       client
         .from('reviews')
         .delete()
         .eq('id', id),
     );
 
-    if (error) throw error;
+    if (deleteError) {
+      throw deleteError;
+    }
 
-    logger.info('Review deleted:', { id });
+    logger.info('Review deleted:', { id, by: currentAuthor.id });
   } catch (error: unknown) {
     logger.error('Review Delete Error:', serializeError(error));
     throw new Error(toUserErrorMessage('Failed to delete review', error));

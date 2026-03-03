@@ -48,6 +48,7 @@ export interface DownloadProgress {
  */
 export interface Review {
   id?: string;
+  postId: string;
   rating: number; // 1-5
   content: string;
   githubUrl?: string;
@@ -58,6 +59,12 @@ export interface Review {
     name: string;
     avatar: string;
   };
+}
+
+export interface AuthorIdentity {
+  id: string;
+  name: string;
+  avatar: string;
 }
 
 
@@ -99,6 +106,7 @@ export interface IElectronAPI {
     create: (review: Omit<Review, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Review>;
     get: (id: string) => Promise<Review | null>;
     delete: (id: string) => Promise<void>;
+    getCurrentAuthor: () => Promise<AuthorIdentity>;
   };
   getUpdateSettings: () => Promise<UpdateSettings>;
   saveUpdateSettings: (settings: UpdateSettings) => Promise<void>;
