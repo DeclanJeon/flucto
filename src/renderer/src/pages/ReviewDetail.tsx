@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { Review } from '../../../shared/types';
-
 import { Star, Trash2 } from 'lucide-react';
 
 export const ReviewDetail = () => {
@@ -10,13 +9,7 @@ export const ReviewDetail = () => {
   const [review, setReview] = useState<Review | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (id) {
-      loadReview(id);
-    }
-  }, [id]);
-
-  const loadReview = async (reviewId: string) => {
+  const loadReview = useCallback(async (reviewId: string) => {
     setLoading(true);
     try {
       const result = await window.api.reviewsAPI.get(reviewId);
@@ -26,14 +19,20 @@ export const ReviewDetail = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (id) {
+      loadReview(id);
+    }
+  }, [id, loadReview]);
 
   const handleDelete = async () => {
-    if (!review) return;
-    
-    if (confirm('정말 삭제하시겠습니까')) {
+    if (!review?.id) return;
+
+    if (confirm('정말 삭제하시겠습니까?')) {
       try {
-        await window.api.reviewsAPI.delete(review.id!);
+        await window.api.reviewsAPI.delete(review.id);
         navigate('/reviews');
       } catch (error) {
         console.error('Failed to delete review:', error);
@@ -120,9 +119,10 @@ export const ReviewDetail = () => {
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors mt-4"
+            >
               <span>GitHub에서 보기</span>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path d="M12 2C6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
               </svg>
             </a>
           )}
@@ -131,4 +131,3 @@ export const ReviewDetail = () => {
     </div>
   );
 };
-

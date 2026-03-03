@@ -8,10 +8,6 @@ export const ReviewsList = () => {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadReviews();
-  }, []);
-
   const loadReviews = async () => {
     setLoading(true);
     try {
@@ -23,6 +19,10 @@ export const ReviewsList = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadReviews();
+  }, []);
 
   const renderStars = (rating: number) => {
     return [1, 2, 3, 4, 5].map((star) => (
@@ -38,8 +38,8 @@ export const ReviewsList = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0d0d0] text-gray-100 font-sans">
-      <header className="fixed top-0 left-0 right-0 z-50 px-6 py-4 flex items-center justify-between bg-[#0d0d0]/80 backdrop-blur-md border-b border-white/5">
+    <div className="min-h-screen bg-[#0d0d0d] text-gray-100 font-sans">
+      <header className="fixed top-0 left-0 right-0 z-50 px-6 py-4 flex items-center justify-between bg-[#0d0d0d]/80 backdrop-blur-md border-b border-white/5">
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -51,6 +51,7 @@ export const ReviewsList = () => {
           <h1 className="text-xl font-bold text-white ml-4">리뷰 목록</h1>
         </div>
         <button
+          type="button"
           onClick={() => navigate('/reviews/create')}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-full font-medium transition-all active:scale-95 flex items-center gap-2 text-sm"
         >
@@ -72,6 +73,9 @@ export const ReviewsList = () => {
               <div
                 key={review.id}
                 onClick={() => navigate(`/reviews/${review.id}`)}
+                onKeyDown={(e) => e.key === 'Enter' && navigate(`/reviews/${review.id}`)}
+                tabIndex={0}
+                role="button"
                 className="bg-gray-800 rounded-lg p-6 cursor-pointer hover:bg-gray-700 transition-colors duration-200 border border-gray-700"
               >
                 <div className="flex items-center gap-3 mb-3">
@@ -88,6 +92,7 @@ export const ReviewsList = () => {
                       {new Date(review.createdAt).toLocaleString()}
                     </div>
                   </div>
+                </div>
 
                 <div className="flex gap-1 mb-2">
                   {renderStars(review.rating)}

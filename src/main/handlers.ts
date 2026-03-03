@@ -199,7 +199,7 @@ const emitNetworkStatus = (status: NetworkStatusEvent): void => {
   windows.forEach((window) => {
     window.webContents.send(NETWORK_STATUS_CHANNEL, status);
   });
-});
+};
 
 ipcMain.handle('reviews-list', async () => {
   try {
