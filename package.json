@@ -8,9 +8,10 @@
   "main": "./dist-electron/main/index.js",
   "author": "Flucto Team",
   "scripts": {
-    "dev": "concurrently \"npm run dev:vite\" \"npm run dev:electron\"",
+    "dev": "npm run build:electron && concurrently \"npm run dev:vite\" \"npm run dev:electron\"",
     "dev:vite": "vite",
-    "dev:electron": "wait-on http://localhost:5173 && cross-env NODE_ENV=development ELECTRON_OZONE_PLATFORM_HINT=x11 electron . --no-sandbox --ozone-platform=x11 --disable-vulkan",
+    "dev:electron": "wait-on http://localhost:5173 && cross-env NODE_ENV=development electron . --no-sandbox --disable-vulkan",
+    "dev:electron:x11": "wait-on http://localhost:5173 && cross-env NODE_ENV=development ELECTRON_OZONE_PLATFORM_HINT=x11 electron . --no-sandbox --ozone-platform=x11 --disable-vulkan",
     "build": "npm run build:renderer && npm run build:electron",
     "build:renderer": "vite build",
     "build:electron": "tsc -p tsconfig.electron.json",
@@ -18,7 +19,8 @@
     "supabase:smoke": "node scripts/supabase-smoke-check.mjs",
     "postinstall": "node scripts/setup-binaries.mjs",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "review:regression": "node scripts/review-regression-check.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.98.0",
