@@ -48,6 +48,11 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
+      - name: Setup pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@latest --activate
+
       - name: Install Dependencies
         run: npm install
 
