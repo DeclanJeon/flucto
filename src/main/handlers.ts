@@ -176,7 +176,14 @@ ipcMain.handle('reviews-delete', async (_event, id: string) => {
 
     logger.info('Review deleted:', { id });
   } catch (error: unknown) {
-    logger.error('Review Delete Error:', { error: error instanceof Error ? error.message : 'Unknown error' });
+  } catch (error) {
+    const err = error as Error;
+    logger.error('Review Delete Error:', {
+      message: err.message,
+      stack: err.stack
+    });
+    throw new Error(`Failed to delete review: ${err.message}`);
+  }
     throw new Error('Failed to delete review');
   }
 });
