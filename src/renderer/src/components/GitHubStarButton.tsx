@@ -1,0 +1,66 @@
+import { useState, useEffect } from 'react';
+import { Star, StarOff } from 'lucide-react';
+import type { GitHubRepo } from '../../shared/types';
+
+interface GitHubStarButtonProps {
+  owner: string;
+  repo: string;
+}
+
+export const GitHubStarButton = ({ owner, repo }: GitHubStarButtonProps) => {
+  const [starCount, setStarCount] = useState<number>(0);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    loadStarCount();
+  }, [owner, repo]);
+
+  const loadStarCount = async () => {
+    setLoading(true);
+    try {
+      // GitHub REST API call to get star count
+      const response = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}`,
+        {
+          headers: {
+            'Accept': 'application/vnd.github+json'
+          }
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        setStarCount(data.stargazers_count || 0);
+      }
+    } catch (error) {
+      console.error('Failed to load star count:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleStar = async () => {
+    const url = `https://github.com/${owner}/${repo}`;
+    window.githubAPI.openRepo(owner, repo);
+
+    // Wait 1 second then refresh star count
+    setTimeout(() => {
+      loadStarCount();
+    }, 1000);
+  };
+
+  return (
+    <button
+      onClick={handleStar}
+      disabled={loading}
+      className="flex items-center gap-2 px-3 py-1.5 rounded bg-gray-800 hover:bg-gray-700 transition-colors duration-200"
+    >
+      <Star className={starCount > 0 ? 'text-yellow-400 fill-yellow-400' : 'text-gray-400'} />
+      {loading ? (
+        <span className="text-gray-400 text-sm">Loading...</span>
+      ) : (
+        <span className="font-semibold">{starCount}</span>
+      )}
+    </button>
+  );
+};
