@@ -90,7 +90,7 @@ export const CreateReview = () => {
               type="text"
               value={form.authorName}
               onChange={(event) => setForm((prev) => ({ ...prev, authorName: event.target.value }))}
-              className="w-full px-4 py-3 rounded-lg bg-gray-900 text-white border border-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+              className="w-full px-4 py-3 rounded-lg bg-gray-900 text-white border border-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
               placeholder="리뷰를 남길 이름을 입력하세요"
               required
             />
@@ -123,7 +123,7 @@ export const CreateReview = () => {
               id="review-content"
               value={form.content}
               onChange={(event) => setForm((prev) => ({ ...prev, content: event.target.value }))}
-              className="w-full px-4 py-3 rounded-lg bg-gray-900 text-white border border-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all min-h-[180px]"
+              className="w-full px-4 py-3 rounded-lg bg-gray-900 text-white border border-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none min-h-[180px]"
               placeholder="리뷰 내용을 입력하세요"
               required
             />
