@@ -15,7 +15,7 @@ export const PostsList = () => {
   const loadPosts = async () => {
     setLoading(true);
     try {
-      const result = await window.postsAPI.list();
+      const result = await window.api.postsAPI.list();
       setPosts(result.posts || []);
     } catch (error) {
       console.error('Failed to load posts:', error);

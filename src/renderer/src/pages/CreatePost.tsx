@@ -29,7 +29,7 @@ export const CreatePost = () => {
       }
     };
 
-    await window.postsAPI.create(newPost);
+    await window.api.postsAPI.create(newPost);
 
     // Reset form
     setTitle('');

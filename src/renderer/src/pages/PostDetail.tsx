@@ -20,14 +20,14 @@ export const PostDetail = () => {
     setLoading(true);
     try {
       // Load all posts and find target post
-      const postsResult = await window.postsAPI.list();
+      const postsResult = await window.api.postsAPI.list();
       const targetPost = postsResult.posts?.find(p => p.id === postId);
 
       if (targetPost) {
         setPost(targetPost);
 
         // Load reviews for this post
-        const reviewsResult = await window.reviewsAPI.list(postId);
+        const reviewsResult = await window.api.reviewsAPI.list(postId);
         setReviews(reviewsResult.reviews || []);
       } else {
         setPost(null);
@@ -64,13 +64,13 @@ export const PostDetail = () => {
       updatedAt: new Date().toISOString()
     };
 
-    await window.reviewsAPI.create(reviewData);
+    await window.api.reviewsAPI.create(reviewData);
 
     // Reset form
     setNewReview({ rating: 0, content: '' });
 
     // Reload reviews
-    const reviewsResult = await window.reviewsAPI.list(id);
+    const reviewsResult = await window.api.reviewsAPI.list(id);
     setReviews(reviewsResult.reviews || []);
   };
 
