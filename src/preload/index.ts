@@ -15,6 +15,19 @@ const api = {
   onDownloadProgress: (callback: (progress: any) => void) => {
     ipcRenderer.on('download-progress', (_event, progress) => callback(progress));
   },
+  // Posts & Reviews APIs
+  postsAPI: {
+    list: () => ipcRenderer.invoke('posts-list'),
+    create: (post: any) => ipcRenderer.invoke('posts-create', post),
+    get: (id: string) => ipcRenderer.invoke('posts-get', id),
+    update: (id: string, post: any) => ipcRenderer.invoke('posts-update', { id, post }),
+    delete: (id: string) => ipcRenderer.invoke('posts-delete', id),
+  },
+  reviewsAPI: {
+    list: (postId: string) => ipcRenderer.invoke('reviews-list', postId),
+    create: (review: any) => ipcRenderer.invoke('reviews-create', review),
+    delete: (id: string) => ipcRenderer.invoke('reviews-delete', id),
+  },
 };
 
 // 보안을 위해 contextBridge를 통해서만 노출

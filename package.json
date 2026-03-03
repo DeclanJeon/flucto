@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "concurrently \"npm run dev:vite\" \"npm run dev:electron\"",
     "dev:vite": "vite",
-    "dev:electron": "wait-on http://localhost:5173 && cross-env NODE_ENV=development electron . --no-sandbox",
+    "dev:electron": "wait-on http://localhost:5173 && cross-env NODE_ENV=development ELECTRON_OZONE_PLATFORM_HINT=x11 electron . --no-sandbox --ozone-platform=x11 --disable-vulkan",
     "build": "npm run build:renderer && npm run build:electron",
     "build:renderer": "vite build",
     "build:electron": "tsc -p tsconfig.electron.json",
@@ -33,6 +33,7 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-hook-form": "^7.67.0",
+    "react-router-dom": "^7.13.1",
     "tailwind-merge": "^3.4.0",
     "winston": "^3.18.3",
     "yt-dlp-exec": "^1.0.2",
