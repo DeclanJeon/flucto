@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+
 
 type ReviewFormState = {
   authorName: string;
@@ -7,8 +8,22 @@ type ReviewFormState = {
   content: string;
 };
 
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (typeof error === 'string') {
+    return error;
+  }
+
+  return '리뷰 등록에 실패했습니다. 잠시 후 다시 시도해 주세요.';
+};
+
 export const CreateReview = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const postIdFromQuery = searchParams.get('postId')?.trim() || '';
   const [form, setForm] = useState<ReviewFormState>({
     authorName: '',
     rating: 0,
@@ -29,6 +44,11 @@ export const CreateReview = () => {
   const handleSubmit = async (event: React.SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault();
 
+    if (!postIdFromQuery) {
+      alert('게시글 정보가 없어 리뷰를 등록할 수 없습니다. 리뷰 목록에서 다시 진입해 주세요.');
+      return;
+    }
+
     if (!form.authorName.trim()) {
       alert('이름은 필수입니다.');
       return;
@@ -45,6 +65,7 @@ export const CreateReview = () => {
     }
 
     const reviewData = {
+      postId: postIdFromQuery,
       rating: form.rating,
       content: form.content.trim(),
       author: {
@@ -60,7 +81,7 @@ export const CreateReview = () => {
       navigate('/reviews');
     } catch (error) {
       console.error('Failed to create review:', error);
-      alert('리뷰 등록에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+      alert(getErrorMessage(error));
     } finally {
       setIsSubmitting(false);
     }
@@ -82,6 +103,11 @@ export const CreateReview = () => {
       </header>
 
       <main className="pt-32 pb-24 px-6 max-w-4xl mx-auto">
+        {!postIdFromQuery ? (
+          <div className="mb-4 rounded-lg bg-red-900/40 border border-red-500/40 text-red-200 px-4 py-3 text-sm">
+            게시글 식별자가 없어 리뷰를 작성할 수 없습니다. 리뷰 목록에서 "새 리뷰 작성"을 다시 시도해 주세요.
+          </div>
+        ) : null}
         <form onSubmit={handleSubmit} className="space-y-6 bg-gray-800 rounded-lg p-6">
           <div>
             <label htmlFor="author-name" className="block text-sm font-medium text-gray-300 mb-2">작성자 이름</label>
@@ -140,7 +166,7 @@ export const CreateReview = () => {
             <button
               type="submit"
               className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={isSubmitting}
+              disabled={isSubmitting || !postIdFromQuery}
             >
               {isSubmitting ? '등록 중...' : '리뷰 등록'}
             </button>

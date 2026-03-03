@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import type { Review } from '../../../shared/types';
 import { Star, Trash2 } from 'lucide-react';
+import type { Review } from '../../../shared/types';
 
 export const ReviewDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [review, setReview] = useState<Review | null>(null);
   const [loading, setLoading] = useState(true);
+  const [currentAuthorId, setCurrentAuthorId] = useState('');
 
   const loadReview = useCallback(async (reviewId: string) => {
     setLoading(true);
@@ -27,8 +28,24 @@ export const ReviewDetail = () => {
     }
   }, [id, loadReview]);
 
+  useEffect(() => {
+    const loadAuthor = async () => {
+      try {
+        const currentAuthor = await window.api.reviewsAPI.getCurrentAuthor();
+        setCurrentAuthorId(currentAuthor.id);
+      } catch (error) {
+        console.error('Failed to load current author:', error);
+      }
+    };
+
+    loadAuthor();
+  }, []);
+
+  const canDeleteReview = Boolean(review && currentAuthorId && review.author.id === currentAuthorId);
+
   const handleDelete = async () => {
     if (!review?.id) return;
+    if (!canDeleteReview) return;
 
     if (confirm('정말 삭제하시겠습니까?')) {
       try {
@@ -36,6 +53,11 @@ export const ReviewDetail = () => {
         navigate('/reviews');
       } catch (error) {
         console.error('Failed to delete review:', error);
+        if (error instanceof Error) {
+          alert(error.message);
+          return;
+        }
+
         alert('리뷰 삭제에 실패했습니다.');
       }
     }
@@ -79,24 +101,21 @@ export const ReviewDetail = () => {
           </button>
           <h1 className="text-xl font-bold text-white ml-4">리뷰 상세</h1>
         </div>
-        <button
-          type="button"
-          onClick={handleDelete}
-          className="text-red-400 hover:text-red-300 transition-colors flex items-center gap-2"
-        >
-          <Trash2 size={16} />
-          삭제
-        </button>
+        {canDeleteReview && (
+          <button
+            type="button"
+            onClick={handleDelete}
+            className="text-red-400 hover:text-red-300 transition-colors flex items-center gap-2"
+          >
+            <Trash2 size={16} />
+            삭제
+          </button>
+        )}
       </header>
 
       <main className="pt-32 pb-24 px-6 max-w-4xl mx-auto">
         <div className="bg-gray-800 rounded-lg p-6">
-          <div className="flex items-center gap-4 mb-4">
-            <img
-              src={review.author.avatar || `https://ui-avatars.herokuapp.com/api/?name=${encodeURIComponent(review.author.name)}&background=random`}
-              alt={review.author.name}
-              className="w-14 h-14 rounded-full"
-            />
+          <div className="mb-4">
             <div>
               <div className="font-semibold text-white text-lg">{review.author.name}</div>
               <div className="text-gray-400 text-sm">

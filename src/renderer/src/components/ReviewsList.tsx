@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import type { Review } from '../../../shared/types';
@@ -8,7 +8,7 @@ export const ReviewsList = () => {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const loadReviews = async () => {
+  const loadReviews = useCallback(async () => {
     setLoading(true);
     try {
       if (!window.api?.reviewsAPI?.list) {
@@ -23,16 +23,17 @@ export const ReviewsList = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadReviews();
-  }, []);
+  }, [loadReviews]);
 
   const renderStars = (rating: number) => {
     return [1, 2, 3, 4, 5].map((star) => (
       <svg
         key={star}
+        aria-hidden="true"
         className={`w-4 h-4 ${star <= rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-400'}`}
         fill="currentColor"
         viewBox="0 0 24 24"
@@ -40,6 +41,13 @@ export const ReviewsList = () => {
         <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
       </svg>
     ));
+  };
+
+  const latestPostId = reviews[0]?.postId ?? '';
+
+  const handleCreateReview = () => {
+    const postQuery = latestPostId ? `?postId=${encodeURIComponent(latestPostId)}` : '';
+    navigate(`/reviews/create${postQuery}`);
   };
 
   return (
@@ -57,7 +65,7 @@ export const ReviewsList = () => {
         </div>
         <button
           type="button"
-          onClick={() => navigate('/reviews/create')}
+          onClick={handleCreateReview}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-full font-medium transition-all active:scale-95 flex items-center gap-2 text-sm"
         >
           <Plus size={16} />
@@ -65,7 +73,7 @@ export const ReviewsList = () => {
         </button>
       </header>
 
-      <main className="pt-32 pb-24 px-6 max-w-4xl mx-auto">
+    <main className="pt-32 pb-24 px-6 max-w-4xl mx-auto">
         {loading ? (
           <div className="text-center text-gray-400">리뷰 로드 중...</div>
         ) : reviews.length === 0 ? (
@@ -75,20 +83,13 @@ export const ReviewsList = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {reviews.map((review) => (
-              <div
-                key={review.id}
-                onClick={() => navigate(`/reviews/${review.id}`)}
-                onKeyDown={(e) => e.key === 'Enter' && navigate(`/reviews/${review.id}`)}
-                tabIndex={0}
-                role="button"
-                className="bg-gray-800 rounded-lg p-6 cursor-pointer hover:bg-gray-700 transition-colors duration-200 border border-gray-700"
-              >
-                <div className="flex items-center gap-3 mb-3">
-                  <img
-                    src={review.author.avatar || `https://ui-avatars.herokuapp.com/api/?name=${encodeURIComponent(review.author.name)}&background=random`}
-                    alt={review.author.name}
-                    className="w-10 h-10 rounded-full"
-                  />
+            <button
+              type="button"
+              key={review.id}
+              onClick={() => navigate(`/reviews/${review.id}`)}
+              className="bg-gray-800 rounded-lg p-6 cursor-pointer hover:bg-gray-700 transition-colors duration-200 border border-gray-700 w-full text-left"
+            >
+                <div className="mb-3">
                   <div>
                     <div className="font-semibold text-white text-sm">
                       {review.author.name}
@@ -99,12 +100,12 @@ export const ReviewsList = () => {
                   </div>
                 </div>
 
-                <div className="flex gap-1 mb-2">
-                  {renderStars(review.rating)}
-                </div>
-
-                <p className="text-gray-300 mt-2 line-clamp-2">{review.content}</p>
+              <div className="flex gap-1 mb-2">
+                {renderStars(review.rating)}
               </div>
+
+              <p className="text-gray-300 mt-2 line-clamp-2">{review.content}</p>
+            </button>
             ))}
           </div>
         )}
