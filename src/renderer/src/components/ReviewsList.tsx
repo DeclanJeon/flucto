@@ -11,6 +11,11 @@ export const ReviewsList = () => {
   const loadReviews = async () => {
     setLoading(true);
     try {
+      if (!window.api?.reviewsAPI?.list) {
+        console.warn('reviewsAPI is not available');
+        setReviews([]);
+        return;
+      }
       const result = await window.api.reviewsAPI.list();
       setReviews(result.reviews || []);
     } catch (error) {

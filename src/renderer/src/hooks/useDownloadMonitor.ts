@@ -5,6 +5,11 @@ export const useDownloadMonitor = () => {
   const [downloadProgress, setDownloadProgress] = useState<Record<string, DownloadProgressType>>({});
 
   useEffect(() => {
+    if (!window.api?.onDownloadProgress) {
+      console.warn('window.api.onDownloadProgress is not available');
+      return;
+    }
+
     window.api.onDownloadProgress((progress) => {
       setDownloadProgress((prev) => ({
         ...prev,
