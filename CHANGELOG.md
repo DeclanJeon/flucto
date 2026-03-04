@@ -1,3 +1,10 @@
+## [1.1.4](https://github.com/DeclanJeon/flucto/compare/v1.1.3...v1.1.4) (2026-03-04)
+
+
+### Bug Fixes
+
+* execa를 native child_process로 교체하여 ESM 모듈 에러 완전 해결 ([31e73d6](https://github.com/DeclanJeon/flucto/commit/31e73d6b798669e409c02adef32193e0eca765f8))
+
 ## [1.1.3](https://github.com/DeclanJeon/flucto/compare/v1.1.2...v1.1.3) (2026-03-04)
 
 
