@@ -1,24 +1,116 @@
 {
   appId: "com.yourname.fluctoDownloader",
-  productName: "flucto-downloader",
+  productName: "Flucto",
+  copyright: "Copyright © 2024 Flucto Team",
+
   directories: {
     output: "release",
     buildResources: "assets",
   },
-  files: ["dist-electron/**/*", "dist/**/*", "bin/**/*"],
-  asarUnpack: ["bin/*"],
+
+  files: [
+    "dist-electron/**/*",
+    "dist/**/*",
+    "bin/**/*",
+    "package.json",
+  ],
+
+  asar: true,
+  asarUnpack: [
+    "bin/**/*",
+    "**/*.node",
+  ],
+
+  // Windows configuration
   win: {
-    target: "nsis",
+    target: [
+      { target: "nsis", arch: ["x64"] },
+      { target: "portable", arch: ["x64"] },
+    ],
     icon: "assets/icon.ico",
+    artifactName: "${productName}-${version}-${arch}-setup.${ext}",
   },
+
+  nsis: {
+    oneClick: false,
+    allowToChangeInstallationDirectory: true,
+    createDesktopShortcut: true,
+    createStartMenuShortcut: true,
+    perMachine: false,
+    installerIcon: "assets/icon.ico",
+    uninstallerIcon: "assets/icon.ico",
+    installerHeaderIcon: "assets/icon.ico",
+    deleteAppDataOnUninstall: false,
+    runAfterFinish: true,
+  },
+
+  portable: {
+    artifactName: "${productName}-${version}-${arch}-portable.${ext}",
+  },
+
+  // macOS configuration
   mac: {
-    target: "dmg",
+    target: [
+      { target: "dmg", arch: ["x64", "arm64"] },
+      { target: "zip", arch: ["x64", "arm64"] },
+    ],
     icon: "assets/icon.icns",
     hardenedRuntime: true,
     gatekeeperAssess: false,
+    category: "public.app-category.utilities",
+    artifactName: "${productName}-${version}-${arch}.${ext}",
   },
+
+  dmg: {
+    background: "assets/dmg-background.png",
+    iconSize: 100,
+    contents: [
+      { x: 380, y: 180, type: "link", path: "/Applications" },
+      { x: 130, y: 180, type: "file" },
+    ],
+    window: { width: 540, height: 380 },
+  },
+
+  // Linux configuration
   linux: {
-    target: "AppImage",
-    category: "Utility",
+    target: [
+      { target: "AppImage", arch: ["x64"] },
+      { target: "deb", arch: ["x64"] },
+      { target: "rpm", arch: ["x64"] },
+      { target: "tar.gz", arch: ["x64"] },
+    ],
+    category: "AudioVideo;Video;Utility",
+    maintainer: "Flucto Team",
+    vendor: "Flucto Team",
+    synopsis: "Privacy-first media downloader for desktop",
+    description: "Flucto is a modern desktop application for downloading video and audio from YouTube, Twitter, Reddit, Bilibili, and Instagram.",
+    icon: "assets/icons",
+    artifactName: "${productName}-${version}-${arch}.${ext}",
+  },
+
+  deb: {
+    priority: "optional",
+    compression: "xz",
+  },
+
+  rpm: {
+    compression: "xz",
+  },
+
+  // Auto-update configuration (if using electron-updater)
+  publish: {
+    provider: "github",
+    owner: "yourusername",
+    repo: "flucto",
+  },
+
+  // Build options
+  buildDependenciesFromSource: false,
+  nodeGypRebuild: false,
+  npmRebuild: false,
+
+  // Extra metadata
+  extraMetadata: {
+    main: "./dist-electron/main/index.js",
   },
 }

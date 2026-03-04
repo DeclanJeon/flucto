@@ -61,10 +61,12 @@ function createWindow(): void {
   });
 
   // HMR for development or load production build
-  if (process.env.NODE_ENV === "development") {
+  // Use app.isPackaged for reliable environment detection
+  if (!app.isPackaged && process.env.NODE_ENV === "development") {
     mainWindow.loadURL("http://localhost:5173");
     // mainWindow.webContents.openDevTools(); // 개발자 도구 필요시 주석 해제
   } else {
+    // In production, load the built renderer from dist/
     mainWindow.loadFile(path.join(__dirname, "../../dist/index.html"));
   }
 }
