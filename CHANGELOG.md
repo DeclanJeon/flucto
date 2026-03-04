@@ -1,3 +1,10 @@
+## [1.1.2](https://github.com/DeclanJeon/flucto/compare/v1.1.1...v1.1.2) (2026-03-04)
+
+
+### Bug Fixes
+
+* ASAR에서 node_modules 언팩하여 ESM 모듈 로드 에러 해결 ([94f79b1](https://github.com/DeclanJeon/flucto/commit/94f79b13297c1c3ecd00883b318c7820f797aeff))
+
 ## [1.1.1](https://github.com/DeclanJeon/flucto/compare/v1.1.0...v1.1.1) (2026-03-04)
 
 
