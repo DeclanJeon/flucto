@@ -1,3 +1,10 @@
+## [1.1.3](https://github.com/DeclanJeon/flucto/compare/v1.1.2...v1.1.3) (2026-03-04)
+
+
+### Bug Fixes
+
+* ASAR 비활성화로 ESM 모듈 로드 에러 완전 해결 ([36accf7](https://github.com/DeclanJeon/flucto/commit/36accf71ccbeca0103bd9549d6137196b1e92135))
+
 ## [1.1.2](https://github.com/DeclanJeon/flucto/compare/v1.1.1...v1.1.2) (2026-03-04)
 
 
