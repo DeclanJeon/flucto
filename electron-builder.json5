@@ -54,7 +54,7 @@
       { target: "dmg", arch: ["x64", "arm64"] },
       { target: "zip", arch: ["x64", "arm64"] },
     ],
-    icon: "assets/icon.icns",
+    icon: "assets/icon.png",
     hardenedRuntime: true,
     gatekeeperAssess: false,
     category: "public.app-category.utilities",
@@ -62,7 +62,6 @@
   },
 
   dmg: {
-    background: "assets/dmg-background.png",
     iconSize: 100,
     contents: [
       { x: 380, y: 180, type: "link", path: "/Applications" },
