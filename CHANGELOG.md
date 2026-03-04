@@ -1,3 +1,10 @@
+## [1.1.5](https://github.com/DeclanJeon/flucto/compare/v1.1.4...v1.1.5) (2026-03-04)
+
+
+### Bug Fixes
+
+* node_modules를 extraResources로 명시적 포함 ([1800073](https://github.com/DeclanJeon/flucto/commit/1800073fd108b668575034c4050f8ececeb2ecf2))
+
 ## [1.1.4](https://github.com/DeclanJeon/flucto/compare/v1.1.3...v1.1.4) (2026-03-04)
 
 
