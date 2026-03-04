@@ -16,12 +16,7 @@
     "node_modules/**/*",
   ],
 
-  asar: true,
-  asarUnpack: [
-    "bin/**/*",
-    "**/*.node",
-    "node_modules/**/*",
-  ],
+  asar: false,
 
   // Windows configuration
   win: {
