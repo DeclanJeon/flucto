@@ -1,3 +1,11 @@
+## [1.1.1](https://github.com/DeclanJeon/flucto/compare/v1.1.0...v1.1.1) (2026-03-04)
+
+
+### Bug Fixes
+
+* Windows/macOS/Linux 빌드를 위한 아이콘 파일 추가 ([d2fa71a](https://github.com/DeclanJeon/flucto/commit/d2fa71a34eeb470591889535bb6e0ef0a6ea5f6d))
+* 패키징 문제 해결 - 빈 화면 및 JavaScript 에러 수정 ([d3a6057](https://github.com/DeclanJeon/flucto/commit/d3a60574d12591f15165b32b542b5fc39f83812c))
+
 # [1.1.0](https://github.com/DeclanJeon/flucto/compare/v1.0.12...v1.1.0) (2026-03-03)
 
 
