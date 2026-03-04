@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, shell, dialog } from "electron";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
-import { execa } from "execa";
+import { execa } from "./spawn.js";
 import { getBinaryPath, checkSystemHealth } from "./utils.js";
 import { logger } from "./logger.js";
 import { config } from "./config.js";

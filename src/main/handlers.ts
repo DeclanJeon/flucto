@@ -1,5 +1,5 @@
 import { BrowserWindow, ipcMain } from 'electron';
-import { execa } from 'execa';
+import { execa } from './spawn.js';
 import { logger } from './logger.js';
 import {
   ensureAuthenticatedSession,
