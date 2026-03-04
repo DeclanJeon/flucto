@@ -13,10 +13,17 @@
     "dist/**/*",
     "bin/**/*",
     "package.json",
-    "node_modules/**/*",
   ],
 
   asar: false,
+
+  extraResources: [
+    {
+      from: "node_modules",
+      to: "node_modules",
+      filter: ["**/*"]
+    }
+  ],
 
   // Windows configuration
   win: {
