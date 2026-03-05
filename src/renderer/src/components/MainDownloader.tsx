@@ -82,6 +82,10 @@ export const MainDownloader: React.FC = () => {
     notifyPerItemInBatch: false,
   });
 
+  const handleReviewWrite = () => {
+    window.open('https://reviewlink.ponslink.online/write', '_blank', 'noopener,noreferrer');
+  };
+
   useEffect(() => {
     const loadSettings = async () => {
       try {
@@ -344,6 +348,14 @@ export const MainDownloader: React.FC = () => {
           <span className="font-bold text-lg tracking-tight">Flucto</span>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleReviewWrite}
+            className="px-3 py-1.5 rounded-full border border-white/10 bg-[#1c1c1e] text-sm text-gray-300 hover:text-white hover:bg-white/10 transition-all"
+            title="리뷰작성"
+          >
+            리뷰작성
+          </button>
           <button
             type="button"
             onClick={() => setShowHistory((prev) => !prev)}
