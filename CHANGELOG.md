@@ -1,3 +1,10 @@
+## [1.1.7](https://github.com/DeclanJeon/flucto/compare/v1.1.6...v1.1.7) (2026-03-05)
+
+
+### Bug Fixes
+
+* portable 배포에서 런타임 모듈 누락 방지 ([5e60643](https://github.com/DeclanJeon/flucto/commit/5e606434a053e3b3b09a947aa7176c3b940b441b))
+
 ## [1.1.6](https://github.com/DeclanJeon/flucto/compare/v1.1.5...v1.1.6) (2026-03-05)
 
 
