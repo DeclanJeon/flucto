@@ -1,36 +1,12 @@
 import { BrowserWindow, ipcMain } from 'electron';
 import { execa } from './spawn.js';
 import { logger } from './logger.js';
+import { checkForAppUpdates } from './updater.js';
 import { getBinaryPath } from './utils.js';
-import { getUpdateSettingsDefaults, settingsStore } from './store.js';
-import type { NetworkStatusEvent, UpdateSettings } from '../shared/types.js';
+import { getStoredUpdateSettings, isUpdateSettings, settingsStore } from './store.js';
+import type { NetworkStatusEvent } from '../shared/types.js';
 
 const NETWORK_STATUS_CHANNEL = 'network-status-change';
-
-const isUpdateSettings = (value: unknown): value is UpdateSettings => {
-  if (!value || typeof value !== 'object') return false;
-  const candidate = value as Record<string, unknown>;
-  return (
-    typeof candidate.autoUpdate === 'boolean' &&
-    typeof candidate.checkInterval === 'number' &&
-    Number.isInteger(candidate.checkInterval) &&
-    candidate.checkInterval > 0 &&
-    typeof candidate.notifyOnStart === 'boolean'
-  );
-};
-
-const getStoredUpdateSettings = (): UpdateSettings => {
-  const stored = settingsStore.get('updateSettings');
-  if (isUpdateSettings(stored)) {
-    return {
-      ...stored,
-    };
-  }
-
-  const defaults = getUpdateSettingsDefaults();
-  settingsStore.set('updateSettings', defaults);
-  return defaults;
-};
 
 let networkStatus: NetworkStatusEvent = {
   online: true,
@@ -58,16 +34,31 @@ ipcMain.handle('save-update-settings', (_event, settings: unknown): void => {
 });
 
 ipcMain.handle('check-binary-updates', async () => {
+  const settings = getStoredUpdateSettings();
   try {
     const ytDlpPath = getBinaryPath('yt-dlp');
     const ffmpegPath = getBinaryPath('ffmpeg');
 
-    await Promise.all([
+    const binaryChecks = await Promise.allSettled([
       execa(ytDlpPath, ['--version']),
       execa(ffmpegPath, ['-version']),
     ]);
 
-    const settings = getStoredUpdateSettings();
+    try {
+      await checkForAppUpdates(true);
+    } catch (updateError: unknown) {
+      const updateErrorMessage = updateError instanceof Error ? updateError.message : String(updateError);
+      logger.warn('App update check failed during manual binary check', { error: updateErrorMessage });
+    }
+
+    const binaryFailures = binaryChecks.filter((result) => result.status === 'rejected');
+    if (binaryFailures.length > 0) {
+      const messages = binaryFailures
+        .map((result) => (result.status === 'rejected' ? String(result.reason) : ''))
+        .filter((value) => value.length > 0);
+      throw new Error(messages.join(' | ') || 'Binary update check failed');
+    }
+
     emitNetworkStatus({
       ...networkStatus,
       online: settings.autoUpdate ? networkStatus.online : true,

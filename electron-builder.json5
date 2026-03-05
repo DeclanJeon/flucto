@@ -107,7 +107,7 @@
   // Auto-update configuration (if using electron-updater)
   publish: {
     provider: "github",
-    owner: "yourusername",
+    owner: "DeclanJeon",
     repo: "flucto",
   },
 

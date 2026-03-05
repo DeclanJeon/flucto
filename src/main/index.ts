@@ -6,6 +6,7 @@ import { execa } from "./spawn.js";
 import { getBinaryPath, checkSystemHealth } from "./utils.js";
 import { logger } from "./logger.js";
 import { config } from "./config.js";
+import { initializeAutoUpdater } from "./updater.js";
 import type { DownloadRequest } from "../shared/types.js";
 import './handlers.js';
 const __filename = fileURLToPath(import.meta.url);
@@ -92,6 +93,9 @@ app.whenReady().then(async () => {
 
   // 2. 윈도우 생성
   createWindow();
+
+  await initializeAutoUpdater();
+
   logger.info("Electron application is ready and healthy.");
 
   app.on("activate", () => {
