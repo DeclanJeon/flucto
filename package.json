@@ -2,7 +2,7 @@
   "name": "flucto",
   "productName": "Flucto",
   "private": true,
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "Flowing Speed. Flawless Video. Experience Flucto.",
   "type": "module",
   "main": "./dist-electron/main/index.js",

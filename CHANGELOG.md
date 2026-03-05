@@ -1,3 +1,10 @@
+## [1.4.1](https://github.com/DeclanJeon/flucto/compare/v1.4.0...v1.4.1) (2026-03-05)
+
+
+### Bug Fixes
+
+* trigger 1.4.1 release ([c252f38](https://github.com/DeclanJeon/flucto/commit/c252f38bd44b7d7c4d528f4984b26d9163c5aaec))
+
 # [1.4.0](https://github.com/DeclanJeon/flucto/compare/v1.3.0...v1.4.0) (2026-03-05)
 
 
