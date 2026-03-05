@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/DeclanJeon/flucto/compare/v1.3.0...v1.4.0) (2026-03-05)
+
+
+### Features
+
+* add review write button ([49c3980](https://github.com/DeclanJeon/flucto/commit/49c39803c6817cf400974e925a401bab9ffb493b))
+
 # [1.3.0](https://github.com/DeclanJeon/flucto/compare/v1.2.1...v1.3.0) (2026-03-05)
 
 
