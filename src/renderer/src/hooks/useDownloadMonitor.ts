@@ -13,7 +13,7 @@ export const useDownloadMonitor = () => {
     window.api.onDownloadProgress((progress) => {
       setDownloadProgress((prev) => ({
         ...prev,
-        [progress.url]: progress,
+        [progress.requestId]: progress,
       }));
     });
   }, []);

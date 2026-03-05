@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Download,
@@ -11,13 +11,18 @@ import {
   ListVideo,
   Globe,
   Grid3X3,
-  List
+  List,
+  History,
+  Activity,
+  X,
 } from 'lucide-react';
 import { VideoPreview } from './VideoPreview';
 import { VideoPreviewList } from './VideoPreviewList';
 import { DownloadProgress } from './DownloadProgress';
+import { DownloadSettings } from './DownloadSettings';
+import { DownloadHistory } from './DownloadHistory';
 import { useDownloadMonitor } from '../hooks/useDownloadMonitor';
-import type { VideoInfo } from '../../../shared/types';
+import type { DownloadSettings as DownloadSettingsType, FormatOption, VideoInfo } from '../../../shared/types';
 
 // [수정] 범용 URL 클리너 (YouTube ID 추출 로직 제거 및 범용화)
 const cleanMediaUrl = (url: string): string | null => {
@@ -60,6 +65,119 @@ export const MainDownloader: React.FC = () => {
 
   const downloadProgress = useDownloadMonitor();
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [appliedSummary, setAppliedSummary] = useState<string | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [showStatusPanel, setShowStatusPanel] = useState(true);
+  const [downloadSettings, setDownloadSettings] = useState<DownloadSettingsType>({
+    downloadsDirectory: null,
+    qualityPreferences: {
+      video: '1080p',
+      audio: '320kbps',
+    },
+    formatOverrides: {
+      videoFormatId: null,
+      audioFormatId: null,
+    },
+    notifyPerItemInBatch: false,
+  });
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const saved = await window.api.getDownloadSettings();
+        setDownloadSettings(saved);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        setStatusMessage(`❌ Failed to load settings: ${message}`);
+      }
+    };
+    void loadSettings();
+  }, []);
+
+  const formatBytesLabel = (bytes?: number): string => {
+    if (!bytes || bytes <= 0) {
+      return 'size unknown';
+    }
+    const mb = bytes / (1024 * 1024);
+    if (mb < 1024) {
+      return `~${mb.toFixed(1)} MB`;
+    }
+    return `~${(mb / 1024).toFixed(2)} GB`;
+  };
+
+  const inferBytesFromAbr = (abrKbps?: number, durationSec?: number): number | undefined => {
+    if (!abrKbps || !durationSec) {
+      return undefined;
+    }
+    return (abrKbps * 1000 / 8) * durationSec;
+  };
+
+  const estimateAppliedSummary = async (targetUrl: string, durationSec?: number): Promise<string> => {
+    const sourceVideo = downloadSettings.formatOverrides.videoFormatId
+      ? `Format ID ${downloadSettings.formatOverrides.videoFormatId}`
+      : `Preset ${downloadSettings.qualityPreferences.video}`;
+    const sourceAudio = downloadSettings.formatOverrides.audioFormatId
+      ? `Format ID ${downloadSettings.formatOverrides.audioFormatId}`
+      : `Preset ${downloadSettings.qualityPreferences.audio}`;
+
+    try {
+      const formats = await window.api.getAvailableFormats(targetUrl);
+      const videoFormats = formats.filter((format) => format.vcodec && format.vcodec !== 'none');
+      const audioFormats = formats.filter((format) => format.acodec && format.acodec !== 'none');
+
+      if (format === 'mp4') {
+        let selected: FormatOption | undefined;
+        if (downloadSettings.formatOverrides.videoFormatId) {
+          selected = videoFormats.find((f) => f.formatId === downloadSettings.formatOverrides.videoFormatId);
+        } else {
+          const targetHeight: Record<string, number> = {
+            '4k': 2160,
+            '1440p': 1440,
+            '1080p': 1080,
+            '720p': 720,
+            '480p': 480,
+            '360p': 360,
+            worst: 0,
+          };
+          const sorted = [...videoFormats].sort((a, b) => (b.height ?? 0) - (a.height ?? 0));
+          if (downloadSettings.qualityPreferences.video === 'worst') {
+            selected = [...sorted].reverse()[0];
+          } else {
+            const target = targetHeight[downloadSettings.qualityPreferences.video];
+            selected = sorted.find((f) => (f.height ?? 0) <= target) ?? sorted[0];
+          }
+        }
+        const bytes = selected?.filesizeBytes ?? selected?.filesizeApproxBytes;
+        return `Applied (MP4): ${sourceVideo} | Estimated: ${formatBytesLabel(bytes)}`;
+      }
+
+      let selected: FormatOption | undefined;
+      if (downloadSettings.formatOverrides.audioFormatId) {
+        selected = audioFormats.find((f) => f.formatId === downloadSettings.formatOverrides.audioFormatId);
+      } else {
+        const targetAbr: Record<string, number> = {
+          '320kbps': 320,
+          '256kbps': 256,
+          '192kbps': 192,
+          '128kbps': 128,
+          '64kbps': 64,
+          worst: 0,
+        };
+        const sorted = [...audioFormats].sort((a, b) => (b.abrKbps ?? 0) - (a.abrKbps ?? 0));
+        if (downloadSettings.qualityPreferences.audio === 'worst') {
+          selected = [...sorted].reverse()[0];
+        } else {
+          const target = targetAbr[downloadSettings.qualityPreferences.audio];
+          selected = sorted.find((f) => (f.abrKbps ?? 0) <= target) ?? sorted[0];
+        }
+      }
+      const bytes = selected?.filesizeBytes ?? selected?.filesizeApproxBytes ?? inferBytesFromAbr(selected?.abrKbps, durationSec);
+      return `Applied (MP3): ${sourceAudio} | Estimated: ${formatBytesLabel(bytes)}`;
+    } catch {
+      return `Applied (${format.toUpperCase()}): ${format === 'mp4' ? sourceVideo : sourceAudio} | Estimated: size unknown`;
+    }
+  };
 
   // [수정] URL 처리 로직 (YouTube Playlist 감지 로직만 유지하고 나머지는 범용 처리)
   const processUrl = async (rawUrl: string): Promise<VideoInfo[]> => {
@@ -164,7 +282,17 @@ export const MainDownloader: React.FC = () => {
     try {
       // id가 없는 경우(일부 사이트) 대비 안전장치
       const downloadUrls = videos.map((v) => v.originalUrl || `https://www.youtube.com/watch?v=${v.id}`);
-      await window.api.downloadMultiple(downloadUrls, format);
+      const downloadTitles = videos.map((v) => v.title || (v.originalUrl || v.id));
+      const summary = await estimateAppliedSummary(downloadUrls[0], videos[0]?.duration);
+      setAppliedSummary(summary);
+      await window.api.downloadMultiple(
+        downloadUrls,
+        format,
+        downloadSettings.qualityPreferences,
+        downloadTitles,
+        downloadSettings.formatOverrides,
+        downloadSettings.notifyPerItemInBatch,
+      );
       setStatusMessage('✅ All downloads started!');
       setVideos([]);
       setTimeout(() => setStatusMessage(null), 3000);
@@ -177,7 +305,32 @@ export const MainDownloader: React.FC = () => {
     }
   };
 
+  const handleDownloadSettingsChange = async (settings: DownloadSettingsType) => {
+    setDownloadSettings(settings);
+    await window.api.setDownloadSettings(settings);
+  };
+
+  const handleIndividualDownload = async (video: VideoInfo) => {
+    const targetUrl = video.originalUrl || `https://www.youtube.com/watch?v=${video.id}`;
+    const requestId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+    await window.api.downloadSingle({
+      
+      url: targetUrl,
+      format,
+      requestId,
+      quality: downloadSettings.qualityPreferences,
+      formatOverrides: downloadSettings.formatOverrides,
+      title: video.title,
+    });
+    const summary = await estimateAppliedSummary(targetUrl, video.duration);
+    setAppliedSummary(summary);
+  };
+
   const isLoading = isAnalyzing || (batchProgress !== null);
+  const hasStatusContent = Boolean(statusMessage || batchProgress || Object.keys(downloadProgress).length > 0 || appliedSummary);
 
   return (
     <div className="min-h-screen bg-[#0d0d0d] text-gray-100 font-sans selection:bg-blue-500/30">
@@ -193,11 +346,35 @@ export const MainDownloader: React.FC = () => {
         <div className="flex items-center gap-2">
           <button
             type="button"
+            onClick={() => setShowHistory((prev) => !prev)}
+            className="p-2 hover:bg-white/10 rounded-full transition-colors text-gray-400 hover:text-white"
+            title="Toggle Download History"
+          >
+            <History size={20} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowSettings((prev) => !prev)}
+            className="p-2 hover:bg-white/10 rounded-full transition-colors text-gray-400 hover:text-white"
+            title="Open Download Settings"
+          >
+            <Settings2 size={20} />
+          </button>
+          <button
+            type="button"
             onClick={() => window.api.openDownloadsFolder()}
             className="p-2 hover:bg-white/10 rounded-full transition-colors text-gray-400 hover:text-white"
             title="Open Downloads Folder"
           >
             <FolderOpen size={20} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowStatusPanel((prev) => !prev)}
+            className="p-2 hover:bg-white/10 rounded-full transition-colors text-gray-400 hover:text-white"
+            title={showStatusPanel ? 'Hide Download Status' : 'Show Download Status'}
+          >
+            <Activity size={20} />
           </button>
         </div>
       </header>
@@ -291,6 +468,25 @@ export const MainDownloader: React.FC = () => {
           </div>
         </motion.div>
 
+        <div className="w-full max-w-2xl mt-6 space-y-4">
+          <AnimatePresence>
+            {showSettings && (
+              <DownloadSettings
+                settings={downloadSettings}
+                onClose={() => setShowSettings(false)}
+                onSettingsChange={handleDownloadSettingsChange}
+                previewUrl={videos[0] ? (videos[0].originalUrl || `https://www.youtube.com/watch?v=${videos[0].id}`) : undefined}
+                previewDurationSeconds={videos[0]?.duration}
+                currentFormat={format}
+              />
+            )}
+          </AnimatePresence>
+
+          <AnimatePresence>
+            {showHistory && <DownloadHistory />}
+          </AnimatePresence>
+        </div>
+
         {/* Download List Section */}
         <div className="w-full mt-16">
           <AnimatePresence>
@@ -371,12 +567,13 @@ export const MainDownloader: React.FC = () => {
                           <div className="absolute top-3 left-3 z-10 bg-black/60 backdrop-blur-sm p-1.5 rounded-md border border-white/10">
                               {getPlatformIcon(video.originalUrl || '')}
                           </div>
-                          <VideoPreview
-                              info={video}
-                               onRemove={() => {
-                                 const index = videos.findIndex((item) => item === video);
-                                 if (index >= 0) {
-                                   handleRemoveVideo(index);
+                           <VideoPreview
+                               info={video}
+                               onDownload={handleIndividualDownload}
+                                onRemove={() => {
+                                  const index = videos.findIndex((item) => item === video);
+                                  if (index >= 0) {
+                                    handleRemoveVideo(index);
                                  }
                                }}
                            />
@@ -391,12 +588,13 @@ export const MainDownloader: React.FC = () => {
                         const itemKey = video.originalUrl ?? `${video.id}-${video.title}`;
                         return (
                         <div key={itemKey} className="relative group">
-                          <VideoPreviewList
-                               info={video}
-                               onRemove={() => {
-                                 const index = videos.findIndex((item) => item === video);
-                                 if (index >= 0) {
-                                   handleRemoveVideo(index);
+                           <VideoPreviewList
+                                info={video}
+                                onDownload={handleIndividualDownload}
+                                onRemove={() => {
+                                  const index = videos.findIndex((item) => item === video);
+                                  if (index >= 0) {
+                                    handleRemoveVideo(index);
                                  }
                                }}
                            />
@@ -417,7 +615,7 @@ export const MainDownloader: React.FC = () => {
 
       {/* Bottom Status Bar */}
       <AnimatePresence>
-        {(statusMessage || batchProgress || Object.keys(downloadProgress).length > 0) && (
+        {hasStatusContent && showStatusPanel && (
           <motion.div
             initial={{ y: 100 }}
             animate={{ y: 0 }}
@@ -425,6 +623,16 @@ export const MainDownloader: React.FC = () => {
             className="fixed bottom-0 left-0 right-0 bg-[#1c1c1e]/90 backdrop-blur-xl border-t border-white/10 p-4 z-50"
           >
             <div className="max-w-3xl mx-auto space-y-3">
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowStatusPanel(false)}
+                  className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-white/10"
+                  title="Close status panel"
+                >
+                  <X size={14} />
+                </button>
+              </div>
               {batchProgress && (
                 <div className="space-y-2">
                   <div className="flex justify-between text-xs font-medium text-blue-400">
@@ -451,11 +659,17 @@ export const MainDownloader: React.FC = () => {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-32 overflow-y-auto custom-scrollbar">
-                 {Object.values(downloadProgress).map((progress) => (
-                    <DownloadProgress key={progress.url} progress={progress} />
-                 ))}
-              </div>
+              {appliedSummary && !batchProgress && (
+                <div className="text-center text-xs font-medium text-blue-300 bg-blue-500/10 border border-blue-500/20 rounded-lg px-3 py-2">
+                  {appliedSummary}
+                </div>
+              )}
+
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-32 overflow-y-auto custom-scrollbar">
+                  {Object.values(downloadProgress).map((progress) => (
+                     <DownloadProgress key={progress.requestId} progress={progress} />
+                  ))}
+               </div>
             </div>
           </motion.div>
         )}

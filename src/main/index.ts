@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell, dialog } from "electron";
+import { app, BrowserWindow, ipcMain, shell, dialog, Notification } from "electron";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
@@ -7,7 +7,9 @@ import { getBinaryPath, checkSystemHealth } from "./utils.js";
 import { logger } from "./logger.js";
 import { config } from "./config.js";
 import { initializeAutoUpdater } from "./updater.js";
-import type { DownloadRequest } from "../shared/types.js";
+import type { DownloadRequest, DownloadQualityPreferences, DownloadSettings, FormatOption } from "../shared/types.js";
+import { settingsStore, getStoredDownloadSettings } from './store.js';
+import { appendHistoryEntry, clearHistory, getHistoryEntries } from './historyStore.js';
 import './handlers.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -37,6 +39,60 @@ const toMetadata = (value: unknown): YtDlpMetadata | null => {
 
 const getErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
+
+const getVideoFormatSelector = (preset: DownloadQualityPreferences['video']): string => {
+  const constrainedSelector = (height: number): string => {
+    return `bestvideo[ext=mp4][height<=${height}]+bestaudio[ext=m4a]/best[ext=mp4][height<=${height}][acodec!=none]/best[ext=mp4][acodec!=none]/worst[ext=mp4][acodec!=none]`;
+  };
+
+  switch (preset) {
+    case '4k':
+      return constrainedSelector(2160);
+    case '1440p':
+      return constrainedSelector(1440);
+    case '1080p':
+      return constrainedSelector(1080);
+    case '720p':
+      return constrainedSelector(720);
+    case '480p':
+      return constrainedSelector(480);
+    case '360p':
+      return constrainedSelector(360);
+    case 'worst':
+      return 'worst[ext=mp4]/worst';
+    default:
+      return constrainedSelector(1080);
+  }
+};
+
+const getAudioQualityValue = (preset: DownloadQualityPreferences['audio']): string => {
+  switch (preset) {
+    case '320kbps':
+      return '320K';
+    case '256kbps':
+      return '256K';
+    case '192kbps':
+      return '192K';
+    case '128kbps':
+      return '128K';
+    case '64kbps':
+      return '64K';
+    case 'worst':
+      return '64K';
+    default:
+      return '320K';
+  }
+};
+
+const showDesktopNotification = (title: string, body: string): void => {
+  try {
+    if (Notification.isSupported()) {
+      new Notification({ title, body }).show();
+    }
+  } catch (error: unknown) {
+    logger.warn('Notification failed', { error: getErrorMessage(error) });
+  }
+};
 
 // 가비지 컬렉션 방지를 위한 전역 변수
 let mainWindow: BrowserWindow | null = null;
@@ -204,11 +260,8 @@ const getCommonYtDlpArgs = (url: string) => {
     );
   }
 
-  // YouTube 플랫폼 처리 (Android 클라이언트로 우회 & 파일명 인코딩 문제 해결)
   else if (url.includes("youtube.com") || url.includes("youtu.be")) {
     args.push(
-      "--extractor-args",
-      "youtube:player_client=android",
       "--force-ipv4",
       "--windows-filenames",
     );
@@ -476,26 +529,109 @@ ipcMain.handle("get-video-info", async (_event, url: string) => {
   }
 });
 
+ipcMain.handle("get-available-formats", async (_event, url: string): Promise<FormatOption[]> => {
+  const ytDlpPath = getBinaryPath('yt-dlp');
+  const result = await execa(ytDlpPath, [url, '-J', '--no-warnings', '--no-playlist'], { reject: false });
+
+  if (result.failed && !result.stdout.trim()) {
+    throw new Error(result.stderr || 'Failed to fetch available formats');
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(result.stdout);
+  } catch (error: unknown) {
+    throw new Error(`Failed to parse available formats JSON: ${getErrorMessage(error)}`);
+  }
+
+  if (!parsed || typeof parsed !== 'object') {
+    return [];
+  }
+
+  const root = parsed as Record<string, unknown>;
+  if (!Array.isArray(root.formats)) {
+    return [];
+  }
+
+  const formats: FormatOption[] = [];
+  for (const raw of root.formats) {
+    if (!raw || typeof raw !== 'object') {
+      continue;
+    }
+    const format = raw as Record<string, unknown>;
+    const formatId = typeof format.format_id === 'string' ? format.format_id : null;
+    if (!formatId) {
+      continue;
+    }
+
+    formats.push({
+      formatId,
+      ext: typeof format.ext === 'string' ? format.ext : undefined,
+      resolution: typeof format.resolution === 'string' ? format.resolution : undefined,
+      width: typeof format.width === 'number' ? format.width : undefined,
+      height: typeof format.height === 'number' ? format.height : undefined,
+      fps: typeof format.fps === 'number' ? format.fps : undefined,
+      vcodec: typeof format.vcodec === 'string' ? format.vcodec : undefined,
+      acodec: typeof format.acodec === 'string' ? format.acodec : undefined,
+      abrKbps: typeof format.abr === 'number' ? format.abr : undefined,
+      tbrKbps: typeof format.tbr === 'number' ? format.tbr : undefined,
+      filesizeBytes: typeof format.filesize === 'number' ? format.filesize : undefined,
+      filesizeApproxBytes: typeof format.filesize_approx === 'number' ? format.filesize_approx : undefined,
+      note: typeof format.format_note === 'string'
+        ? format.format_note
+        : typeof format.format === 'string'
+          ? format.format
+          : undefined,
+    });
+  }
+
+  return formats;
+});
+
 // 2. Download Multiple Videos Handler
 ipcMain.handle(
   "download-multiple",
   async (
     event,
-    { urls, format }: { urls: string[]; format: "mp4" | "mp3" },
+    {
+      urls,
+      format,
+      quality,
+      titles,
+      formatOverrides,
+      notifyPerItemInBatch,
+    }: {
+      urls: string[];
+      format: "mp4" | "mp3";
+      quality?: DownloadQualityPreferences;
+      titles?: string[];
+      formatOverrides?: { videoFormatId: string | null; audioFormatId: string | null };
+      notifyPerItemInBatch?: boolean;
+    },
   ) => {
     const ytDlpPath = getBinaryPath("yt-dlp");
     const ffmpegPath = getBinaryPath("ffmpeg");
+    const settings = getStoredDownloadSettings();
+    const selectedQuality = quality ?? settings.qualityPreferences;
+    const resolvedOverrides = formatOverrides ?? settings.formatOverrides;
+    const shouldNotifyPerItem = notifyPerItemInBatch ?? settings.notifyPerItemInBatch;
     const outputTemplate = path.join(
-      config.paths.downloads,
+      settings.downloadsDirectory || config.paths.downloads,
       "%(title)s.%(ext)s",
     );
 
-    const downloadPromises = urls.map(async (url) => {
+    showDesktopNotification('Batch Download Started', `${urls.length} media item(s) started.`);
+
+    const downloadPromises = urls.map(async (url, index) => {
+      const requestId = `batch-${Date.now()}-${index}`;
+      const mediaTitle = titles?.[index] ?? url;
       try {
         event.sender.send("download-progress", {
+          requestId,
           url,
           status: "downloading",
           progress: 0,
+          title: mediaTitle,
         });
 
         // 플랫폼별 기본 Referer 설정
@@ -520,11 +656,11 @@ ipcMain.handle(
             "--no-check-certificates",
             "--no-warnings",
             "--newline",
+            "--no-playlist",
+            "--force-overwrites",
             ...(referer ? ["--add-header", `referer:${referer}`] : []),
             "--ffmpeg-location",
             path.dirname(ffmpegPath),
-            "--yes-playlist", // Download entire playlist if URL contains playlist
-            "--flat-playlist", // Download all videos from playlist
             // [추가] 플랫폼별 특화 옵션 적용
             ...getCommonYtDlpArgs(url),
           ];
@@ -538,18 +674,41 @@ ipcMain.handle(
           }
 
           if (format === "mp3") {
+            if (resolvedOverrides.audioFormatId) {
+              args.push("--format", resolvedOverrides.audioFormatId);
+            }
+            const resolvedAudioQuality = getAudioQualityValue(selectedQuality.audio);
             args.push(
               "--extract-audio",
               "--audio-format",
               "mp3",
               "--audio-quality",
-              "0",
+              resolvedAudioQuality,
             );
+            logger.info('Batch download audio selection', {
+              requestId,
+              url,
+              preset: selectedQuality.audio,
+              overrideFormatId: resolvedOverrides.audioFormatId,
+              resolvedAudioQuality,
+            });
           } else {
+            const resolvedVideoSelector = resolvedOverrides.videoFormatId
+              ? `${resolvedOverrides.videoFormatId}+bestaudio[ext=m4a]/${resolvedOverrides.videoFormatId}+bestaudio/${resolvedOverrides.videoFormatId}/best[ext=mp4][acodec!=none]/best`
+              : getVideoFormatSelector(selectedQuality.video);
             args.push(
               "--format",
-              "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+              resolvedVideoSelector,
+              "--merge-output-format",
+              "mp4",
             );
+            logger.info('Batch download video selection', {
+              requestId,
+              url,
+              preset: selectedQuality.video,
+              overrideFormatId: resolvedOverrides.videoFormatId,
+              resolvedVideoSelector,
+            });
           }
 
           try {
@@ -563,11 +722,13 @@ ipcMain.handle(
 
               if (progressMatch) {
                 event.sender.send("download-progress", {
+                  requestId,
                   url,
                   status: "downloading",
                   progress: parseFloat(progressMatch[1]),
                   speed: progressMatch[2],
                   eta: progressMatch[3],
+                  title: mediaTitle,
                 });
               }
             });
@@ -592,33 +753,65 @@ ipcMain.handle(
         };
 
         await tryDownload();
+        appendHistoryEntry({
+          id: requestId,
+          url,
+          title: mediaTitle,
+          timestamp: Date.now(),
+          status: 'success',
+          filePath: outputTemplate,
+          format,
+        });
         event.sender.send("download-progress", {
+          requestId,
           url,
           status: "completed",
           progress: 100,
+          title: mediaTitle,
         });
+        if (shouldNotifyPerItem) {
+          showDesktopNotification('Download Complete', mediaTitle);
+        }
       } catch (error: unknown) {
         const errorMessage = getErrorMessage(error);
         logger.error(`Download Error for ${url}:`, { error: errorMessage });
+        appendHistoryEntry({
+          id: requestId,
+          url,
+          title: mediaTitle,
+          timestamp: Date.now(),
+          status: 'error',
+          filePath: null,
+          errorMessage,
+          format,
+        });
         event.sender.send("download-progress", {
+          requestId,
           url,
           status: "error",
           progress: 0,
           error: errorMessage,
+          title: mediaTitle,
         });
+        if (shouldNotifyPerItem) {
+          showDesktopNotification('Download Failed', `${mediaTitle}: ${errorMessage}`);
+        }
       }
     });
 
     await Promise.all(downloadPromises);
+    showDesktopNotification('Batch Download Finished', `${urls.length} media item(s) processed.`);
   },
 );
 
 // 3. Download Video Handler (single)
 ipcMain.handle("download-video", async (_event, args: DownloadRequest) => {
   const { url, format } = args;
+  const settings = getStoredDownloadSettings();
+  const quality = args.quality ?? settings.qualityPreferences;
 
   // 다운로드 경로 설정
-  const outputTemplate = path.join(config.paths.downloads, "%(title)s.%(ext)s");
+  const outputTemplate = path.join(settings.downloadsDirectory || config.paths.downloads, "%(title)s.%(ext)s");
 
   // 바이너리 경로 가져오기 (utils.ts 활용)
   const ytDlpPath = getBinaryPath("yt-dlp");
@@ -626,6 +819,7 @@ ipcMain.handle("download-video", async (_event, args: DownloadRequest) => {
 
   logger.info(`Starting download: ${url} (Format: ${format})`);
   logger.debug(`Binaries - yt-dlp: ${ytDlpPath}, ffmpeg: ${ffmpegPath}`);
+  showDesktopNotification('Download Started', 'Download has started.');
 
   try {
     // 플랫폼별 기본 Referer 설정
@@ -648,6 +842,8 @@ ipcMain.handle("download-video", async (_event, args: DownloadRequest) => {
         "utf-8",
         "--no-check-certificates",
         "--no-warnings",
+        "--no-playlist",
+        "--force-overwrites",
         ...(referer ? ["--add-header", `referer:${referer}`] : []),
         "--ffmpeg-location",
         path.dirname(ffmpegPath),
@@ -669,12 +865,14 @@ ipcMain.handle("download-video", async (_event, args: DownloadRequest) => {
           "--audio-format",
           "mp3",
           "--audio-quality",
-          "0",
+          getAudioQualityValue(quality.audio),
         );
       } else {
         downloadArgs.push(
           "--format",
-          "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+          getVideoFormatSelector(quality.video),
+          "--merge-output-format",
+          "mp4",
         );
       }
 
@@ -711,6 +909,7 @@ ipcMain.handle("download-video", async (_event, args: DownloadRequest) => {
   } catch (error: unknown) {
     const errorMessage = getErrorMessage(error);
     logger.error("Download Error:", { error: errorMessage });
+    showDesktopNotification('Download Failed', errorMessage);
     return { success: false, message: errorMessage || "Process Failed" };
   }
 });
@@ -754,5 +953,219 @@ ipcMain.handle("read-batch-file", async () => {
 
 // 5. Open Folder Handler
 ipcMain.handle("open-downloads-folder", async () => {
-  await shell.openPath(config.paths.downloads);
+  const settings = getStoredDownloadSettings();
+  const downloadsPath = settings.downloadsDirectory || config.paths.downloads;
+  await shell.openPath(downloadsPath);
+});
+
+// 6. Download Settings Handlers
+ipcMain.handle("get-download-settings", async () => {
+  return getStoredDownloadSettings();
+});
+
+ipcMain.handle("set-download-settings", async (_event, settings: DownloadSettings) => {
+  const current = getStoredDownloadSettings();
+  const next = {
+    downloadsDirectory: settings.downloadsDirectory ?? current.downloadsDirectory,
+    qualityPreferences: settings.qualityPreferences ?? current.qualityPreferences,
+    formatOverrides: settings.formatOverrides ?? current.formatOverrides,
+    notifyPerItemInBatch: settings.notifyPerItemInBatch ?? current.notifyPerItemInBatch,
+  };
+  settingsStore.set('downloadSettings', next);
+});
+
+ipcMain.handle("set-download-directory", async (_event, path: string | null) => {
+  const settings = getStoredDownloadSettings();
+  settings.downloadsDirectory = path;
+  settingsStore.set('downloadSettings', settings);
+});
+
+ipcMain.handle("select-download-directory", async () => {
+  if (!mainWindow) return null;
+
+  const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+    title: "Select Download Directory",
+    properties: ["openDirectory"],
+  });
+
+  if (canceled || filePaths.length === 0) {
+    return null;
+  }
+
+  const selectedPath = filePaths[0];
+  const settings = getStoredDownloadSettings();
+  settings.downloadsDirectory = selectedPath;
+  settingsStore.set('downloadSettings', settings);
+  
+  return selectedPath;
+});
+
+ipcMain.handle("get-download-history", async () => {
+  return getHistoryEntries();
+});
+
+ipcMain.handle("clear-download-history", async () => {
+  clearHistory();
+});
+
+ipcMain.handle("download-single", async (event, args: { url: string; format: 'mp4' | 'mp3'; requestId: string; title?: string; quality?: DownloadQualityPreferences; formatOverrides?: { videoFormatId: string | null; audioFormatId: string | null } }) => {
+  const { url, format, requestId, title } = args;
+  
+  const ytDlpPath = getBinaryPath("yt-dlp");
+  const ffmpegPath = getBinaryPath("ffmpeg");
+  
+  const settings = getStoredDownloadSettings();
+  const downloadsPath = settings.downloadsDirectory || config.paths.downloads;
+  const outputTemplate = path.join(downloadsPath, "%(title)s.%(ext)s");
+  const quality = args.quality ?? settings.qualityPreferences;
+  const formatOverrides = args.formatOverrides ?? settings.formatOverrides;
+
+  logger.info(`Starting single download: ${url} (Format: ${format}, RequestId: ${requestId})`);
+  showDesktopNotification('Download Started', title || 'Download has started.');
+
+  try {
+    let referer = "";
+    if (url.includes("x.com") || url.includes("twitter.com")) {
+      referer = "https://x.com/";
+    } else if (url.includes("reddit.com")) {
+      referer = "https://www.reddit.com/";
+    } else if (url.includes("bilibili.com")) {
+      referer = "https://www.bilibili.com/";
+    }
+
+    const downloadArgs = [
+      url,
+      "--output", outputTemplate,
+      "--encoding", "utf-8",
+      "--no-check-certificates",
+      "--no-warnings",
+      "--newline",
+      "--no-playlist",
+      "--force-overwrites",
+      ...(referer ? ["--add-header", `referer:${referer}`] : []),
+      "--ffmpeg-location", path.dirname(ffmpegPath),
+      ...getCommonYtDlpArgs(url),
+    ];
+
+    if (format === "mp3") {
+      if (formatOverrides.audioFormatId) {
+        downloadArgs.push("--format", formatOverrides.audioFormatId);
+      }
+      const resolvedAudioQuality = getAudioQualityValue(quality.audio);
+      downloadArgs.push(
+        "--extract-audio",
+        "--audio-format", "mp3",
+        "--audio-quality", resolvedAudioQuality,
+      );
+      logger.info('Single download audio selection', {
+        requestId,
+        url,
+        preset: quality.audio,
+        overrideFormatId: formatOverrides.audioFormatId,
+        resolvedAudioQuality,
+      });
+    } else {
+      const resolvedVideoSelector = formatOverrides.videoFormatId
+        ? `${formatOverrides.videoFormatId}+bestaudio[ext=m4a]/${formatOverrides.videoFormatId}+bestaudio/${formatOverrides.videoFormatId}/best[ext=mp4][acodec!=none]/best`
+        : getVideoFormatSelector(quality.video);
+      downloadArgs.push(
+        "--format",
+        resolvedVideoSelector,
+        "--merge-output-format",
+        "mp4",
+      );
+      logger.info('Single download video selection', {
+        requestId,
+        url,
+        preset: quality.video,
+        overrideFormatId: formatOverrides.videoFormatId,
+        resolvedVideoSelector,
+      });
+    }
+
+    event.sender.send("download-progress", {
+      requestId,
+      url,
+      status: "downloading",
+      progress: 0,
+      title: title || "Downloading...",
+    });
+
+    const subprocess = execa(ytDlpPath, downloadArgs);
+    let finalFilePath: string | undefined;
+
+    subprocess.stdout?.on("data", (data) => {
+      const output = data.toString();
+      const progressMatch = output.match(/(\d+\.?\d*)%.*?(\d+\.?\d*\w+\/s).*?ETA\s+(\d+:\d+)/);
+      if (progressMatch) {
+        event.sender.send("download-progress", {
+          requestId,
+          url,
+          status: "downloading",
+          progress: parseFloat(progressMatch[1]),
+          speed: progressMatch[2],
+          eta: progressMatch[3],
+          title: title || "Downloading...",
+        });
+      }
+      const filePathMatch = output.match(/\[Merger\].*?-> (.+\.mp4)|Merging formats into.*?"(.+\.mp4)"/);
+      if (filePathMatch) {
+        finalFilePath = filePathMatch[1] || filePathMatch[2];
+      }
+    });
+
+    await subprocess;
+
+    const historyEntry = {
+      id: requestId,
+      url,
+      title: title || "Downloaded Media",
+      timestamp: Date.now(),
+      status: "success" as const,
+      filePath: finalFilePath || outputTemplate,
+      format,
+    };
+    appendHistoryEntry(historyEntry);
+
+    event.sender.send("download-progress", {
+      requestId,
+      url,
+      status: "completed",
+      progress: 100,
+      filePath: finalFilePath || outputTemplate,
+      title: title || "Download Complete",
+    });
+
+    showDesktopNotification('Download Complete', title || 'Your media has been downloaded successfully.');
+
+    return { success: true, message: "Download Complete!", filePath: finalFilePath || outputTemplate };
+  } catch (error: unknown) {
+    const errorMessage = getErrorMessage(error);
+    logger.error("Download Single Error:", { error: errorMessage });
+
+    const historyEntry = {
+      id: requestId,
+      url,
+      title: title || "Failed Download",
+      timestamp: Date.now(),
+      status: "error" as const,
+      filePath: null,
+      errorMessage,
+      format,
+    };
+    appendHistoryEntry(historyEntry);
+
+    event.sender.send("download-progress", {
+      requestId,
+      url,
+      status: "error",
+      progress: 0,
+      error: errorMessage,
+      title: title || "Download Failed",
+    });
+
+    showDesktopNotification('Download Failed', errorMessage);
+
+    return { success: false, message: errorMessage };
+  }
 });

@@ -15,7 +15,15 @@ const networkStatusCallbacks = new Map<NetworkStatusListener, (event: IpcRendere
 
 const api: IElectronAPI = {
   downloadVideo: (data: DownloadRequest) => ipcRenderer.invoke('download-video', data),
-  downloadMultiple: (urls, format) => ipcRenderer.invoke('download-multiple', { urls, format }),
+  downloadMultiple: (urls, format, quality, titles, formatOverrides, notifyPerItemInBatch) => ipcRenderer.invoke('download-multiple', {
+    urls,
+    format,
+    quality,
+    titles,
+    formatOverrides,
+    notifyPerItemInBatch,
+  }),
+  downloadSingle: (data) => ipcRenderer.invoke('download-single', data),
   getVideoInfo: (url: string) => ipcRenderer.invoke('get-video-info', url),
   getPlaylistInfo: (url: string) => ipcRenderer.invoke('get-playlist-info', url),
   openDownloadsFolder: () => ipcRenderer.invoke('open-downloads-folder'),
@@ -38,6 +46,13 @@ const api: IElectronAPI = {
       networkStatusCallbacks.delete(callback);
     }
   },
+  getDownloadSettings: () => ipcRenderer.invoke('get-download-settings'),
+  setDownloadSettings: (settings) => ipcRenderer.invoke('set-download-settings', settings),
+  setDownloadDirectory: (path: string | null) => ipcRenderer.invoke('set-download-directory', path),
+  selectDownloadDirectory: () => ipcRenderer.invoke('select-download-directory'),
+  getDownloadHistory: () => ipcRenderer.invoke('get-download-history'),
+  clearDownloadHistory: () => ipcRenderer.invoke('clear-download-history'),
+  getAvailableFormats: (url: string) => ipcRenderer.invoke('get-available-formats', url),
 };
 
 if (process.contextIsolated) {
