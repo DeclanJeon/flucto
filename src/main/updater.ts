@@ -1,7 +1,9 @@
 import { app, dialog } from 'electron';
-import { autoUpdater } from 'electron-updater';
+import electronUpdater from 'electron-updater';
 import { logger } from './logger.js';
 import { getStoredUpdateSettings, markAutoUpdateCheckNow, shouldRunAutoUpdateCheck } from './store.js';
+
+const { autoUpdater } = electronUpdater;
 
 let initialized = false;
 let checking = false;
