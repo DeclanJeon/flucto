@@ -5,6 +5,25 @@ on:
     branches:
       - main
       - master
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: Source workflow run id containing prebuilt release artifacts
+        required: false
+        type: string
+      release_version:
+        description: Release version from the source prepare step
+        required: false
+        type: string
+      release_retry:
+        description: Run release-only mode using artifacts from source run
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -14,6 +33,7 @@ permissions:
 jobs:
   prepare:
     runs-on: ubuntu-latest
+    if: github.event_name == 'push'
     outputs:
       new_release_published: ${{ steps.semantic.outputs.new_release_published }}
       new_release_version: ${{ steps.semantic.outputs.new_release_version }}
@@ -31,7 +51,7 @@ jobs:
 
   build:
     needs: prepare
-    if: needs.prepare.outputs.new_release_published == 'true'
+    if: github.event_name == 'push' && needs.prepare.outputs.new_release_published == 'true'
     name: Build ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -118,8 +138,13 @@ jobs:
 
   release:
     needs: [prepare, build]
-    if: needs.prepare.outputs.new_release_published == 'true'
+    if: >-
+      (github.event_name == 'push' && needs.prepare.outputs.new_release_published == 'true') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.release_retry == 'true' && github.event.inputs.source_run_id != '')
     runs-on: ubuntu-latest
+    env:
+      RELEASE_SOURCE_RUN_ID: >-
+        ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.source_run_id != '' && github.event.inputs.source_run_id || github.run_id }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -141,21 +166,39 @@ jobs:
         with:
           name: artifacts-windows-latest
           path: release
+          run-id: ${{ env.RELEASE_SOURCE_RUN_ID }}
 
       - name: Download macOS Artifacts
         uses: actions/download-artifact@v4
         with:
           name: artifacts-macos-latest
           path: release
+          run-id: ${{ env.RELEASE_SOURCE_RUN_ID }}
 
       - name: Download Linux Artifacts
         uses: actions/download-artifact@v4
         with:
           name: artifacts-ubuntu-latest
           path: release
+          run-id: ${{ env.RELEASE_SOURCE_RUN_ID }}
 
       - name: Semantic Release
         uses: cycjimmy/semantic-release-action@v4
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GIT_CREDENTIALS: ${{ secrets.GITHUB_TOKEN }}
+
+  release_retry:
+    needs: [prepare, release]
+    if: github.event_name == 'push' && needs.prepare.outputs.new_release_published == 'true' && needs.release.result == 'cancelled'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Retry release as a dedicated rerun
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run release.yml \
+            --ref "${{ github.ref_name }}" \
+            -f source_run_id="${{ github.run_id }}" \
+            -f release_version="${{ needs.prepare.outputs.new_release_version }}" \
+            -f release_retry="true"
