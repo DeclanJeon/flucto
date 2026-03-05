@@ -1,3 +1,11 @@
+## [1.1.6](https://github.com/DeclanJeon/flucto/compare/v1.1.5...v1.1.6) (2026-03-05)
+
+
+### Bug Fixes
+
+* 설치 앱 바이너리 누락 문제를 배포 파이프라인에서 차단 ([75f31e1](https://github.com/DeclanJeon/flucto/commit/75f31e184ba2918b83f5816436d50281ddd791d1))
+* 패키지 실행 시 바이너리 탐색 경로 보강 ([9326d83](https://github.com/DeclanJeon/flucto/commit/9326d836babdc9571df5280a7592fa3c6f14bf36))
+
 ## [1.1.5](https://github.com/DeclanJeon/flucto/compare/v1.1.4...v1.1.5) (2026-03-04)
 
 
