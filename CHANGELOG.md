@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/DeclanJeon/flucto/compare/v1.2.1...v1.3.0) (2026-03-05)
+
+
+### Features
+
+* add download settings, history, and quality controls ([5b392ab](https://github.com/DeclanJeon/flucto/commit/5b392ab73b2d6e2c58f8521180c25951ff26455c))
+
 ## [1.2.1](https://github.com/DeclanJeon/flucto/compare/v1.2.0...v1.2.1) (2026-03-05)
 
 
