@@ -36,8 +36,7 @@
     "supabase:smoke": "node scripts/supabase-smoke-check.mjs",
     "postinstall": "node scripts/setup-binaries.mjs",
     "lint": "eslint .",
-    "preview": "vite preview",
-    "review:regression": "node scripts/review-regression-check.mjs"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.98.0",

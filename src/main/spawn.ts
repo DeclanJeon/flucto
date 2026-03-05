@@ -33,11 +33,11 @@ export function execa(
   let stderr = '';
 
   childProcess.stdout?.on('data', (data) => {
-    stdout += data.toString();
+    stdout += data.toString('utf8');
   });
 
   childProcess.stderr?.on('data', (data) => {
-    stderr += data.toString();
+    stderr += data.toString('utf8');
   });
 
   const promise = new Promise<ExecaResult>((resolve, reject) => {
@@ -64,10 +64,12 @@ export function execa(
         });
       } else {
         const error = new Error(`Command failed with exit code ${code}: ${stderr || stdout}`);
-        (error as any).stdout = stdout;
-        (error as any).stderr = stderr;
-        (error as any).code = code;
-        reject(error);
+        const detailedError: Error & { stdout: string; stderr: string; code: number | null } = Object.assign(error, {
+          stdout,
+          stderr,
+          code,
+        });
+        reject(detailedError);
       }
     });
   });

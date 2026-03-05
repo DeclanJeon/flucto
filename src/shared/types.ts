@@ -43,39 +43,6 @@ export interface DownloadProgress {
 
 
 
-/**
- * Review data structure - 프로그램에 대한 사용자 리뷰
- */
-export interface Review {
-  id?: string;
-  postId: string;
-  rating: number; // 1-5
-  content: string;
-  githubUrl?: string;
-  createdAt: string;
-  updatedAt: string;
-  author: {
-    id: string;
-    name: string;
-    avatar: string;
-  };
-}
-
-export interface AuthorIdentity {
-  id: string;
-  name: string;
-  avatar: string;
-}
-
-
-
-/**
- * Reviews API response
- */
-export interface ReviewsListResponse {
-  reviews: Review[];
-}
-
 export interface UpdateSettings {
   autoUpdate: boolean;
   checkInterval: number;
@@ -100,14 +67,6 @@ export interface IElectronAPI {
   onDownloadProgress: (callback: (progress: DownloadProgress) => void) => void;
   // [추가] 배치 파일 읽기 API
   readBatchFile: () => Promise<string[] | null>;
-  // Reviews API (독립적인 리뷰 시스템)
-  reviewsAPI: {
-    list: () => Promise<ReviewsListResponse>;
-    create: (review: Omit<Review, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Review>;
-    get: (id: string) => Promise<Review | null>;
-    delete: (id: string) => Promise<void>;
-    getCurrentAuthor: () => Promise<AuthorIdentity>;
-  };
   getUpdateSettings: () => Promise<UpdateSettings>;
   saveUpdateSettings: (settings: UpdateSettings) => Promise<void>;
   checkBinaryUpdates: () => Promise<void>;

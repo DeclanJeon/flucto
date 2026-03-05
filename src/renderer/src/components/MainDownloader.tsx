@@ -11,10 +11,8 @@ import {
   ListVideo,
   Globe,
   Grid3X3,
-  List,
-  MessageSquare
+  List
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import { VideoPreview } from './VideoPreview';
 import { VideoPreviewList } from './VideoPreviewList';
 import { DownloadProgress } from './DownloadProgress';
@@ -51,7 +49,6 @@ const getPlatformIcon = (url: string) => {
 };
 
 export const MainDownloader: React.FC = () => {
-  const navigate = useNavigate();
   const [url, setUrl] = useState('');
   const [format, setFormat] = useState<'mp4' | 'mp3'>('mp4');
   const [videos, setVideos] = useState<VideoInfo[]>([]);
@@ -196,14 +193,6 @@ export const MainDownloader: React.FC = () => {
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => navigate('/reviews')}
-            className="p-2 hover:bg-white/10 rounded-full transition-colors text-gray-400 hover:text-white flex items-center gap-2 px-4"
-            title="리뷰"
-          >
-            <MessageSquare size={20} />
-            <span className="text-sm font-medium">리뷰 목록</span>
-          </button>
-          <button
             onClick={() => window.api.openDownloadsFolder()}
             className="p-2 hover:bg-white/10 rounded-full transition-colors text-gray-400 hover:text-white"
             title="Open Downloads Folder"
@@ -256,6 +245,7 @@ export const MainDownloader: React.FC = () => {
                   disabled={isLoading || isDownloading}
                 />
                 <button
+                  type="button"
                   onClick={handleAddVideo}
                   disabled={!url.trim() || isLoading}
                   className="absolute right-2 top-2 bottom-2 bg-blue-600 hover:bg-blue-500 text-white rounded-full px-4 aspect-square flex items-center justify-center transition-all disabled:opacity-0 disabled:scale-75"
@@ -266,6 +256,7 @@ export const MainDownloader: React.FC = () => {
 
             {/* Batch Load Button */}
             <button
+                type="button"
                 onClick={handleBatchFile}
                 disabled={isLoading || isDownloading}
                 title="Load URL list (.txt)"
@@ -280,6 +271,7 @@ export const MainDownloader: React.FC = () => {
              <div className="bg-[#1c1c1e] p-1 rounded-full border border-white/10 flex items-center">
                 {(['mp4', 'mp3'] as const).map((fmt) => (
                   <button
+                    type="button"
                     key={fmt}
                     onClick={() => setFormat(fmt)}
                     className={`px-6 py-1.5 rounded-full text-sm font-medium transition-all ${
@@ -321,6 +313,7 @@ export const MainDownloader: React.FC = () => {
                     {/* 뷰어 모드 전환 버튼 */}
                     <div className="bg-[#1c1c1e] p-1 rounded-full border border-white/10 flex items-center">
                       <button
+                        type="button"
                         onClick={() => setViewMode('grid')}
                         className={`p-2 rounded-full transition-all ${
                           viewMode === 'grid'
@@ -332,6 +325,7 @@ export const MainDownloader: React.FC = () => {
                         <Grid3X3 size={16} />
                       </button>
                       <button
+                        type="button"
                         onClick={() => setViewMode('list')}
                         className={`p-2 rounded-full transition-all ${
                           viewMode === 'list'
@@ -346,6 +340,7 @@ export const MainDownloader: React.FC = () => {
                   </div>
 
                   <button
+                    type="button"
                     onClick={handleDownload}
                     disabled={isDownloading}
                     className="bg-white text-black hover:bg-gray-200 px-8 py-2.5 rounded-full font-semibold flex items-center gap-2 transition-transform active:scale-95 disabled:opacity-50"
@@ -368,35 +363,49 @@ export const MainDownloader: React.FC = () => {
                 {viewMode === 'grid' ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     <AnimatePresence>
-                      {videos.map((video, index) => (
-                        <div key={`${video.id}-${index}`} className="relative group">
+                      {videos.map((video) => {
+                        const itemKey = video.originalUrl ?? `${video.id}-${video.title}`;
+                        return (
+                        <div key={itemKey} className="relative group">
                           {/* 플랫폼 아이콘 뱃지 */}
                           <div className="absolute top-3 left-3 z-10 bg-black/60 backdrop-blur-sm p-1.5 rounded-md border border-white/10">
                               {getPlatformIcon(video.originalUrl || '')}
                           </div>
                           <VideoPreview
                               info={video}
-                              onRemove={() => handleRemoveVideo(index)}
-                          />
+                               onRemove={() => {
+                                 const index = videos.findIndex((item) => item === video);
+                                 if (index >= 0) {
+                                   handleRemoveVideo(index);
+                                 }
+                               }}
+                           />
                         </div>
-                      ))}
+                      )})}
                     </AnimatePresence>
                   </div>
                 ) : (
                   <div className="space-y-3">
                     <AnimatePresence>
-                      {videos.map((video, index) => (
-                        <div key={`${video.id}-${index}`} className="relative group">
+                      {videos.map((video) => {
+                        const itemKey = video.originalUrl ?? `${video.id}-${video.title}`;
+                        return (
+                        <div key={itemKey} className="relative group">
                           <VideoPreviewList
-                              info={video}
-                              onRemove={() => handleRemoveVideo(index)}
-                          />
+                               info={video}
+                               onRemove={() => {
+                                 const index = videos.findIndex((item) => item === video);
+                                 if (index >= 0) {
+                                   handleRemoveVideo(index);
+                                 }
+                               }}
+                           />
                           {/* 플랫폼 아이콘 뱃지 */}
                           <div className="absolute top-3 left-3 z-10 bg-black/60 backdrop-blur-sm p-1.5 rounded-md border border-white/10">
                               {getPlatformIcon(video.originalUrl || '')}
                           </div>
                         </div>
-                      ))}
+                      )})}
                     </AnimatePresence>
                   </div>
                 )}

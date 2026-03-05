@@ -7,7 +7,6 @@ import { getBinaryPath, checkSystemHealth } from "./utils.js";
 import { logger } from "./logger.js";
 import { config } from "./config.js";
 import type { DownloadRequest } from "../shared/types.js";
-import './supabase.js';
 import './handlers.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -206,8 +205,8 @@ const getCommonYtDlpArgs = (url: string) => {
     args.push(
       "--extractor-args",
       "youtube:player_client=android",
-      "--restrict-filenames",
       "--force-ipv4",
+      "--windows-filenames",
     );
   }
 
@@ -512,6 +511,8 @@ ipcMain.handle(
             url,
             "--output",
             outputTemplate,
+            "--encoding",
+            "utf-8",
             "--no-check-certificates",
             "--no-warnings",
             "--newline",
@@ -639,6 +640,8 @@ ipcMain.handle("download-video", async (_event, args: DownloadRequest) => {
         url,
         "--output",
         outputTemplate,
+        "--encoding",
+        "utf-8",
         "--no-check-certificates",
         "--no-warnings",
         ...(referer ? ["--add-header", `referer:${referer}`] : []),

@@ -61,7 +61,6 @@ export const createYtDlpArgs = (url: string, outputPath: string, format: 'mp4' |
   const baseArgs = [
     '--no-warnings',
     '--no-playlist',
-    '--restrict-filenames',
     '--no-overwrites',
     '--continue',
   ];

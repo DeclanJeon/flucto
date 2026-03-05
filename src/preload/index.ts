@@ -5,7 +5,6 @@ import type {
   DownloadRequest,
   IElectronAPI,
   NetworkStatusEvent,
-  Review,
   UpdateSettings,
 } from '../shared/types.js';
 
@@ -24,14 +23,6 @@ const api: IElectronAPI = {
   onDownloadProgress: (callback: (progress: DownloadProgress) => void) => {
     ipcRenderer.on('download-progress', (_event: IpcRendererEvent, progress: DownloadProgress) => callback(progress));
   },
-    reviewsAPI: {
-      list: () => ipcRenderer.invoke('reviews-list'),
-      create: (review: Omit<Review, 'id' | 'createdAt' | 'updatedAt'>) =>
-        ipcRenderer.invoke('reviews-create', review),
-      get: (id: string) => ipcRenderer.invoke('reviews-get', id),
-      delete: (id: string) => ipcRenderer.invoke('reviews-delete', id),
-      getCurrentAuthor: () => ipcRenderer.invoke('reviews-current-author'),
-    },
   getUpdateSettings: () => ipcRenderer.invoke('get-update-settings'),
   saveUpdateSettings: (settings: UpdateSettings) => ipcRenderer.invoke('save-update-settings', settings),
   checkBinaryUpdates: () => ipcRenderer.invoke('check-binary-updates'),

@@ -7,14 +7,6 @@ const defaultUpdateSettings: UpdateSettings = {
   notifyOnStart: true,
 };
 
-export const postsStore = new Store({
-  name: 'flucto-posts',
-  defaults: {
-    posts: [],
-    reviews: {}
-  }
-});
-
 export const settingsStore = new Store<{ updateSettings: UpdateSettings }>({
   name: 'flucto-settings',
   defaults: {

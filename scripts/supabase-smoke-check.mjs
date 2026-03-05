@@ -47,27 +47,6 @@ const isValidAnonOrAdminKey = (value) => {
   return value.startsWith('ey') || value.startsWith('sb_') || value.length >= 20;
 };
 
-const isMissingColumnError = (error, columnName) => {
-  if (!error) {
-    return false;
-  }
-
-  const message = String(error.message || '').toLowerCase();
-  const code = String(error.code || '');
-
-  return (
-    code === '42703' ||
-    message.includes(`could not find the '${columnName}' column`) ||
-    message.includes(`column ${columnName}`)
-  );
-};
-
-const stripMissingGithubUrlField = (payload) => {
-  const { github_url: githubUrl, ...payloadWithoutGithubUrl } = payload;
-  void githubUrl;
-  return payloadWithoutGithubUrl;
-};
-
 const createClientFor = (key) =>
   createClient(url, key, {
     auth: {
@@ -196,89 +175,6 @@ const runSmoke = async () => {
     process.exit(1);
   }
 
-const reviewPayload = {
-    post_id: postId,
-    rating: 4,
-    content: 'Smoke test review',
-    github_url: 'https://github.com/yourusername/yourrepo',
-    author: {
-      id: 'smoke-reviewer',
-      name: 'Smoke Reviewer',
-      avatar: '',
-    },
-    created_at: now,
-    updated_at: now,
-  };
-
-  const createReviewWithFallback = async (payload) => {
-    const reviewInsert = await adminClient
-      .from('reviews')
-      .insert([payload])
-      .select('id')
-      .maybeSingle();
-
-    if (reviewInsert.error && isMissingColumnError(reviewInsert.error, 'github_url')) {
-      const payloadWithoutGithubUrl = stripMissingGithubUrlField(payload);
-      return adminClient
-        .from('reviews')
-        .insert([payloadWithoutGithubUrl])
-        .select('id')
-        .maybeSingle();
-    }
-
-    return reviewInsert;
-  };
-
-  const createReviewList = async () => {
-    const primarySelect = await adminClient
-      .from('reviews')
-      .select('id, post_id, rating, content, github_url')
-      .eq('post_id', postId)
-      .order('created_at', { ascending: false });
-
-    if (primarySelect.error && primarySelect.error.code === '42703' && String(primarySelect.error.message || '').toLowerCase().includes('github_url')) {
-      return adminClient
-        .from('reviews')
-        .select('id, post_id, rating, content')
-        .eq('post_id', postId)
-        .order('created_at', { ascending: false });
-    }
-
-    return primarySelect;
-  };
-
-  const reviewInsert = await createReviewWithFallback(reviewPayload);
-
-  if (reviewInsert.error || !reviewInsert.data?.id) {
-    console.error('admin reviews-create failed:', reviewInsert.error?.message ?? 'no review id');
-    process.exit(1);
-  }
-
-  const reviewList = await createReviewList();
-
-  if (reviewList.error || !reviewList.data || reviewList.data.length === 0) {
-    console.error('admin reviews-list failed:', reviewList.error?.message || 'no review returned');
-    process.exit(1);
-  }
-
-  const reviewId = reviewList.data[0].id;
-  const reviewDelete = await adminClient.from('reviews').delete().eq('id', reviewId);
-  if (reviewDelete.error) {
-    console.error('admin reviews-delete failed:', reviewDelete.error.message);
-    process.exit(1);
-  }
-
-  const verifyReviewDeleted = await adminClient.from('reviews').select('id').eq('id', reviewId);
-  if (verifyReviewDeleted.error) {
-    console.error('verify reviews-delete failed:', verifyReviewDeleted.error.message);
-    process.exit(1);
-  }
-
-  if ((verifyReviewDeleted.data || []).length !== 0) {
-    console.error('verify reviews-delete failed: review still exists');
-    process.exit(1);
-  }
-
   const postDelete = await adminClient.from('posts').delete().eq('id', postId);
   if (postDelete.error) {
     console.error('admin posts-delete failed:', postDelete.error.message);
@@ -296,7 +192,7 @@ const reviewPayload = {
     process.exit(1);
   }
 
-  console.log('admin forum CRUD checks: posts/reviews create/list/get/update/delete pass');
+  console.log('admin forum CRUD checks: posts create/list/get/update/delete pass');
 };
 
 runSmoke()
