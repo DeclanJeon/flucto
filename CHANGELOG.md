@@ -1,3 +1,10 @@
+## [1.2.1](https://github.com/DeclanJeon/flucto/compare/v1.2.0...v1.2.1) (2026-03-05)
+
+
+### Bug Fixes
+
+* electron-updater ESM import 오류 수정 ([d89f2f1](https://github.com/DeclanJeon/flucto/commit/d89f2f1eec27ccb21ddd1f055d16e5ddd1a79f28))
+
 # [1.2.0](https://github.com/DeclanJeon/flucto/compare/v1.1.7...v1.2.0) (2026-03-05)
 
 
