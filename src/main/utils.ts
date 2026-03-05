@@ -9,10 +9,16 @@ export const getBinaryPath = (binaryName: string): string => {
   const binaryWithExt = `${binaryName}${platform}`;
 
   if (isProd) {
-    // 배포 후: app.asar.unpacked 폴더 내부 (electron-builder asarUnpack 설정)
-    return path.join(process.resourcesPath, 'app.asar.unpacked', 'bin', binaryWithExt);
+    const candidates = [
+      path.join(process.resourcesPath, 'bin', binaryWithExt),
+      path.join(process.resourcesPath, 'app', 'bin', binaryWithExt),
+      path.join(process.resourcesPath, 'app.asar.unpacked', 'bin', binaryWithExt),
+      path.join(app.getAppPath(), 'bin', binaryWithExt),
+    ];
+
+    const matched = candidates.find((candidate) => fs.existsSync(candidate));
+    return matched ?? candidates[0];
   } else {
-    // 개발 중: 프로젝트 루트의 bin 폴더
     return path.join(app.getAppPath(), 'bin', binaryWithExt);
   }
 };
