@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/DeclanJeon/flucto/compare/v1.1.7...v1.2.0) (2026-03-05)
+
+
+### Features
+
+* GitHub 릴리즈 기반 앱 자동업데이트 기능 추가 ([579f9d2](https://github.com/DeclanJeon/flucto/commit/579f9d2fb51ce8d6eb4a6d050c091b9395a110d9))
+
 ## [1.1.7](https://github.com/DeclanJeon/flucto/compare/v1.1.6...v1.1.7) (2026-03-05)
 
 
