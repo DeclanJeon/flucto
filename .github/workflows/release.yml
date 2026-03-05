@@ -75,8 +75,10 @@ jobs:
         run: |
           $yt = "release/win-unpacked/resources/bin/yt-dlp.exe"
           $ff = "release/win-unpacked/resources/bin/ffmpeg.exe"
+          $winston = "release/win-unpacked/resources/app/node_modules/winston/package.json"
           if (!(Test-Path $yt)) { throw "Missing binary: $yt" }
           if (!(Test-Path $ff)) { throw "Missing binary: $ff" }
+          if (!(Test-Path $winston)) { throw "Missing runtime dependency: $winston" }
           & $yt --version | Out-Null
           & $ff -version | Out-Null
           Write-Host "Windows binaries verified"
@@ -87,6 +89,7 @@ jobs:
         run: |
           test -f "release/mac/Flucto.app/Contents/Resources/bin/yt-dlp"
           test -f "release/mac/Flucto.app/Contents/Resources/bin/ffmpeg"
+          test -f "release/mac/Flucto.app/Contents/Resources/app/node_modules/winston/package.json"
           "release/mac/Flucto.app/Contents/Resources/bin/yt-dlp" --version >/dev/null
           "release/mac/Flucto.app/Contents/Resources/bin/ffmpeg" -version >/dev/null
 
@@ -96,6 +99,7 @@ jobs:
         run: |
           test -f "release/linux-unpacked/resources/bin/yt-dlp"
           test -f "release/linux-unpacked/resources/bin/ffmpeg"
+          test -f "release/linux-unpacked/resources/app/node_modules/winston/package.json"
           "release/linux-unpacked/resources/bin/yt-dlp" --version >/dev/null
           "release/linux-unpacked/resources/bin/ffmpeg" -version >/dev/null
 
