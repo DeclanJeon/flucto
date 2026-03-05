@@ -69,6 +69,36 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Verify Windows bundled binaries
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $yt = "release/win-unpacked/resources/bin/yt-dlp.exe"
+          $ff = "release/win-unpacked/resources/bin/ffmpeg.exe"
+          if (!(Test-Path $yt)) { throw "Missing binary: $yt" }
+          if (!(Test-Path $ff)) { throw "Missing binary: $ff" }
+          & $yt --version | Out-Null
+          & $ff -version | Out-Null
+          Write-Host "Windows binaries verified"
+
+      - name: Verify macOS bundled binaries
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        run: |
+          test -f "release/mac/Flucto.app/Contents/Resources/bin/yt-dlp"
+          test -f "release/mac/Flucto.app/Contents/Resources/bin/ffmpeg"
+          "release/mac/Flucto.app/Contents/Resources/bin/yt-dlp" --version >/dev/null
+          "release/mac/Flucto.app/Contents/Resources/bin/ffmpeg" -version >/dev/null
+
+      - name: Verify Linux bundled binaries
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          test -f "release/linux-unpacked/resources/bin/yt-dlp"
+          test -f "release/linux-unpacked/resources/bin/ffmpeg"
+          "release/linux-unpacked/resources/bin/yt-dlp" --version >/dev/null
+          "release/linux-unpacked/resources/bin/ffmpeg" -version >/dev/null
+
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:

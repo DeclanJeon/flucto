@@ -30,12 +30,13 @@ export const getBinaryPath = (binaryName: string): string => {
 export const checkSystemHealth = async (): Promise<{ valid: boolean; missing: string[] }> => {
   const binaries = ['yt-dlp', 'ffmpeg'];
   const missing: string[] = [];
+  const accessMode = process.platform === 'win32' ? fs.constants.F_OK : fs.constants.F_OK | fs.constants.X_OK;
 
   for (const bin of binaries) {
     const binPath = getBinaryPath(bin);
     // 파일 존재 여부 및 실행 권한 확인 (동기적 확인이 안전함)
     try {
-      await fs.promises.access(binPath, fs.constants.F_OK);
+      await fs.promises.access(binPath, accessMode);
       logger.debug(`Binary found: ${bin} at ${binPath}`);
     } catch {
       missing.push(bin);
