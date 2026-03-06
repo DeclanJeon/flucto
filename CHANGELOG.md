@@ -1,3 +1,10 @@
+# [1.5.0](https://github.com/DeclanJeon/flucto/compare/v1.4.2...v1.5.0) (2026-03-06)
+
+
+### Features
+
+* 자동 업데이트 UI 및 상태 관리 기능 추가 ([d500f33](https://github.com/DeclanJeon/flucto/commit/d500f3321f00f39428c0daf5cac3734f0585679c))
+
 ## [1.4.2](https://github.com/DeclanJeon/flucto/compare/v1.4.1...v1.4.2) (2026-03-06)
 
 
