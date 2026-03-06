@@ -112,6 +112,19 @@ function createWindow(): void {
     },
   });
 
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    void shell.openExternal(url);
+    return { action: "deny" };
+  });
+
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    const currentUrl = mainWindow?.webContents.getURL();
+    if (currentUrl && url !== currentUrl) {
+      event.preventDefault();
+      void shell.openExternal(url);
+    }
+  });
+
   mainWindow.on("ready-to-show", () => {
     mainWindow?.show();
   });
