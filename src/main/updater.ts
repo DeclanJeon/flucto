@@ -1,12 +1,33 @@
 import { app, dialog } from 'electron';
 import electronUpdater from 'electron-updater';
+import type { AppUpdateEvent } from '../shared/types.js';
 import { logger } from './logger.js';
 import { getStoredUpdateSettings, markAutoUpdateCheckNow, shouldRunAutoUpdateCheck } from './store.js';
 
 const { autoUpdater } = electronUpdater;
 
+type UpdateListener = (event: AppUpdateEvent) => void;
+
 let initialized = false;
 let checking = false;
+let downloading = false;
+let updateDownloaded = false;
+let currentUpdateVersion: string | undefined;
+let currentAppUpdateEvent: AppUpdateEvent = { type: 'idle' };
+
+const listeners = new Set<UpdateListener>();
+
+const emitAppUpdateEvent = (event: AppUpdateEvent): void => {
+  currentAppUpdateEvent = event;
+  listeners.forEach((listener) => {
+    try {
+      listener(event);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.warn('Failed to emit app update event', { message });
+    }
+  });
+};
 
 const toUpdateInfo = (value: unknown): { version?: string; releaseDate?: string; downloadedFile?: string } => {
   if (!value || typeof value !== 'object') {
@@ -67,11 +88,19 @@ const showRestartPrompt = async (): Promise<void> => {
 const setupUpdaterEvents = (): void => {
   autoUpdater.on('checking-for-update', () => {
     logger.info('Auto-update: checking for updates');
+    emitAppUpdateEvent({ type: 'checking' });
   });
 
   autoUpdater.on('update-available', (info: unknown) => {
     const updateInfo = toUpdateInfo(info);
+    currentUpdateVersion = updateInfo.version;
+    updateDownloaded = false;
     logger.info('Auto-update: update available', {
+      version: updateInfo.version,
+      releaseDate: updateInfo.releaseDate,
+    });
+    emitAppUpdateEvent({
+      type: 'available',
       version: updateInfo.version,
       releaseDate: updateInfo.releaseDate,
     });
@@ -79,14 +108,27 @@ const setupUpdaterEvents = (): void => {
 
   autoUpdater.on('update-not-available', (info: unknown) => {
     const updateInfo = toUpdateInfo(info);
+    currentUpdateVersion = undefined;
+    updateDownloaded = false;
     logger.info('Auto-update: no updates available', {
+      version: updateInfo.version,
+    });
+    emitAppUpdateEvent({
+      type: 'not-available',
       version: updateInfo.version,
     });
   });
 
   autoUpdater.on('error', (error: unknown) => {
     const errorInfo = toErrorInfo(error);
+    downloading = false;
     logger.error('Auto-update error', {
+      message: errorInfo.message,
+      stack: errorInfo.stack,
+    });
+    emitAppUpdateEvent({
+      type: 'error',
+      version: currentUpdateVersion,
       message: errorInfo.message,
       stack: errorInfo.stack,
     });
@@ -94,7 +136,16 @@ const setupUpdaterEvents = (): void => {
 
   autoUpdater.on('download-progress', (progress: unknown) => {
     const progressInfo = toProgressInfo(progress);
+    downloading = true;
     logger.info('Auto-update download progress', {
+      percent: progressInfo.percent,
+      bytesPerSecond: progressInfo.bytesPerSecond,
+      transferred: progressInfo.transferred,
+      total: progressInfo.total,
+    });
+    emitAppUpdateEvent({
+      type: 'download-progress',
+      version: currentUpdateVersion,
       percent: progressInfo.percent,
       bytesPerSecond: progressInfo.bytesPerSecond,
       transferred: progressInfo.transferred,
@@ -104,21 +155,42 @@ const setupUpdaterEvents = (): void => {
 
   autoUpdater.on('update-downloaded', async (info: unknown) => {
     const updateInfo = toUpdateInfo(info);
+    downloading = false;
+    updateDownloaded = true;
+    currentUpdateVersion = updateInfo.version ?? currentUpdateVersion;
     logger.info('Auto-update: update downloaded', {
+      version: updateInfo.version,
+      downloadedFile: updateInfo.downloadedFile,
+    });
+    emitAppUpdateEvent({
+      type: 'downloaded',
       version: updateInfo.version,
       downloadedFile: updateInfo.downloadedFile,
     });
 
     const settings = getStoredUpdateSettings();
-    if (settings.notifyOnStart) {
+    if (settings.notifyOnUpdateReady) {
       await showRestartPrompt();
     }
   });
 };
 
+export const onAppUpdateEvent = (listener: UpdateListener): (() => void) => {
+  listeners.add(listener);
+  listener(currentAppUpdateEvent);
+  return () => {
+    listeners.delete(listener);
+  };
+};
+
+export const getCurrentAppUpdateEvent = (): AppUpdateEvent => {
+  return { ...currentAppUpdateEvent };
+};
+
 export const checkForAppUpdates = async (force = false): Promise<void> => {
   if (!app.isPackaged) {
     logger.info('Auto-update skipped in development mode');
+    emitAppUpdateEvent({ type: 'idle', message: 'development mode' });
     return;
   }
 
@@ -139,15 +211,48 @@ export const checkForAppUpdates = async (force = false): Promise<void> => {
   }
 
   checking = true;
+  emitAppUpdateEvent({ type: 'checking' });
   try {
     await autoUpdater.checkForUpdates();
     markAutoUpdateCheckNow();
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     logger.error('Failed to check app updates', { message });
+    emitAppUpdateEvent({ type: 'error', message, version: currentUpdateVersion });
+    throw error;
   } finally {
     checking = false;
   }
+};
+
+export const downloadAppUpdate = async (): Promise<void> => {
+  if (!app.isPackaged) {
+    logger.info('App update download skipped in development mode');
+    return;
+  }
+
+  if (updateDownloaded || downloading) {
+    return;
+  }
+
+  downloading = true;
+  try {
+    await autoUpdater.downloadUpdate();
+  } catch (error: unknown) {
+    downloading = false;
+    const message = error instanceof Error ? error.message : String(error);
+    logger.error('Failed to download app update', { message });
+    emitAppUpdateEvent({ type: 'error', message, version: currentUpdateVersion });
+    throw error;
+  }
+};
+
+export const installDownloadedAppUpdate = async (): Promise<void> => {
+  if (!updateDownloaded) {
+    throw new Error('No downloaded app update is ready to install');
+  }
+
+  autoUpdater.quitAndInstall();
 };
 
 export const initializeAutoUpdater = async (): Promise<void> => {
@@ -157,10 +262,10 @@ export const initializeAutoUpdater = async (): Promise<void> => {
 
   initialized = true;
 
-  autoUpdater.autoDownload = true;
+  autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
 
   setupUpdaterEvents();
 
-  await checkForAppUpdates(false);
+  void checkForAppUpdates(false);
 };

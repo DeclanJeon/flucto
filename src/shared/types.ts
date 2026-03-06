@@ -81,7 +81,29 @@ export interface DownloadProgress {
 export interface UpdateSettings {
   autoUpdate: boolean;
   checkInterval: number;
-  notifyOnStart: boolean;
+  notifyOnUpdateReady: boolean;
+}
+
+export type AppUpdateEventType =
+  | 'idle'
+  | 'checking'
+  | 'available'
+  | 'not-available'
+  | 'download-progress'
+  | 'downloaded'
+  | 'error';
+
+export interface AppUpdateEvent {
+  type: AppUpdateEventType;
+  version?: string;
+  releaseDate?: string;
+  downloadedFile?: string;
+  percent?: number;
+  bytesPerSecond?: number;
+  transferred?: number;
+  total?: number;
+  message?: string;
+  stack?: string;
 }
 
 export interface NetworkStatusEvent {
@@ -166,6 +188,12 @@ export interface IElectronAPI {
   readBatchFile: () => Promise<string[] | null>;
   getUpdateSettings: () => Promise<UpdateSettings>;
   saveUpdateSettings: (settings: UpdateSettings) => Promise<void>;
+  getAppUpdateState: () => Promise<AppUpdateEvent>;
+  checkAppUpdates: (force?: boolean) => Promise<void>;
+  downloadAppUpdate: () => Promise<void>;
+  installAppUpdate: () => Promise<void>;
+  onAppUpdateEvent: (callback: (event: AppUpdateEvent) => void) => void;
+  offAppUpdateEvent?: (callback: (event: AppUpdateEvent) => void) => void;
   checkBinaryUpdates: () => Promise<void>;
   onNetworkStatusChange: (callback: (status: NetworkStatusEvent) => void) => void;
   offNetworkStatusChange?: (callback: (status: NetworkStatusEvent) => void) => void;

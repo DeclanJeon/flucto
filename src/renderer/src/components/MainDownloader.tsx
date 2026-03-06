@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
+  BellRing,
   Download,
   FolderOpen,
   Plus,
@@ -22,7 +23,7 @@ import { DownloadProgress } from './DownloadProgress';
 import { DownloadSettings } from './DownloadSettings';
 import { DownloadHistory } from './DownloadHistory';
 import { useDownloadMonitor } from '../hooks/useDownloadMonitor';
-import type { DownloadSettings as DownloadSettingsType, FormatOption, VideoInfo } from '../../../shared/types';
+import type { AppUpdateEvent, DownloadSettings as DownloadSettingsType, FormatOption, VideoInfo } from '../../../shared/types';
 
 // [수정] 범용 URL 클리너 (YouTube ID 추출 로직 제거 및 범용화)
 const cleanMediaUrl = (url: string): string | null => {
@@ -69,6 +70,8 @@ export const MainDownloader: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showStatusPanel, setShowStatusPanel] = useState(true);
+  const [appUpdateEvent, setAppUpdateEvent] = useState<AppUpdateEvent>({ type: 'idle' });
+  const [updateActionBusy, setUpdateActionBusy] = useState(false);
   const [downloadSettings, setDownloadSettings] = useState<DownloadSettingsType>({
     downloadsDirectory: null,
     qualityPreferences: {
@@ -97,6 +100,27 @@ export const MainDownloader: React.FC = () => {
       }
     };
     void loadSettings();
+  }, []);
+
+  useEffect(() => {
+    const handleAppUpdateEvent = (event: AppUpdateEvent) => {
+      setAppUpdateEvent(event);
+    };
+
+    window.api.onAppUpdateEvent(handleAppUpdateEvent);
+    void window.api
+      .getAppUpdateState()
+      .then((event) => {
+        setAppUpdateEvent(event);
+      })
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        setStatusMessage(`❌ Failed to load app update state: ${message}`);
+      });
+
+    return () => {
+      window.api.offAppUpdateEvent?.(handleAppUpdateEvent);
+    };
   }, []);
 
   const formatBytesLabel = (bytes?: number): string => {
@@ -333,6 +357,69 @@ export const MainDownloader: React.FC = () => {
     setAppliedSummary(summary);
   };
 
+  const handleCheckAppUpdates = async () => {
+    setUpdateActionBusy(true);
+    try {
+      await window.api.checkAppUpdates(true);
+      setStatusMessage('🔍 Checking for app updates...');
+      setTimeout(() => setStatusMessage(null), 2000);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      setStatusMessage(`❌ Failed to check app updates: ${message}`);
+      setTimeout(() => setStatusMessage(null), 4000);
+    } finally {
+      setUpdateActionBusy(false);
+    }
+  };
+
+  const handleDownloadAppUpdate = async () => {
+    setUpdateActionBusy(true);
+    try {
+      await window.api.downloadAppUpdate();
+      setStatusMessage('⬇️ Downloading app update...');
+      setTimeout(() => setStatusMessage(null), 2000);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      setStatusMessage(`❌ Failed to download app update: ${message}`);
+      setTimeout(() => setStatusMessage(null), 4000);
+    } finally {
+      setUpdateActionBusy(false);
+    }
+  };
+
+  const handleInstallAppUpdate = async () => {
+    setUpdateActionBusy(true);
+    try {
+      await window.api.installAppUpdate();
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      setStatusMessage(`❌ Failed to install app update: ${message}`);
+      setTimeout(() => setStatusMessage(null), 4000);
+      setUpdateActionBusy(false);
+    }
+  };
+
+  const updateSummaryLabel = (() => {
+    switch (appUpdateEvent.type) {
+      case 'checking':
+        return 'Checking for app updates...';
+      case 'available':
+        return `Update available: v${appUpdateEvent.version ?? 'new version'}`;
+      case 'not-available':
+        return 'You are on the latest app version.';
+      case 'download-progress': {
+        const progress = typeof appUpdateEvent.percent === 'number' ? `${appUpdateEvent.percent.toFixed(1)}%` : 'starting';
+        return `Downloading app update: ${progress}`;
+      }
+      case 'downloaded':
+        return `Update ready: v${appUpdateEvent.version ?? 'new version'}. Restart to apply.`;
+      case 'error':
+        return `App update error: ${appUpdateEvent.message ?? 'unknown error'}`;
+      default:
+        return 'Auto-update checks GitHub releases for newer app versions.';
+    }
+  })();
+
   const isLoading = isAnalyzing || (batchProgress !== null);
   const hasStatusContent = Boolean(statusMessage || batchProgress || Object.keys(downloadProgress).length > 0 || appliedSummary);
 
@@ -413,6 +500,58 @@ export const MainDownloader: React.FC = () => {
           <p className="text-gray-500 text-sm mt-2">
             Support for YouTube, Twitter (X), Reddit, Bilibili & Instagram
           </p>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="w-full max-w-2xl mb-6 rounded-2xl border border-white/10 bg-[#1c1c1e]/85 px-4 py-4"
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 rounded-lg bg-blue-500/20 p-2 text-blue-300">
+                <BellRing size={16} />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs uppercase tracking-wide text-blue-300">App Updates</p>
+                <p className="text-sm text-gray-200">{updateSummaryLabel}</p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={handleCheckAppUpdates}
+                disabled={updateActionBusy || appUpdateEvent.type === 'checking'}
+                className="rounded-full border border-white/15 px-3 py-1.5 text-xs text-gray-200 hover:border-white/35 hover:text-white disabled:opacity-50"
+              >
+                Check now
+              </button>
+
+              {(appUpdateEvent.type === 'available' || appUpdateEvent.type === 'download-progress') && (
+                <button
+                  type="button"
+                  onClick={handleDownloadAppUpdate}
+                  disabled={updateActionBusy || appUpdateEvent.type === 'download-progress'}
+                  className="rounded-full bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500 disabled:opacity-50"
+                >
+                  {appUpdateEvent.type === 'download-progress' ? 'Downloading...' : 'Download update'}
+                </button>
+              )}
+
+              {appUpdateEvent.type === 'downloaded' && (
+                <button
+                  type="button"
+                  onClick={handleInstallAppUpdate}
+                  disabled={updateActionBusy}
+                  className="rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
+                >
+                  Restart to update
+                </button>
+              )}
+            </div>
+          </div>
         </motion.div>
 
         {/* Input Section */}

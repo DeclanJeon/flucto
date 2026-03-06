@@ -1,6 +1,7 @@
 import type { IpcRendererEvent } from 'electron';
 import { contextBridge, ipcRenderer } from 'electron';
 import type {
+  AppUpdateEvent,
   DownloadProgress,
   DownloadRequest,
   IElectronAPI,
@@ -9,9 +10,12 @@ import type {
 } from '../shared/types.js';
 
 type NetworkStatusListener = (status: NetworkStatusEvent) => void;
+type AppUpdateListener = (event: AppUpdateEvent) => void;
 
 const NETWORK_STATUS_CHANNEL = 'network-status-change';
+const APP_UPDATE_CHANNEL = 'app-update-event';
 const networkStatusCallbacks = new Map<NetworkStatusListener, (event: IpcRendererEvent, status: NetworkStatusEvent) => void>();
+const appUpdateCallbacks = new Map<AppUpdateListener, (event: IpcRendererEvent, updateEvent: AppUpdateEvent) => void>();
 
 const api: IElectronAPI = {
   downloadVideo: (data: DownloadRequest) => ipcRenderer.invoke('download-video', data),
@@ -33,6 +37,22 @@ const api: IElectronAPI = {
   },
   getUpdateSettings: () => ipcRenderer.invoke('get-update-settings'),
   saveUpdateSettings: (settings: UpdateSettings) => ipcRenderer.invoke('save-update-settings', settings),
+  getAppUpdateState: () => ipcRenderer.invoke('get-app-update-state'),
+  checkAppUpdates: (force = false) => ipcRenderer.invoke('check-app-updates', force),
+  downloadAppUpdate: () => ipcRenderer.invoke('download-app-update'),
+  installAppUpdate: () => ipcRenderer.invoke('install-app-update'),
+  onAppUpdateEvent: (callback: AppUpdateListener) => {
+    const wrapped = (_event: IpcRendererEvent, updateEvent: AppUpdateEvent) => callback(updateEvent);
+    appUpdateCallbacks.set(callback, wrapped);
+    ipcRenderer.on(APP_UPDATE_CHANNEL, wrapped);
+  },
+  offAppUpdateEvent: (callback: AppUpdateListener) => {
+    const wrapped = appUpdateCallbacks.get(callback);
+    if (wrapped) {
+      ipcRenderer.off(APP_UPDATE_CHANNEL, wrapped);
+      appUpdateCallbacks.delete(callback);
+    }
+  },
   checkBinaryUpdates: () => ipcRenderer.invoke('check-binary-updates'),
   onNetworkStatusChange: (callback: NetworkStatusListener) => {
     const wrapped = (_event: IpcRendererEvent, status: NetworkStatusEvent) => callback(status);

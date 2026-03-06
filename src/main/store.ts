@@ -4,7 +4,7 @@ import type { UpdateSettings, DownloadQualityPreferences } from '../shared/types
 const defaultUpdateSettings: UpdateSettings = {
   autoUpdate: true,
   checkInterval: 86400000,
-  notifyOnStart: true,
+  notifyOnUpdateReady: true,
 };
 
 const defaultQualityPreferences: DownloadQualityPreferences = {
@@ -55,16 +55,42 @@ export const isUpdateSettings = (value: unknown): value is UpdateSettings => {
     typeof candidate.checkInterval === 'number' &&
     Number.isInteger(candidate.checkInterval) &&
     candidate.checkInterval > 0 &&
+    typeof candidate.notifyOnUpdateReady === 'boolean'
+  );
+};
+
+const isLegacyUpdateSettings = (value: unknown): value is {
+  autoUpdate: boolean;
+  checkInterval: number;
+  notifyOnStart: boolean;
+} => {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    typeof candidate.autoUpdate === 'boolean' &&
+    typeof candidate.checkInterval === 'number' &&
+    Number.isInteger(candidate.checkInterval) &&
+    candidate.checkInterval > 0 &&
     typeof candidate.notifyOnStart === 'boolean'
   );
 };
 
 export const getStoredUpdateSettings = (): UpdateSettings => {
-  const stored = settingsStore.get('updateSettings');
+  const stored: unknown = settingsStore.get('updateSettings');
   if (isUpdateSettings(stored)) {
     return {
       ...stored,
     };
+  }
+
+  if (isLegacyUpdateSettings(stored)) {
+    const migrated: UpdateSettings = {
+      autoUpdate: stored.autoUpdate,
+      checkInterval: stored.checkInterval,
+      notifyOnUpdateReady: stored.notifyOnStart,
+    };
+    settingsStore.set('updateSettings', migrated);
+    return migrated;
   }
 
   const defaults = getUpdateSettingsDefaults();

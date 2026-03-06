@@ -1,12 +1,19 @@
 import { BrowserWindow, ipcMain } from 'electron';
 import { execa } from './spawn.js';
 import { logger } from './logger.js';
-import { checkForAppUpdates } from './updater.js';
+import {
+  checkForAppUpdates,
+  downloadAppUpdate,
+  getCurrentAppUpdateEvent,
+  installDownloadedAppUpdate,
+  onAppUpdateEvent,
+} from './updater.js';
 import { getBinaryPath } from './utils.js';
 import { getStoredUpdateSettings, isUpdateSettings, settingsStore } from './store.js';
-import type { NetworkStatusEvent } from '../shared/types.js';
+import type { AppUpdateEvent, NetworkStatusEvent } from '../shared/types.js';
 
 const NETWORK_STATUS_CHANNEL = 'network-status-change';
+const APP_UPDATE_CHANNEL = 'app-update-event';
 
 let networkStatus: NetworkStatusEvent = {
   online: true,
@@ -21,6 +28,17 @@ const emitNetworkStatus = (status: NetworkStatusEvent): void => {
   });
 };
 
+const emitAppUpdate = (event: AppUpdateEvent): void => {
+  const windows = BrowserWindow.getAllWindows();
+  windows.forEach((window) => {
+    window.webContents.send(APP_UPDATE_CHANNEL, event);
+  });
+};
+
+onAppUpdateEvent((event) => {
+  emitAppUpdate(event);
+});
+
 ipcMain.handle('get-update-settings', () => {
   return getStoredUpdateSettings();
 });
@@ -33,8 +51,23 @@ ipcMain.handle('save-update-settings', (_event, settings: unknown): void => {
   settingsStore.set('updateSettings', settings);
 });
 
+ipcMain.handle('get-app-update-state', () => {
+  return getCurrentAppUpdateEvent();
+});
+
+ipcMain.handle('check-app-updates', async (_event, force?: boolean) => {
+  await checkForAppUpdates(Boolean(force));
+});
+
+ipcMain.handle('download-app-update', async () => {
+  await downloadAppUpdate();
+});
+
+ipcMain.handle('install-app-update', async () => {
+  await installDownloadedAppUpdate();
+});
+
 ipcMain.handle('check-binary-updates', async () => {
-  const settings = getStoredUpdateSettings();
   try {
     const ytDlpPath = getBinaryPath('yt-dlp');
     const ffmpegPath = getBinaryPath('ffmpeg');
@@ -43,13 +76,6 @@ ipcMain.handle('check-binary-updates', async () => {
       execa(ytDlpPath, ['--version']),
       execa(ffmpegPath, ['-version']),
     ]);
-
-    try {
-      await checkForAppUpdates(true);
-    } catch (updateError: unknown) {
-      const updateErrorMessage = updateError instanceof Error ? updateError.message : String(updateError);
-      logger.warn('App update check failed during manual binary check', { error: updateErrorMessage });
-    }
 
     const binaryFailures = binaryChecks.filter((result) => result.status === 'rejected');
     if (binaryFailures.length > 0) {
@@ -61,8 +87,8 @@ ipcMain.handle('check-binary-updates', async () => {
 
     emitNetworkStatus({
       ...networkStatus,
-      online: settings.autoUpdate ? networkStatus.online : true,
-      message: settings.autoUpdate ? networkStatus.message : '',
+      online: networkStatus.online,
+      message: networkStatus.message,
     });
     logger.info('Binary update check passed', { ytDlpPath, ffmpegPath });
   } catch (error: unknown) {
@@ -78,4 +104,5 @@ ipcMain.handle('check-binary-updates', async () => {
 
 ipcMain.on('render-ready', () => {
   emitNetworkStatus(networkStatus);
+  emitAppUpdate(getCurrentAppUpdateEvent());
 });
