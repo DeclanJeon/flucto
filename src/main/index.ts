@@ -84,6 +84,28 @@ const getAudioQualityValue = (preset: DownloadQualityPreferences['audio']): stri
   }
 };
 
+const isInstagramUrl = (url: string): boolean => {
+  return url.includes("instagram.com");
+};
+
+const getOverrideVideoFormatSelector = (formatId: string): string => {
+  return `${formatId}+bestaudio[ext=m4a]/${formatId}+bestaudio/${formatId}/best[ext=mp4][acodec!=none]/best`;
+};
+
+const getResolvedVideoFormatSelector = (
+  url: string,
+  preset: DownloadQualityPreferences['video'],
+  overrideFormatId?: string | null,
+): string => {
+  if (isInstagramUrl(url)) {
+    return "best[ext=mp4]/best";
+  }
+
+  return overrideFormatId
+    ? getOverrideVideoFormatSelector(overrideFormatId)
+    : getVideoFormatSelector(preset);
+};
+
 const showDesktopNotification = (title: string, body: string): void => {
   try {
     if (Notification.isSupported()) {
@@ -687,8 +709,9 @@ ipcMain.handle(
           }
 
           if (format === "mp3") {
-            if (resolvedOverrides.audioFormatId) {
-              args.push("--format", resolvedOverrides.audioFormatId);
+            const resolvedAudioOverrideId = isInstagramUrl(url) ? null : resolvedOverrides.audioFormatId;
+            if (resolvedAudioOverrideId) {
+              args.push("--format", resolvedAudioOverrideId);
             }
             const resolvedAudioQuality = getAudioQualityValue(selectedQuality.audio);
             args.push(
@@ -702,13 +725,15 @@ ipcMain.handle(
               requestId,
               url,
               preset: selectedQuality.audio,
-              overrideFormatId: resolvedOverrides.audioFormatId,
+              overrideFormatId: resolvedAudioOverrideId,
               resolvedAudioQuality,
             });
           } else {
-            const resolvedVideoSelector = resolvedOverrides.videoFormatId
-              ? `${resolvedOverrides.videoFormatId}+bestaudio[ext=m4a]/${resolvedOverrides.videoFormatId}+bestaudio/${resolvedOverrides.videoFormatId}/best[ext=mp4][acodec!=none]/best`
-              : getVideoFormatSelector(selectedQuality.video);
+            const resolvedVideoSelector = getResolvedVideoFormatSelector(
+              url,
+              selectedQuality.video,
+              resolvedOverrides.videoFormatId,
+            );
             args.push(
               "--format",
               resolvedVideoSelector,
@@ -719,7 +744,7 @@ ipcMain.handle(
               requestId,
               url,
               preset: selectedQuality.video,
-              overrideFormatId: resolvedOverrides.videoFormatId,
+              overrideFormatId: isInstagramUrl(url) ? null : resolvedOverrides.videoFormatId,
               resolvedVideoSelector,
             });
           }
@@ -883,7 +908,7 @@ ipcMain.handle("download-video", async (_event, args: DownloadRequest) => {
       } else {
         downloadArgs.push(
           "--format",
-          getVideoFormatSelector(quality.video),
+          getResolvedVideoFormatSelector(url, quality.video),
           "--merge-output-format",
           "mp4",
         );
@@ -1061,8 +1086,9 @@ ipcMain.handle("download-single", async (event, args: { url: string; format: 'mp
     ];
 
     if (format === "mp3") {
-      if (formatOverrides.audioFormatId) {
-        downloadArgs.push("--format", formatOverrides.audioFormatId);
+      const resolvedAudioOverrideId = isInstagramUrl(url) ? null : formatOverrides.audioFormatId;
+      if (resolvedAudioOverrideId) {
+        downloadArgs.push("--format", resolvedAudioOverrideId);
       }
       const resolvedAudioQuality = getAudioQualityValue(quality.audio);
       downloadArgs.push(
@@ -1074,13 +1100,15 @@ ipcMain.handle("download-single", async (event, args: { url: string; format: 'mp
         requestId,
         url,
         preset: quality.audio,
-        overrideFormatId: formatOverrides.audioFormatId,
+        overrideFormatId: resolvedAudioOverrideId,
         resolvedAudioQuality,
       });
     } else {
-      const resolvedVideoSelector = formatOverrides.videoFormatId
-        ? `${formatOverrides.videoFormatId}+bestaudio[ext=m4a]/${formatOverrides.videoFormatId}+bestaudio/${formatOverrides.videoFormatId}/best[ext=mp4][acodec!=none]/best`
-        : getVideoFormatSelector(quality.video);
+      const resolvedVideoSelector = getResolvedVideoFormatSelector(
+        url,
+        quality.video,
+        formatOverrides.videoFormatId,
+      );
       downloadArgs.push(
         "--format",
         resolvedVideoSelector,
@@ -1091,7 +1119,7 @@ ipcMain.handle("download-single", async (event, args: { url: string; format: 'mp
         requestId,
         url,
         preset: quality.video,
-        overrideFormatId: formatOverrides.videoFormatId,
+        overrideFormatId: isInstagramUrl(url) ? null : formatOverrides.videoFormatId,
         resolvedVideoSelector,
       });
     }
