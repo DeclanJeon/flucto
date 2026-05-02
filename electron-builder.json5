@@ -53,7 +53,6 @@
   },
 
   portable: {
-    icon: "assets/icon.ico",
     artifactName: "${productName}-${version}-${arch}-portable.${ext}",
   },
 
