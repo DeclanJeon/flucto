@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <title id="title">Flucto Logo</title>
+  <desc id="desc">Flucto branding icon</desc>
+  <defs>
+    <linearGradient id="brandGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6d5bff" />
+      <stop offset="45%" stop-color="#44c3ff" />
+      <stop offset="100%" stop-color="#14d6b2" />
+    </linearGradient>
+    <filter id="softGlow" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="3" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="512" height="512" rx="112" fill="#070b16" />
+  <rect x="56" y="56" width="400" height="400" rx="88" fill="url(#brandGradient)" opacity="0.22" />
+
+  <g transform="translate(86 90)" filter="url(#softGlow)">
+    <path
+      d="M74 70h68l38 170 42-170h58l-70 260h-56L74 70z"
+      fill="url(#brandGradient)"
+      fill-opacity="0.95"
+    />
+    <path
+      d="M252 70h48l44 260h-48L252 70zM220 132c0-24 18-42 42-42h28c24 0 42 18 42 42v6h-42v-4c0-8-6-14-14-14h-8c-9 0-14 6-14 14 0 9 6 14 18 20 28 12 40 24 40 49 0 33-25 50-57 50h-13c-32 0-56-17-56-49v-8h42v12c0 8 6 14 14 14h16c9 0 14-6 14-14 0-9-5-15-19-22-24-12-40-23-40-52z"
+      fill="#e7ebff"
+    />
+  </g>
+</svg>

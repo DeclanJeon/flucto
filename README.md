@@ -1,7 +1,7 @@
-# 🚀 Flucto Downloader
+# 🌊 Flucto
 
 <p align="center">
-  Flowing Speed. Flawless Video. The privacy-first media downloader for desktop.
+  Flucto - creator-first desktop media downloader for short-form and long-form captures.
 </p>
 
 <p align="center">
@@ -11,10 +11,10 @@
   <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-100%25-3178C6?style=flat&logo=typescript&logoColor=white" alt="TypeScript"></a>
 </p>
 
-> Flucto is an open-source, modern desktop application designed to make downloading video and audio effortless. Built with the latest web technologies, it bridges the gap between powerful CLI tools and beautiful UX.
+> Flucto is an open-source desktop application for creators and curators who want one reliable way to capture media from YouTube, X, Reddit, Bilibili, and Instagram.
 
 - ✨ **Stunning UI**: Apple-inspired dark mode with glassmorphism & smooth animations
-- 🌍 **Universal Support**: Downloads from YouTube, Twitter (X), Reddit, Bilibili, Instagram
+- 🌍 **Universal Support**: Download from YouTube, X, Reddit, Bilibili, Instagram
 - 📦 **Batch Processing**: Import `.txt` lists to download huge queues automatically
 - ⚡ **Auto-Setup**: Automatically fetches and configures `yt-dlp` and `ffmpeg` binaries
 - 🔒 **Privacy First**: No tracking, local processing, and proxied thumbnail loading

@@ -123,6 +123,7 @@ function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 900,
     height: 670,
+    title: "Flucto",
     show: false, // 준비될 때까지 숨김 (깜빡임 방지)
     autoHideMenuBar: true,
     backgroundColor: "#111827", // 다크모드 배경색

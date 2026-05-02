@@ -1,12 +1,43 @@
 @import 'tailwindcss';
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Sora:wght@500;600;700;800&display=swap');
+
+:root {
+  --bg-primary: #070b16;
+  --bg-surface: #0d1324;
+  --bg-card: rgba(23, 28, 46, 0.86);
+  --line: rgba(255, 255, 255, 0.12);
+  --text-main: #f4f7ff;
+  --text-subtle: #98a2b3;
+  --accent-1: #7a66ff;
+  --accent-2: #44c3ff;
+  --accent-3: #14d6b2;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: 'Sora', 'Manrope', 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: var(--bg-primary);
+  color: var(--text-main);
+  min-height: 100vh;
+}
+
+.bg-noise {
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(40rem 40rem at 10% 10%, rgba(116, 104, 255, 0.15), transparent 55%),
+    radial-gradient(32rem 32rem at 90% 0%, rgba(20, 214, 178, 0.14), transparent 48%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.02) 0%, transparent 42%);
+  pointer-events: none;
+  z-index: 0;
 }
 
 /* Custom scrollbar for webkit browsers */
@@ -21,7 +52,7 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
+  background: linear-gradient(180deg, var(--accent-2), var(--accent-3));
   border-radius: 4px;
 }
 

@@ -54,6 +54,35 @@ const getPlatformIcon = (url: string) => {
     return <Globe size={18} className="text-blue-400" />;
 };
 
+const BrandMark = () => (
+  <svg
+    width="36"
+    height="36"
+    viewBox="0 0 64 64"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    className="shrink-0"
+    aria-hidden="true"
+  >
+    <defs>
+      <linearGradient id="brandMarkGradient" x1="0" y1="0" x2="64" y2="64">
+        <stop offset="0%" stopColor="#6d5bff" />
+        <stop offset="50%" stopColor="#44c3ff" />
+        <stop offset="100%" stopColor="#14d6b2" />
+      </linearGradient>
+    </defs>
+    <rect x="7" y="7" width="50" height="50" rx="16" fill="url(#brandMarkGradient)" />
+    <path
+      d="M20 18L20 48L31 48L31 28L38 28L38 48L49 48L49 18L38 18L32 18L26 18L20 18Z"
+      fill="#11182b"
+    />
+    <path
+      d="M24.5 34.5C24.5 28.4 29.6 23.8 36 23.8H39V28.5H36C33.1 28.5 31 30.7 31 33.5C31 36.4 33.4 38 36 38H46V46H36C29.6 46 24.5 40.6 24.5 34.5Z"
+      fill="#f3f5ff"
+    />
+  </svg>
+);
+
 export const MainDownloader: React.FC = () => {
   const [url, setUrl] = useState('');
   const [format, setFormat] = useState<'mp4' | 'mp3'>('mp4');
@@ -424,15 +453,17 @@ export const MainDownloader: React.FC = () => {
   const hasStatusContent = Boolean(statusMessage || batchProgress || Object.keys(downloadProgress).length > 0 || appliedSummary);
 
   return (
-    <div className="min-h-screen bg-[#0d0d0d] text-gray-100 font-sans selection:bg-blue-500/30">
+    <div className="relative min-h-screen overflow-hidden bg-[#0d0d0d] text-gray-100 font-sans selection:bg-blue-500/30">
+      <div className="bg-noise" />
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 px-6 py-4 flex items-center justify-between bg-[#0d0d0d]/80 backdrop-blur-md border-b border-white/5">
         <div className="flex items-center gap-2">
           {/* 로고 영역 살짝 수정 */}
-          <div className="bg-gradient-to-br from-blue-600 to-purple-600 p-1.5 rounded-lg flex items-center justify-center">
-            <Globe size={18} className="text-white" />
+          <BrandMark />
+          <div>
+            <div className="font-bold text-lg tracking-tight">Flucto</div>
+            <div className="text-xs text-gray-400">Creator-First Media Downloader</div>
           </div>
-          <span className="font-bold text-lg tracking-tight">Flucto</span>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -489,7 +520,7 @@ export const MainDownloader: React.FC = () => {
           className="text-center mb-12 space-y-4"
         >
           <h2 className="text-blue-500 font-semibold tracking-wide text-sm uppercase">
-            Universal Media Downloader
+            Signal-to-Signal Media Flow
           </h2>
           <h1 className="text-5xl md:text-7xl font-bold tracking-tight text-white leading-[1.1]">
             Any Platform.<br />
@@ -498,7 +529,11 @@ export const MainDownloader: React.FC = () => {
             </span>
           </h1>
           <p className="text-gray-500 text-sm mt-2">
-            Support for YouTube, Twitter (X), Reddit, Bilibili & Instagram
+            High-Signal fetch + deterministic output for YouTube, X, Reddit, Bilibili, and Instagram.
+          </p>
+          <p className="text-gray-400 text-xs md:text-sm max-w-2xl mx-auto">
+            Flucto keeps each request auditable and visible: batch queueing, resilient format checks,
+            and clean handoff into your download folder.
           </p>
         </motion.div>
 

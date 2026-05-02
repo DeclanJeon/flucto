@@ -1,7 +1,7 @@
 {
-  appId: "com.yourname.fluctoDownloader",
+  appId: "com.flucto.desktop",
   productName: "Flucto",
-  copyright: "Copyright © 2024 Flucto Team",
+  copyright: "Copyright © 2026 Flucto Team",
 
   directories: {
     output: "release",
@@ -53,6 +53,7 @@
   },
 
   portable: {
+    icon: "assets/icon.ico",
     artifactName: "${productName}-${version}-${arch}-portable.${ext}",
   },
 

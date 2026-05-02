@@ -3,7 +3,17 @@
   "productName": "Flucto",
   "private": true,
   "version": "1.5.0",
-  "description": "Flowing Speed. Flawless Video. Experience Flucto.",
+  "description": "Flucto - Creator-first media downloader for YouTube, Instagram, X, Reddit, and Bilibili.",
+  "keywords": [
+    "electron",
+    "downloader",
+    "youtube-downloader",
+    "instagram-downloader",
+    "batch-downloader",
+    "yt-dlp",
+    "media",
+    "flucto"
+  ],
   "type": "module",
   "main": "./dist-electron/main/index.js",
   "author": "Flucto Team",

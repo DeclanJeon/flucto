@@ -80,6 +80,12 @@ dist
 # Gatsby files
 .cache/
 public
+!src/renderer/public/
+!src/renderer/public/favicon.svg
+!src/renderer/public/logo.svg
+!src/renderer/public/og-image.svg
+!src/renderer/public/site.webmanifest
+!src/renderer/public/robots.txt
 
 # Storybook build outputs
 .out

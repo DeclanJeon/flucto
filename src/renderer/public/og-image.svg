@@ -1,0 +1,28 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">Flucto Preview</title>
+  <desc id="desc">Flucto social card</desc>
+  <defs>
+    <linearGradient id="hero" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#050914" />
+      <stop offset="100%" stop-color="#0b1d46" />
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6d5bff" />
+      <stop offset="50%" stop-color="#44c3ff" />
+      <stop offset="100%" stop-color="#14d6b2" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#hero)" />
+  <g opacity="0.22">
+    <circle cx="220" cy="150" r="110" fill="url(#accent)" />
+    <circle cx="1030" cy="540" r="170" fill="url(#accent)" />
+  </g>
+  <rect x="56" y="56" width="1088" height="518" rx="46" fill="#0f1630" opacity="0.9" />
+  <g transform="translate(110 150)">
+    <path d="M56 40h84L168 190 232 40h90L244 280h-79L56 40z" fill="url(#accent)" />
+    <path d="M298 40h76L372 276H298V40zm-46 116h-8c-36.7 0-66-17.6-66-63 0-43 28.5-64 66-64h8v127z" fill="#edf0ff" />
+  </g>
+  <text x="520" y="286" font-family="Arial" font-size="72" font-weight="700" fill="#ffffff">Flucto</text>
+  <text x="520" y="360" font-family="Arial" font-size="36" fill="#a6b5e4">Universal media download studio for creators</text>
+  <text x="520" y="420" font-family="Arial" font-size="30" fill="#7f8fba">YouTube, Instagram, X, Reddit, Bilibili support</text>
+</svg>
