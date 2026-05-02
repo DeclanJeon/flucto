@@ -1,3 +1,16 @@
+# [1.6.0](https://github.com/DeclanJeon/flucto/compare/v1.5.0...v1.6.0) (2026-05-02)
+
+
+### Bug Fixes
+
+* remove invalid portable icon config ([a0b75df](https://github.com/DeclanJeon/flucto/commit/a0b75df9b6a3051c19e123c99af248c0447932ea))
+* resolve instagram reel format selection failure ([a8dab83](https://github.com/DeclanJeon/flucto/commit/a8dab83266a1bd2f0f0750a4cbc6716840d56fb5))
+
+
+### Features
+
+* refresh branding and installer metadata ([6d56701](https://github.com/DeclanJeon/flucto/commit/6d567016cfddfc62c6c1a76a205ed93fa229e880))
+
 # [1.5.0](https://github.com/DeclanJeon/flucto/compare/v1.4.2...v1.5.0) (2026-03-06)
 
 
