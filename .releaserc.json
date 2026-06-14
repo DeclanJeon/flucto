@@ -16,12 +16,12 @@
       "@semantic-release/github",
       {
         "assets": [
-          {"path": "release/*.exe", "label": "Windows Installer"},
-          {"path": "release/*.dmg", "label": "macOS DMG"},
-          {"path": "release/*.zip", "label": "macOS ZIP"},
+          {"path": "release/*-setup.exe", "label": "Windows Installer"},
+          {"path": "release/*-portable.exe", "label": "Windows Portable"},
+          {"path": "release/*.dmg", "label": "macOS Installer"},
+          {"path": "release/*.zip", "label": "macOS Portable"},
           {"path": "release/*.AppImage", "label": "Linux AppImage"},
-          {"path": "release/*.yml", "label": "Auto Update Metadata"},
-          {"path": "release/*.blockmap", "label": "Blockmap"}
+          {"path": "release/*.deb", "label": "Linux DEB"}
         ]
       }
     ]

@@ -21,11 +21,6 @@
       from: "bin",
       to: "bin",
       filter: ["**/*"]
-    },
-    {
-      from: "node_modules",
-      to: "app/node_modules",
-      filter: ["**/*"]
     }
   ],
 
@@ -83,8 +78,6 @@
     target: [
       { target: "AppImage", arch: ["x64"] },
       { target: "deb", arch: ["x64"] },
-      { target: "rpm", arch: ["x64"] },
-      { target: "tar.gz", arch: ["x64"] },
     ],
     category: "AudioVideo;Video;Utility",
     maintainer: "Flucto Team",
@@ -97,10 +90,6 @@
 
   deb: {
     priority: "optional",
-    compression: "xz",
-  },
-
-  rpm: {
     compression: "xz",
   },
 

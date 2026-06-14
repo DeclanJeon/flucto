@@ -29,7 +29,6 @@
     "dist:linux": "npm run build && electron-builder --linux",
     "dist:linux:appimage": "npm run build && electron-builder --linux AppImage",
     "dist:linux:deb": "npm run build && electron-builder --linux deb",
-    "dist:linux:rpm": "npm run build && electron-builder --linux rpm",
     "dist:mac": "npm run build && electron-builder --mac",
     "dist:mac:dmg": "npm run build && electron-builder --mac dmg",
     "dist:mac:zip": "npm run build && electron-builder --mac zip",

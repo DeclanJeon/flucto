@@ -132,8 +132,7 @@ jobs:
             release/*.dmg
             release/*.zip
             release/*.AppImage
-            release/*.yml
-            release/*.blockmap
+            release/*.deb
           retention-days: 1
 
   release:
