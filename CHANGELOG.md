@@ -1,3 +1,11 @@
+## [1.6.1](https://github.com/DeclanJeon/flucto/compare/v1.6.0...v1.6.1) (2026-06-14)
+
+
+### Bug Fixes
+
+* release only installable artifacts ([88569db](https://github.com/DeclanJeon/flucto/commit/88569db3413788a4bf9a90726a6ad62dbac9ff91))
+* run release packaging on supported node ([3a3cca0](https://github.com/DeclanJeon/flucto/commit/3a3cca071410d2625caffbef9bcf078a32f51ce1))
+
 # [1.6.0](https://github.com/DeclanJeon/flucto/compare/v1.5.0...v1.6.0) (2026-05-02)
 
 
