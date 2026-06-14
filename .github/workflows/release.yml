@@ -95,10 +95,11 @@ jobs:
         run: |
           $yt = "release/win-unpacked/resources/bin/yt-dlp.exe"
           $ff = "release/win-unpacked/resources/bin/ffmpeg.exe"
-          $winston = "release/win-unpacked/resources/app/node_modules/winston/package.json"
+          $appAsar = "release/win-unpacked/resources/app.asar"
           if (!(Test-Path $yt)) { throw "Missing binary: $yt" }
           if (!(Test-Path $ff)) { throw "Missing binary: $ff" }
-          if (!(Test-Path $winston)) { throw "Missing runtime dependency: $winston" }
+          if (!(Test-Path $appAsar)) { throw "Missing app archive: $appAsar" }
+          node -e "const asar=require('@electron/asar'); asar.statFile(process.argv[1], 'node_modules/ajv/dist/2020.js')" $appAsar
           & $yt --version | Out-Null
           & $ff -version | Out-Null
           Write-Host "Windows binaries verified"
@@ -107,9 +108,11 @@ jobs:
         if: matrix.os == 'macos-latest'
         shell: bash
         run: |
+          app_asar="release/mac/Flucto.app/Contents/Resources/app.asar"
           test -f "release/mac/Flucto.app/Contents/Resources/bin/yt-dlp"
           test -f "release/mac/Flucto.app/Contents/Resources/bin/ffmpeg"
-          test -f "release/mac/Flucto.app/Contents/Resources/app/node_modules/winston/package.json"
+          test -f "$app_asar"
+          node -e "const asar=require('@electron/asar'); asar.statFile(process.argv[1], 'node_modules/ajv/dist/2020.js')" "$app_asar"
           "release/mac/Flucto.app/Contents/Resources/bin/yt-dlp" --version >/dev/null
           "release/mac/Flucto.app/Contents/Resources/bin/ffmpeg" -version >/dev/null
 
@@ -117,9 +120,11 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         shell: bash
         run: |
+          app_asar="release/linux-unpacked/resources/app.asar"
           test -f "release/linux-unpacked/resources/bin/yt-dlp"
           test -f "release/linux-unpacked/resources/bin/ffmpeg"
-          test -f "release/linux-unpacked/resources/app/node_modules/winston/package.json"
+          test -f "$app_asar"
+          node -e "const asar=require('@electron/asar'); asar.statFile(process.argv[1], 'node_modules/ajv/dist/2020.js')" "$app_asar"
           "release/linux-unpacked/resources/bin/yt-dlp" --version >/dev/null
           "release/linux-unpacked/resources/bin/ffmpeg" -version >/dev/null
 
