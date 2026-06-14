@@ -14,7 +14,7 @@
     "package.json",
   ],
 
-  asar: false,
+  asar: true,
 
   extraResources: [
     {

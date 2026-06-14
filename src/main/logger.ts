@@ -1,47 +1,63 @@
-import winston from 'winston';
 import path from 'path';
 import fs from 'fs';
 import { config } from './config.js';
 
-// 로그 디렉토리가 없으면 생성
-if (!fs.existsSync(config.paths.logs)) {
-  fs.mkdirSync(config.paths.logs, { recursive: true });
+type LogLevel = 'error' | 'warn' | 'info' | 'debug';
+type LogMeta = Record<string, unknown> | undefined;
+
+const logDir = config.paths.logs;
+const errorLogPath = path.join(logDir, 'error.log');
+const combinedLogPath = path.join(logDir, 'combined.log');
+
+if (!fs.existsSync(logDir)) {
+  fs.mkdirSync(logDir, { recursive: true });
 }
 
-// 로그 포맷 설정
-const logFormat = winston.format.combine(
-  winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-  winston.format.errors({ stack: true }),
-  winston.format.json()
-);
+const toLogLine = (level: LogLevel, message: string, meta?: LogMeta): string => {
+  const entry = {
+    timestamp: new Date().toISOString(),
+    level,
+    message,
+    ...(meta ?? {}),
+  };
 
-// 개발 환경에서는 콘솔에도 출력
-const transports: winston.transport[] = [
-  new winston.transports.File({
-    filename: path.join(config.paths.logs, 'error.log'),
-    level: 'error',
-    format: logFormat,
-  }),
-  new winston.transports.File({
-    filename: path.join(config.paths.logs, 'combined.log'),
-    format: logFormat,
-  }),
-];
+  try {
+    return `${JSON.stringify(entry)}\n`;
+  } catch {
+    return JSON.stringify({
+      timestamp: entry.timestamp,
+      level,
+      message,
+      meta: String(meta),
+    }) + '\n';
+  }
+};
 
-if (config.isDev) {
-  transports.push(
-    new winston.transports.Console({
-      format: winston.format.combine(
-        winston.format.colorize(),
-        winston.format.simple()
-      ),
-    })
-  );
-}
+const writeLog = (level: LogLevel, message: string, meta?: LogMeta): void => {
+  const line = toLogLine(level, message, meta);
+  fs.appendFileSync(combinedLogPath, line);
 
-export const logger = winston.createLogger({
-  level: config.isDev ? 'debug' : 'info',
-  format: logFormat,
-  transports,
-  exitOnError: false,
-});
+  if (level === 'error') {
+    fs.appendFileSync(errorLogPath, line);
+  }
+
+  if (config.isDev) {
+    const output = meta ? [message, meta] : [message];
+    if (level === 'error') {
+      console.error(...output);
+    } else if (level === 'warn') {
+      console.warn(...output);
+    } else if (level === 'debug') {
+      console.debug(...output);
+    } else {
+      console.info(...output);
+    }
+  }
+};
+
+export const logger = {
+  error: (message: string, meta?: LogMeta): void => writeLog('error', message, meta),
+  warn: (message: string, meta?: LogMeta): void => writeLog('warn', message, meta),
+  info: (message: string, meta?: LogMeta): void => writeLog('info', message, meta),
+  debug: (message: string, meta?: LogMeta): void => writeLog('debug', message, meta),
+};

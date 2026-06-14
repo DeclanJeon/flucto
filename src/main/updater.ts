@@ -267,5 +267,8 @@ export const initializeAutoUpdater = async (): Promise<void> => {
 
   setupUpdaterEvents();
 
-  void checkForAppUpdates(false);
+  void checkForAppUpdates(false).catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    logger.warn('Initial auto-update check failed', { message });
+  });
 };
