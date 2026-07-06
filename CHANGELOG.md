@@ -4,6 +4,9 @@
 ### Features
 
 * **transcript:** default markdown captions to english ([2d5d3ed](https://github.com/DeclanJeon/flucto/commit/2d5d3eda671747af1d0fe5d8ef577c4550d32956))
+  * Sets new Markdown transcript conversions to request English captions (`en`) by default.
+  * Preserves the explicit `Auto` option by treating `language: null` as an intentional automatic-language choice.
+  * Aligns renderer initial state, persisted settings defaults, and transcript request normalization.
 
 ## [1.7.1](https://github.com/DeclanJeon/flucto/compare/v1.7.0...v1.7.1) (2026-07-06)
 
