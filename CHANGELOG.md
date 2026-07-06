@@ -1,3 +1,10 @@
+## [1.7.1](https://github.com/DeclanJeon/flucto/compare/v1.7.0...v1.7.1) (2026-07-06)
+
+
+### Bug Fixes
+
+* **updater:** refresh update metadata before download ([79ec75a](https://github.com/DeclanJeon/flucto/commit/79ec75a20c7cd3147f8c7d2698d8978be5c01844))
+
 # [1.7.0](https://github.com/DeclanJeon/flucto/compare/v1.6.1...v1.7.0) (2026-07-06)
 
 
