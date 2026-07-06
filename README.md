@@ -1,70 +1,100 @@
 # 🌊 Flucto
 
 <p align="center">
-  Flucto - creator-first desktop media downloader for short-form and long-form captures.
+  Flucto - creator-first desktop media downloader and caption-to-Markdown exporter for short-form and long-form captures.
 </p>
 
 <p align="center">
-  <a href="https://github.com/yourusername/flucto/releases"><img src="https://img.shields.io/github/v/release/yourusername/flucto?style=flat&color=5865F2&label=Download&logo=github" alt="Download"></a>
+  <a href="https://github.com/DeclanJeon/flucto/releases"><img src="https://img.shields.io/github/v/release/DeclanJeon/flucto?style=flat&color=5865F2&label=Download&logo=github" alt="Download"></a>
   <a href="#"><img src="https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-007ACC?style=flat&logo=linux&logoColor=white" alt="Platform"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-10B981?style=flat" alt="License"></a>
   <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-100%25-3178C6?style=flat&logo=typescript&logoColor=white" alt="TypeScript"></a>
 </p>
 
-> Flucto is an open-source desktop application for creators and curators who want one reliable way to capture media from YouTube, X, Reddit, Bilibili, and Instagram.
+> Flucto is an open-source desktop application for creators and curators who want one reliable way to capture media and turn available captions into Markdown notes from YouTube, X, Reddit, Bilibili, and Instagram.
 
 - ✨ **Stunning UI**: Apple-inspired dark mode with glassmorphism & smooth animations
 - 🌍 **Universal Support**: Download from YouTube, X, Reddit, Bilibili, Instagram
-- 📦 **Batch Processing**: Import `.txt` lists to download huge queues automatically
+- 📝 **Caption to Markdown**: Convert available subtitles/captions into clean `.md` files with metadata and timestamps
+- 📦 **Batch Processing**: Import `.txt` lists to download media or convert caption queues automatically
 - ⚡ **Auto-Setup**: Automatically fetches and configures `yt-dlp` and `ffmpeg` binaries
 - 🔒 **Privacy First**: No tracking, local processing, and proxied thumbnail loading
-- 🎵 **Format Choice**: High-quality video (MP4) or audio extraction (MP3) support
+- 🎵 **Format Choice**: Save video (MP4), audio extraction (MP3), or Markdown transcript output
 - 🛡️ **Type Safe**: Built with 100% TypeScript for stability and reliability
 
 <p align="center">
   <img src="https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExMmZiM2g1MmJiZHk0am8xcXkxMXBrb3I2OWxrMXJ2a3BuczAxN3NwbSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/arv0uz1yGEtdL8Xkqq/giphy.gif" width="100%" alt="Flucto Screenshot" />
 </p>
 
-- [Report Bug](https://github.com/yourusername/flucto/issues)
+- [Report Bug](https://github.com/DeclanJeon/flucto/issues)
 
 ## Key Features
 
-- **Smart Media Engine:** Flucto intelligently parses URLs to support single videos and playlists. It handles complex platforms like Bilibili and Twitter using specialized headers and User-Agents.
-- **Batch Queue System:** Supports loading hundreds of URLs via text files. Perfect for archiving channels or downloading curated lists.
+- **Smart Media Engine:** Flucto parses single video, playlist, and social-media URLs while sharing platform-specific `yt-dlp` headers, referers, and retry behavior across preview, download, and transcript flows.
+- **MP4 / MP3 / MD Output Modes:** Choose between media download, audio extraction, or Markdown transcript conversion without changing the Electron + TypeScript desktop stack.
+- **Caption-to-Markdown Conversion:** Uses `yt-dlp` subtitle/caption output when available, parses JSON3, XML/SRV3, and VTT captions, cleans caption markup, groups nearby captions into readable paragraphs, and writes filesystem-safe `.md` files.
+- **Transcript Options:** Select transcript language (`Auto` or a concrete caption language), include/exclude timestamps and metadata, choose paragraph gap rules, save Markdown files, and optionally copy generated Markdown to the clipboard.
+- **Batch Queue System:** Supports loading hundreds of URLs via text files. Batch media downloads and batch transcript conversions both use bounded concurrency so large queues remain responsive.
+- **Download History:** Records output type (`mp4`, `mp3`, or `md`) so media downloads and Markdown conversions stay visible in history.
 - **Zero Configuration:** Unlike other GUI wrappers, Flucto includes a `setup-binaries` script that automatically downloads the correct version of `yt-dlp` and `ffmpeg` for your OS upon installation.
-- **Performance Focused:** Built on **Vite** and **React 19**, offering a snappy experience compared to traditional Electron apps.
-- **Network Resilience:** Implements auto-retry logic with exponential backoff for unstable connections or API rate limits.
+- **Network Resilience:** Implements retry logic, updater metadata checks, and transcript circuit-breaker behavior for unstable connections, rate limits, and unavailable caption sources.
+
+## Output Modes
+
+| Mode | What it creates | Best for |
+| --- | --- | --- |
+| `MP4` | Video files from supported URLs | Archiving videos, clips, playlists, and social media posts |
+| `MP3` | Extracted audio files | Podcasts, lectures, music, and offline listening |
+| `MD` | Markdown transcript files from available captions/subtitles | Research notes, summaries, quote extraction, and searchable archives |
+
+Markdown conversion is caption-based. If a platform or video does not expose captions/subtitles through `yt-dlp`, Flucto reports the transcript as unavailable instead of silently falling back to speech-to-text. No Python/FastAPI server, Whisper runtime, or external transcription service is embedded.
+
+## Recent Updates
+
+### v1.7.1
+
+- Fixed Linux `.deb` updater metadata so installed Debian/Ubuntu builds can select the `.deb` update asset instead of failing inside `DebUpdater`.
+- Refreshed update metadata before manual app-update downloads so stale update checks do not trigger `electron-updater` provider-cache errors.
+
+### v1.7.0
+
+- Added Markdown transcript output mode next to MP4 and MP3.
+- Added transcript language selection, timestamp/metadata toggles, paragraph gap control, file saving, and clipboard copy options.
+- Added JSON3, XML/SRV3, and VTT caption parsing for `yt-dlp` subtitle outputs.
+- Added transcript progress UI for analyzing, extracting, formatting, saving, and completion/error states.
+- Added `md` entries to download history so generated Markdown files remain visible after conversion.
 
 ## 📦 CI/CD & Automated Releases
 
-Flucto uses GitHub Actions for automated CI/CD:
+Flucto uses GitHub Actions and semantic-release for automated CI/CD:
 
-- **Automatic Versioning**: Semantic versioning based on commit messages
+- **Automatic Versioning**: Semantic versioning based on Conventional Commit types
+- **Generated Release Notes**: `feat`, `fix`, and breaking-change commits become GitHub Release notes and `CHANGELOG.md` entries
 - **Multi-Platform Builds**: Windows, macOS, and Linux binaries built automatically
 - **Auto-Release**: New GitHub releases created on push to main/master branch
 
 ### Commit Conventions
 
-Follow [Conventional Commits](./COMMIT_CONVENTIONS.md) to trigger automatic releases:
+Follow [Conventional Commits](./COMMIT_CONVENTIONS.md) to trigger automatic releases. Keep commit subjects release-note ready because they are copied into GitHub Releases and `CHANGELOG.md`.
 
 ```bash
 # Feature release
-git commit -m "feat: add new feature"
+git commit -m "feat(transcript): add caption-to-markdown output mode"
 
-# Bug fix
-git commit -m "fix: resolve download issue"
+# Bug fix release
+git commit -m "fix(updater): publish deb updater metadata"
 
-# Breaking change
-git commit -m "feat!: redesign API"
+# Breaking change release
+git commit -m "feat!: redesign download request API"
 ```
 
-See [COMMIT_CONVENTIONS.md](./COMMIT_CONVENTIONS.md) for full guidelines.
+For user-facing changes, include concrete behavior in the commit subject or body: supported output modes, parser formats, UI controls, platform-specific updater behavior, and known limitations. See [COMMIT_CONVENTIONS.md](./COMMIT_CONVENTIONS.md) for full guidelines.
 
 ## How to get started (Development)
 
 1. **Clone the repository** to your local machine.
    ```bash
-   git clone https://github.com/yourusername/flucto.git
+   git clone https://github.com/DeclanJeon/flucto.git
    cd flucto
    ```
 

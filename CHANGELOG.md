@@ -4,6 +4,8 @@
 ### Bug Fixes
 
 * **updater:** refresh update metadata before download ([79ec75a](https://github.com/DeclanJeon/flucto/commit/79ec75a20c7cd3147f8c7d2698d8978be5c01844))
+  * Re-checks for updates immediately before manual downloads so `electron-updater` has a fresh provider and cancellation token.
+  * Publishes Linux updater metadata with both AppImage and `.deb` entries so Debian/Ubuntu installs do not fail inside `DebUpdater`.
 
 # [1.7.0](https://github.com/DeclanJeon/flucto/compare/v1.6.1...v1.7.0) (2026-07-06)
 
@@ -11,6 +13,10 @@
 ### Features
 
 * **transcript:** add caption-to-markdown output mode ([2c1545c](https://github.com/DeclanJeon/flucto/commit/2c1545ceb34c2c942776d2024e2b03ce995cfc43))
+  * Adds `MD` as a first-class output mode next to MP4 and MP3.
+  * Converts available `yt-dlp` subtitles/captions into Markdown without adding a Python/FastAPI server, Whisper runtime, or external speech-to-text dependency.
+  * Parses JSON3, XML/SRV3, and VTT caption formats; cleans caption markup; preserves optional timestamps and metadata.
+  * Adds transcript language selection, paragraph gap control, Markdown file saving, clipboard copy, progress states, and `md` download-history entries.
 
 ## [1.6.1](https://github.com/DeclanJeon/flucto/compare/v1.6.0...v1.6.1) (2026-06-14)
 
