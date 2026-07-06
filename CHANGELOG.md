@@ -1,3 +1,10 @@
+## [1.8.1](https://github.com/DeclanJeon/flucto/compare/v1.8.0...v1.8.1) (2026-07-06)
+
+
+### Bug Fixes
+
+* **transcript:** migrate saved auto language to english default ([5283157](https://github.com/DeclanJeon/flucto/commit/5283157cecfb4475d17d88da1db8511d1861b9ea))
+
 # [1.8.0](https://github.com/DeclanJeon/flucto/compare/v1.7.1...v1.8.0) (2026-07-06)
 
 
