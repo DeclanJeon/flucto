@@ -1,3 +1,10 @@
+# [1.7.0](https://github.com/DeclanJeon/flucto/compare/v1.6.1...v1.7.0) (2026-07-06)
+
+
+### Features
+
+* **transcript:** add caption-to-markdown output mode ([2c1545c](https://github.com/DeclanJeon/flucto/commit/2c1545ceb34c2c942776d2024e2b03ce995cfc43))
+
 ## [1.6.1](https://github.com/DeclanJeon/flucto/compare/v1.6.0...v1.6.1) (2026-06-14)
 
 
