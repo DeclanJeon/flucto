@@ -22,8 +22,10 @@ import { VideoPreviewList } from './VideoPreviewList';
 import { DownloadProgress } from './DownloadProgress';
 import { DownloadSettings } from './DownloadSettings';
 import { DownloadHistory } from './DownloadHistory';
+import { TranscriptProgress } from './TranscriptProgress';
+import { TranscriptSettings } from './TranscriptSettings';
 import { useDownloadMonitor } from '../hooks/useDownloadMonitor';
-import type { AppUpdateEvent, DownloadSettings as DownloadSettingsType, FormatOption, VideoInfo } from '../../../shared/types';
+import type { AppUpdateEvent, DownloadSettings as DownloadSettingsType, FormatOption, MediaOutputMode, TranscriptProgress as TranscriptProgressType, TranscriptSettings as TranscriptSettingsType, VideoInfo } from '../../../shared/types';
 
 // [수정] 범용 URL 클리너 (YouTube ID 추출 로직 제거 및 범용화)
 const cleanMediaUrl = (url: string): string | null => {
@@ -85,7 +87,7 @@ const BrandMark = () => (
 
 export const MainDownloader: React.FC = () => {
   const [url, setUrl] = useState('');
-  const [format, setFormat] = useState<'mp4' | 'mp3'>('mp4');
+  const [outputMode, setOutputMode] = useState<MediaOutputMode>('mp4');
   const [videos, setVideos] = useState<VideoInfo[]>([]);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list'); // 뷰어 모드 상태 추가 (기본값: 리스트)
 
@@ -94,6 +96,7 @@ export const MainDownloader: React.FC = () => {
   const [batchProgress, setBatchProgress] = useState<{current: number, total: number} | null>(null);
 
   const downloadProgress = useDownloadMonitor();
+  const [transcriptProgress, setTranscriptProgress] = useState<Record<string, TranscriptProgressType>>({});
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [appliedSummary, setAppliedSummary] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
@@ -113,6 +116,14 @@ export const MainDownloader: React.FC = () => {
     },
     notifyPerItemInBatch: false,
   });
+  const [transcriptSettings, setTranscriptSettings] = useState<TranscriptSettingsType>({
+    language: null,
+    includeTimestamps: true,
+    includeMetadata: true,
+    paragraphGapSeconds: 3,
+    saveMarkdownFile: true,
+    copyMarkdownToClipboard: false,
+  });
 
   const handleReviewWrite = () => {
     window.open('https://reviewlink.ponslink.online/write', '_blank', 'noopener,noreferrer');
@@ -129,6 +140,30 @@ export const MainDownloader: React.FC = () => {
       }
     };
     void loadSettings();
+  }, []);
+
+  useEffect(() => {
+    const loadTranscriptSettings = async () => {
+      try {
+        const saved = await window.api.getTranscriptSettings();
+        setTranscriptSettings(saved);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        setStatusMessage(`❌ Failed to load transcript settings: ${message}`);
+      }
+    };
+    void loadTranscriptSettings();
+  }, []);
+
+  useEffect(() => {
+    const handleTranscriptProgress = (progress: TranscriptProgressType) => {
+      setTranscriptProgress((prev) => ({ ...prev, [progress.requestId]: progress }));
+    };
+
+    window.api.onTranscriptProgress(handleTranscriptProgress);
+    return () => {
+      window.api.offTranscriptProgress?.(handleTranscriptProgress);
+    };
   }, []);
 
   useEffect(() => {
@@ -183,7 +218,7 @@ export const MainDownloader: React.FC = () => {
       const videoFormats = formats.filter((format) => format.vcodec && format.vcodec !== 'none');
       const audioFormats = formats.filter((format) => format.acodec && format.acodec !== 'none');
 
-      if (format === 'mp4') {
+      if (outputMode === 'mp4') {
         let selected: FormatOption | undefined;
         if (downloadSettings.formatOverrides.videoFormatId) {
           selected = videoFormats.find((f) => f.formatId === downloadSettings.formatOverrides.videoFormatId);
@@ -232,7 +267,7 @@ export const MainDownloader: React.FC = () => {
       const bytes = selected?.filesizeBytes ?? selected?.filesizeApproxBytes ?? inferBytesFromAbr(selected?.abrKbps, durationSec);
       return `Applied (MP3): ${sourceAudio} | Estimated: ${formatBytesLabel(bytes)}`;
     } catch {
-      return `Applied (${format.toUpperCase()}): ${format === 'mp4' ? sourceVideo : sourceAudio} | Estimated: size unknown`;
+      return `Applied (${outputMode.toUpperCase()}): ${outputMode === 'mp4' ? sourceVideo : sourceAudio} | Estimated: size unknown`;
     }
   };
 
@@ -334,22 +369,36 @@ export const MainDownloader: React.FC = () => {
     if (videos.length === 0) return;
 
     setIsDownloading(true);
-    setStatusMessage('🚀 Initializing downloads...');
+    setStatusMessage(outputMode === 'md' ? '📝 Initializing Markdown conversion...' : '🚀 Initializing downloads...');
 
     try {
       // id가 없는 경우(일부 사이트) 대비 안전장치
       const downloadUrls = videos.map((v) => v.originalUrl || `https://www.youtube.com/watch?v=${v.id}`);
       const downloadTitles = videos.map((v) => v.title || (v.originalUrl || v.id));
-      const summary = await estimateAppliedSummary(downloadUrls[0], videos[0]?.duration);
-      setAppliedSummary(summary);
-      await window.api.downloadMultiple(
-        downloadUrls,
-        format,
-        downloadSettings.qualityPreferences,
-        downloadTitles,
-        downloadSettings.formatOverrides,
-        downloadSettings.notifyPerItemInBatch,
-      );
+      if (outputMode === 'md') {
+        await window.api.convertMultipleTranscriptsToMarkdown(
+          videos.map((video) => ({
+            url: video.originalUrl || `https://www.youtube.com/watch?v=${video.id}`,
+            requestId: typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+              ? crypto.randomUUID()
+              : `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            title: video.title,
+            settings: transcriptSettings,
+          })),
+        );
+        setAppliedSummary('Markdown conversion finished. See status panel for per-item results.');
+      } else {
+        const summary = await estimateAppliedSummary(downloadUrls[0], videos[0]?.duration);
+        setAppliedSummary(summary);
+        await window.api.downloadMultiple(
+          downloadUrls,
+          outputMode,
+          downloadSettings.qualityPreferences,
+          downloadTitles,
+          downloadSettings.formatOverrides,
+          downloadSettings.notifyPerItemInBatch,
+        );
+      }
       setStatusMessage('✅ All downloads started!');
       setVideos([]);
       setTimeout(() => setStatusMessage(null), 3000);
@@ -367,16 +416,31 @@ export const MainDownloader: React.FC = () => {
     await window.api.setDownloadSettings(settings);
   };
 
+  const handleTranscriptSettingsChange = async (settings: TranscriptSettingsType) => {
+    setTranscriptSettings(settings);
+    await window.api.setTranscriptSettings(settings);
+  };
+
   const handleIndividualDownload = async (video: VideoInfo) => {
     const targetUrl = video.originalUrl || `https://www.youtube.com/watch?v=${video.id}`;
     const requestId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
       ? crypto.randomUUID()
       : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
+    if (outputMode === 'md') {
+      const response = await window.api.convertTranscriptToMarkdown({
+        url: targetUrl,
+        requestId,
+        title: video.title,
+        settings: transcriptSettings,
+      });
+      setAppliedSummary(response.success ? `Markdown saved: ${response.filePath ?? 'clipboard only'}` : `Markdown failed: ${response.message}`);
+      return;
+    }
+
     await window.api.downloadSingle({
-      
       url: targetUrl,
-      format,
+      format: outputMode,
       requestId,
       quality: downloadSettings.qualityPreferences,
       formatOverrides: downloadSettings.formatOverrides,
@@ -450,7 +514,7 @@ export const MainDownloader: React.FC = () => {
   })();
 
   const isLoading = isAnalyzing || (batchProgress !== null);
-  const hasStatusContent = Boolean(statusMessage || batchProgress || Object.keys(downloadProgress).length > 0 || appliedSummary);
+  const hasStatusContent = Boolean(statusMessage || batchProgress || Object.keys(downloadProgress).length > 0 || Object.keys(transcriptProgress).length > 0 || appliedSummary);
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#0d0d0d] text-gray-100 font-sans selection:bg-blue-500/30">
@@ -632,38 +696,44 @@ export const MainDownloader: React.FC = () => {
           {/* Format Selection */}
           <div className="flex justify-center mt-6 gap-4">
              <div className="bg-[#1c1c1e] p-1 rounded-full border border-white/10 flex items-center">
-                {(['mp4', 'mp3'] as const).map((fmt) => (
+                {(['mp4', 'mp3', 'md'] as const).map((mode) => (
                   <button
                     type="button"
-                    key={fmt}
-                    onClick={() => setFormat(fmt)}
+                    key={mode}
+                    onClick={() => setOutputMode(mode)}
                     className={`px-6 py-1.5 rounded-full text-sm font-medium transition-all ${
-                      format === fmt
+                      outputMode === mode
                         ? 'bg-gray-700 text-white shadow-sm'
                         : 'text-gray-400 hover:text-white'
                     }`}
                   >
-                    {fmt.toUpperCase()}
+                    {mode.toUpperCase()}
                   </button>
                 ))}
              </div>
              <div className="flex items-center gap-2 text-xs text-gray-500 px-2">
                 <Settings2 size={14} />
-                <span>Best Quality</span>
+                <span>{outputMode === 'md' ? 'Captions → Markdown' : 'Best Quality'}</span>
              </div>
           </div>
         </motion.div>
 
         <div className="w-full max-w-2xl mt-6 space-y-4">
           <AnimatePresence>
-            {showSettings && (
+            {showSettings && outputMode !== 'md' && (
               <DownloadSettings
                 settings={downloadSettings}
                 onClose={() => setShowSettings(false)}
                 onSettingsChange={handleDownloadSettingsChange}
                 previewUrl={videos[0] ? (videos[0].originalUrl || `https://www.youtube.com/watch?v=${videos[0].id}`) : undefined}
                 previewDurationSeconds={videos[0]?.duration}
-                currentFormat={format}
+                currentFormat={outputMode}
+              />
+            )}
+            {showSettings && outputMode === 'md' && (
+              <TranscriptSettings
+                settings={transcriptSettings}
+                onSettingsChange={handleTranscriptSettingsChange}
               />
             )}
           </AnimatePresence>
@@ -734,8 +804,8 @@ export const MainDownloader: React.FC = () => {
                       </>
                     ) : (
                       <>
-                        <Download size={18} />
-                        Download All
+                        {outputMode === 'md' ? <FileText size={18} /> : <Download size={18} />}
+                        {outputMode === 'md' ? 'Convert All' : 'Download All'}
                       </>
                     )}
                   </button>
@@ -854,6 +924,9 @@ export const MainDownloader: React.FC = () => {
                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-32 overflow-y-auto custom-scrollbar">
                   {Object.values(downloadProgress).map((progress) => (
                      <DownloadProgress key={progress.requestId} progress={progress} />
+                  ))}
+                  {Object.values(transcriptProgress).map((progress) => (
+                     <TranscriptProgress key={progress.requestId} progress={progress} />
                   ))}
                </div>
             </div>

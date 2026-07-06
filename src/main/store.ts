@@ -1,5 +1,5 @@
 import Store from 'electron-store';
-import type { UpdateSettings, DownloadQualityPreferences } from '../shared/types.js';
+import type { DownloadQualityPreferences, TranscriptSettings, UpdateSettings } from '../shared/types.js';
 
 const defaultUpdateSettings: UpdateSettings = {
   autoUpdate: true,
@@ -10,6 +10,15 @@ const defaultUpdateSettings: UpdateSettings = {
 const defaultQualityPreferences: DownloadQualityPreferences = {
   video: '1080p',
   audio: '320kbps',
+};
+
+const defaultTranscriptSettings: TranscriptSettings = {
+  language: null,
+  includeTimestamps: true,
+  includeMetadata: true,
+  paragraphGapSeconds: 3,
+  saveMarkdownFile: true,
+  copyMarkdownToClipboard: false,
 };
 
 type FluctoSettingsStore = {
@@ -24,6 +33,7 @@ type FluctoSettingsStore = {
     };
     notifyPerItemInBatch: boolean;
   };
+  transcriptSettings: TranscriptSettings;
 }
 
 export const settingsStore = new Store<FluctoSettingsStore>({
@@ -40,6 +50,7 @@ export const settingsStore = new Store<FluctoSettingsStore>({
       },
       notifyPerItemInBatch: false,
     },
+    transcriptSettings: { ...defaultTranscriptSettings },
   },
 });
 
@@ -164,5 +175,34 @@ export const getStoredDownloadSettings = (): {
   }
   const defaults = getDownloadSettingsDefaults();
   settingsStore.set('downloadSettings', defaults);
+  return defaults;
+};
+
+export const getTranscriptSettingsDefaults = (): TranscriptSettings => ({
+  ...defaultTranscriptSettings,
+});
+
+export const isTranscriptSettings = (value: unknown): value is TranscriptSettings => {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    (candidate.language === null || typeof candidate.language === 'string') &&
+    typeof candidate.includeTimestamps === 'boolean' &&
+    typeof candidate.includeMetadata === 'boolean' &&
+    typeof candidate.paragraphGapSeconds === 'number' &&
+    Number.isFinite(candidate.paragraphGapSeconds) &&
+    candidate.paragraphGapSeconds >= 0 &&
+    typeof candidate.saveMarkdownFile === 'boolean' &&
+    typeof candidate.copyMarkdownToClipboard === 'boolean'
+  );
+};
+
+export const getStoredTranscriptSettings = (): TranscriptSettings => {
+  const stored: unknown = settingsStore.get('transcriptSettings');
+  if (isTranscriptSettings(stored)) {
+    return { ...stored };
+  }
+  const defaults = getTranscriptSettingsDefaults();
+  settingsStore.set('transcriptSettings', defaults);
   return defaults;
 };

@@ -3,6 +3,9 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type {
   AppUpdateEvent,
   DownloadProgress,
+  TranscriptProgress,
+  TranscriptRequest,
+  TranscriptSettings,
   DownloadRequest,
   IElectronAPI,
   NetworkStatusEvent,
@@ -11,11 +14,13 @@ import type {
 
 type NetworkStatusListener = (status: NetworkStatusEvent) => void;
 type AppUpdateListener = (event: AppUpdateEvent) => void;
-
+type TranscriptProgressListener = (progress: TranscriptProgress) => void;
 const NETWORK_STATUS_CHANNEL = 'network-status-change';
 const APP_UPDATE_CHANNEL = 'app-update-event';
+const TRANSCRIPT_PROGRESS_CHANNEL = 'transcript-progress';
 const networkStatusCallbacks = new Map<NetworkStatusListener, (event: IpcRendererEvent, status: NetworkStatusEvent) => void>();
 const appUpdateCallbacks = new Map<AppUpdateListener, (event: IpcRendererEvent, updateEvent: AppUpdateEvent) => void>();
+const transcriptProgressCallbacks = new Map<TranscriptProgressListener, (event: IpcRendererEvent, progress: TranscriptProgress) => void>();
 
 const api: IElectronAPI = {
   downloadVideo: (data: DownloadRequest) => ipcRenderer.invoke('download-video', data),
@@ -34,6 +39,23 @@ const api: IElectronAPI = {
   readBatchFile: () => ipcRenderer.invoke('read-batch-file'),
   onDownloadProgress: (callback: (progress: DownloadProgress) => void) => {
     ipcRenderer.on('download-progress', (_event: IpcRendererEvent, progress: DownloadProgress) => callback(progress));
+  },
+  getTranscriptLanguages: (url: string) => ipcRenderer.invoke('get-transcript-languages', url),
+  getTranscriptSettings: () => ipcRenderer.invoke('get-transcript-settings'),
+  setTranscriptSettings: (settings: TranscriptSettings) => ipcRenderer.invoke('set-transcript-settings', settings),
+  convertTranscriptToMarkdown: (request: TranscriptRequest) => ipcRenderer.invoke('convert-transcript-to-markdown', request),
+  convertMultipleTranscriptsToMarkdown: (requests: TranscriptRequest[]) => ipcRenderer.invoke('convert-multiple-transcripts-to-markdown', requests),
+  onTranscriptProgress: (callback: TranscriptProgressListener) => {
+    const wrapped = (_event: IpcRendererEvent, progress: TranscriptProgress) => callback(progress);
+    transcriptProgressCallbacks.set(callback, wrapped);
+    ipcRenderer.on(TRANSCRIPT_PROGRESS_CHANNEL, wrapped);
+  },
+  offTranscriptProgress: (callback: TranscriptProgressListener) => {
+    const wrapped = transcriptProgressCallbacks.get(callback);
+    if (wrapped) {
+      ipcRenderer.off(TRANSCRIPT_PROGRESS_CHANNEL, wrapped);
+      transcriptProgressCallbacks.delete(callback);
+    }
   },
   getUpdateSettings: () => ipcRenderer.invoke('get-update-settings'),
   saveUpdateSettings: (settings: UpdateSettings) => ipcRenderer.invoke('save-update-settings', settings),

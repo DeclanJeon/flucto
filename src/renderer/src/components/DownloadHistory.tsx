@@ -7,6 +7,7 @@ import {
   XCircle,
   FileVideo,
   FileAudio,
+  FileText,
   Clock,
   ExternalLink,
   AlertCircle,
@@ -294,7 +295,9 @@ export const DownloadHistory: React.FC = () => {
 
                               {/* Format Icon */}
                               <div className="flex-shrink-0">
-                                {entry.format === 'mp3' ? (
+                                {entry.format === 'md' ? (
+                                  <FileText size={18} className="text-emerald-400" />
+                                ) : entry.format === 'mp3' ? (
                                   <FileAudio size={18} className="text-purple-400" />
                                 ) : (
                                   <FileVideo size={18} className="text-blue-400" />

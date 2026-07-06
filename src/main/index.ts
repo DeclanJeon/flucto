@@ -10,7 +10,9 @@ import { initializeAutoUpdater } from "./updater.js";
 import type { DownloadRequest, DownloadQualityPreferences, DownloadSettings, FormatOption } from "../shared/types.js";
 import { settingsStore, getStoredDownloadSettings } from './store.js';
 import { appendHistoryEntry, clearHistory, getHistoryEntries } from './historyStore.js';
+import { getCommonYtDlpArgs, getRefererForUrl, parseLastJsonObjectFromStdout } from './media/ytDlp.js';
 import './handlers.js';
+import './transcript/transcriptHandlers.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -39,6 +41,12 @@ const toMetadata = (value: unknown): YtDlpMetadata | null => {
 
 const getErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
+
+const sleep = (ms: number): Promise<void> => {
+  const { promise, resolve } = Promise.withResolvers<void>();
+  setTimeout(resolve, ms);
+  return promise;
+};
 
 const getVideoFormatSelector = (preset: DownloadQualityPreferences['video']): string => {
   const constrainedSelector = (height: number): string => {
@@ -203,108 +211,6 @@ app.on("window-all-closed", () => {
 
 // --- IPC Handlers ---
 
-// [수정] 공통 옵션 생성기 (플랫폼별 특화 옵션 추가)
-const getCommonYtDlpArgs = (url: string) => {
-  const args: string[] = [];
-
-  // Twitter/X 플랫폼 처리
-  if (url.includes("x.com") || url.includes("twitter.com")) {
-    args.push(
-      "--user-agent",
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      "--add-header",
-      "Accept-Language: en-US,en;q=0.9",
-      "--add-header",
-      "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-      "--add-header",
-      "Accept-Encoding: gzip, deflate, br",
-      "--add-header",
-      "DNT: 1",
-      "--add-header",
-      "Connection: keep-alive",
-      "--add-header",
-      "Upgrade-Insecure-Requests: 1",
-      "--add-header",
-      "Sec-Fetch-Dest: document",
-      "--add-header",
-      "Sec-Fetch-Mode: navigate",
-      "--add-header",
-      "Sec-Fetch-Site: none",
-      "--add-header",
-      "Sec-Fetch-User: ?1",
-      "--add-header",
-      "Cache-Control: max-age=0",
-      "--extractor-args",
-      "twitter:api=legacy", // Twitter 레거시 API 사용
-      "--extractor-args",
-      "twitter:video=true", // 비디오 추출 명시
-    );
-  }
-
-  // Reddit 플랫폼 처리
-  else if (url.includes("reddit.com")) {
-    args.push(
-      "--user-agent",
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      "--add-header",
-      "Accept-Language: en-US,en;q=0.9",
-      "--add-header",
-      "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-      "--extractor-args",
-      "reddit:client_id=download_client", // Reddit 클라이언트 ID 지정
-      "--extractor-args",
-      "reddit:client_secret=", // 클라이언트 시크릿 (빈 값)
-      "--ignore-errors", // 인증 오류 무시
-      "--extractor-args",
-      "reddit:username=", // 사용자명 (빈 값으로 공개 콘텐츠만)
-    );
-  }
-
-  // Bilibili 플랫폼 처리
-  else if (url.includes("bilibili.com")) {
-    args.push(
-      "--user-agent",
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      "--add-header",
-      "Accept-Language: zh-CN,zh;q=0.9,en;q=0.8",
-      "--add-header",
-      "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-      "--add-header",
-      "Referer: https://www.bilibili.com/",
-      "--add-header",
-      "Origin: https://www.bilibili.com",
-      "--add-header",
-      "Sec-Fetch-Dest: document",
-      "--add-header",
-      "Sec-Fetch-Mode: navigate",
-      "--add-header",
-      "Sec-Fetch-Site: same-origin",
-      "--extractor-args",
-      "bilibili:session_data=", // Bilibili 세션 데이터 (빈 값)
-      "--extractor-args",
-      "bilibili:quality=116", // 최고 품질 설정
-    );
-  }
-
-  // Instagram, Facebook 등은 모바일 User-Agent를 사용하면 더 잘 작동하는 경우가 있음
-  else if (url.includes("instagram.com") || url.includes("facebook.com")) {
-    args.push(
-      "--user-agent",
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      "--add-header",
-      "Accept-Language: en-US,en;q=0.9",
-    );
-  }
-
-  else if (url.includes("youtube.com") || url.includes("youtu.be")) {
-    args.push(
-      "--force-ipv4",
-      "--windows-filenames",
-    );
-  }
-
-  return args;
-};
 
 // [추가] 최적의 썸네일 추출 헬퍼 함수
 const extractBestThumbnail = (info: YtDlpMetadata): string | null => {
@@ -348,15 +254,7 @@ ipcMain.handle("get-playlist-info", async (_event, url: string) => {
   try {
     logger.info(`Fetching playlist info for: ${url}`);
 
-    // 플랫폼별 기본 Referer 설정
-    let referer = "";
-    if (url.includes("x.com") || url.includes("twitter.com")) {
-      referer = "https://x.com/";
-    } else if (url.includes("reddit.com")) {
-      referer = "https://www.reddit.com/";
-    } else if (url.includes("bilibili.com")) {
-      referer = "https://www.bilibili.com/";
-    }
+    const referer = getRefererForUrl(url) ?? "";
 
     // [보완 1] { reject: false } 추가: 일부 영상 다운 불가 에러로 인해 전체 프로세스가 멈추지 않도록 함
     const result = await execa(
@@ -444,15 +342,7 @@ ipcMain.handle("get-video-info", async (_event, url: string) => {
   try {
     logger.info(`Fetching video info for: ${url}`);
 
-    // 플랫폼별 기본 Referer 설정
-    let referer = "";
-    if (url.includes("x.com") || url.includes("twitter.com")) {
-      referer = "https://x.com/";
-    } else if (url.includes("reddit.com")) {
-      referer = "https://www.reddit.com/";
-    } else if (url.includes("bilibili.com")) {
-      referer = "https://www.bilibili.com/";
-    }
+    const referer = getRefererForUrl(url) ?? "";
 
     // 재시도 로직을 위한 함수
     const tryFetch = async (retryCount = 0): Promise<YtDlpMetadata> => {
@@ -490,36 +380,15 @@ ipcMain.handle("get-video-info", async (_event, url: string) => {
           retryCount < 2
         ) {
           logger.warn(`Retrying Twitter/X fetch (attempt ${retryCount + 1})`);
-          await new Promise((resolve) =>
-            setTimeout(resolve, 1000 * (retryCount + 1)),
-          ); // 지수 백오프
+          await sleep(1000 * (retryCount + 1)); // 지수 백오프
           return tryFetch(retryCount + 1);
         }
         throw new Error(result.stderr || "No output from yt-dlp");
       }
 
-      // [핵심] JSON 파싱 로직 강화 (Warning 메시지가 섞여 있어도 동작하도록)
-      // stdout을 줄바꿈으로 나누고, 유효한 JSON 객체 중 마지막 것을 사용 (보통 마지막 줄이 실제 데이터)
-      const lines = result.stdout
-        .split(/\r?\n/)
-        .filter((line) => line.trim() !== "");
-      let info: YtDlpMetadata | null = null;
-
-      // 뒤에서부터 탐색하여 가장 먼저 발견되는 유효한 JSON을 채택
-      for (let i = lines.length - 1; i >= 0; i--) {
-        try {
-          const parsed = JSON.parse(lines[i]);
-          // 유효한 메타데이터인지 확인 (id나 title이 있어야 함)
-          if (typeof parsed === "object" && parsed !== null && ("id" in parsed || "title" in parsed)) {
-            info = parsed;
-            break;
-          }
-        } catch {
-          continue; // JSON이 아니면(경고 메시지 등) 무시
-        }
-      }
-
-      if (!info) {
+      try {
+        return parseLastJsonObjectFromStdout(result.stdout);
+      } catch {
         // Twitter/X의 경우 재시도
         if (
           (url.includes("x.com") || url.includes("twitter.com")) &&
@@ -528,15 +397,11 @@ ipcMain.handle("get-video-info", async (_event, url: string) => {
           logger.warn(
             `Retrying Twitter/X fetch due to parse error (attempt ${retryCount + 1})`,
           );
-          await new Promise((resolve) =>
-            setTimeout(resolve, 1000 * (retryCount + 1)),
-          ); // 지수 백오프
+          await sleep(1000 * (retryCount + 1)); // 지수 백오프
           return tryFetch(retryCount + 1);
         }
         throw new Error("Could not parse video metadata from yt-dlp output");
       }
-
-      return info as YtDlpMetadata;
     };
 
     const info = await tryFetch();
@@ -567,18 +432,25 @@ ipcMain.handle("get-video-info", async (_event, url: string) => {
 
 ipcMain.handle("get-available-formats", async (_event, url: string): Promise<FormatOption[]> => {
   const ytDlpPath = getBinaryPath('yt-dlp');
-  const result = await execa(ytDlpPath, [url, '-J', '--no-warnings', '--no-playlist'], { reject: false });
+  const referer = getRefererForUrl(url);
+  const result = await execa(
+    ytDlpPath,
+    [
+      url,
+      '-J',
+      '--no-warnings',
+      '--no-playlist',
+      ...(referer ? ['--add-header', `referer:${referer}`] : []),
+      ...getCommonYtDlpArgs(url),
+    ],
+    { reject: false },
+  );
 
   if (result.failed && !result.stdout.trim()) {
     throw new Error(result.stderr || 'Failed to fetch available formats');
   }
 
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(result.stdout);
-  } catch (error: unknown) {
-    throw new Error(`Failed to parse available formats JSON: ${getErrorMessage(error)}`);
-  }
+  const parsed = parseLastJsonObjectFromStdout(result.stdout);
 
   if (!parsed || typeof parsed !== 'object') {
     return [];
@@ -670,15 +542,7 @@ ipcMain.handle(
           title: mediaTitle,
         });
 
-        // 플랫폼별 기본 Referer 설정
-        let referer = "";
-        if (url.includes("x.com") || url.includes("twitter.com")) {
-          referer = "https://x.com/";
-        } else if (url.includes("reddit.com")) {
-          referer = "https://www.reddit.com/";
-        } else if (url.includes("bilibili.com")) {
-          referer = "https://www.bilibili.com/";
-        }
+        const referer = getRefererForUrl(url) ?? "";
 
         // 재시도 로직을 위한 함수
         const tryDownload = async (retryCount = 0): Promise<void> => {
@@ -782,9 +646,7 @@ ipcMain.handle(
               logger.warn(
                 `Retrying Twitter/X download (attempt ${retryCount + 1}) for ${url}`,
               );
-              await new Promise((resolve) =>
-                setTimeout(resolve, 1000 * (retryCount + 1)),
-              ); // 지수 백오프
+              await sleep(1000 * (retryCount + 1)); // 지수 백오프
               return tryDownload(retryCount + 1);
             }
             throw error;
@@ -861,15 +723,7 @@ ipcMain.handle("download-video", async (_event, args: DownloadRequest) => {
   showDesktopNotification('Download Started', 'Download has started.');
 
   try {
-    // 플랫폼별 기본 Referer 설정
-    let referer = "";
-    if (url.includes("x.com") || url.includes("twitter.com")) {
-      referer = "https://x.com/";
-    } else if (url.includes("reddit.com")) {
-      referer = "https://www.reddit.com/";
-    } else if (url.includes("bilibili.com")) {
-      referer = "https://www.bilibili.com/";
-    }
+    const referer = getRefererForUrl(url) ?? "";
 
     // 재시도 로직을 위한 함수
     const tryDownload = async (retryCount = 0): Promise<void> => {
@@ -929,9 +783,7 @@ ipcMain.handle("download-video", async (_event, args: DownloadRequest) => {
           logger.warn(
             `Retrying Twitter/X download (attempt ${retryCount + 1}) for ${url}`,
           );
-          await new Promise((resolve) =>
-            setTimeout(resolve, 1000 * (retryCount + 1)),
-          ); // 지수 백오프
+          await sleep(1000 * (retryCount + 1)); // 지수 백오프
           return tryDownload(retryCount + 1);
         }
         throw error;
@@ -1063,14 +915,7 @@ ipcMain.handle("download-single", async (event, args: { url: string; format: 'mp
   showDesktopNotification('Download Started', title || 'Download has started.');
 
   try {
-    let referer = "";
-    if (url.includes("x.com") || url.includes("twitter.com")) {
-      referer = "https://x.com/";
-    } else if (url.includes("reddit.com")) {
-      referer = "https://www.reddit.com/";
-    } else if (url.includes("bilibili.com")) {
-      referer = "https://www.bilibili.com/";
-    }
+    const referer = getRefererForUrl(url) ?? "";
 
     const downloadArgs = [
       url,

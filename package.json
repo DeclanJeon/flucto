@@ -45,6 +45,7 @@
     "supabase:smoke": "node scripts/supabase-smoke-check.mjs",
     "postinstall": "node scripts/setup-binaries.mjs",
     "lint": "eslint .",
+    "test": "npm run build:electron && node --import ./tests/electron-stub-loader.mjs --test tests/*.test.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

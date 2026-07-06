@@ -8,6 +8,65 @@ export type VideoQualityPreset = '4k' | '1440p' | '1080p' | '720p' | '480p' | '3
  */
 export type AudioQualityPreset = '320kbps' | '256kbps' | '192kbps' | '128kbps' | '64kbps' | 'worst';
 
+export type MediaDownloadFormat = 'mp4' | 'mp3';
+export type MediaOutputMode = MediaDownloadFormat | 'md';
+export type HistoryOutputFormat = MediaOutputMode;
+
+export type TranscriptErrorCode =
+  | 'INVALID_URL'
+  | 'TRANSCRIPT_UNAVAILABLE'
+  | 'TRANSCRIPT_DISABLED'
+  | 'VIDEO_UNAVAILABLE'
+  | 'RATE_LIMITED'
+  | 'SERVICE_UNAVAILABLE'
+  | 'UPSTREAM_ERROR'
+  | 'INTERNAL_ERROR';
+
+export interface CaptionLanguage {
+  code: string;
+  name: string;
+  isAuto: boolean;
+}
+
+export interface TranscriptSettings {
+  language: string | null;
+  includeTimestamps: boolean;
+  includeMetadata: boolean;
+  paragraphGapSeconds: number;
+  saveMarkdownFile: boolean;
+  copyMarkdownToClipboard: boolean;
+}
+
+export interface TranscriptRequest {
+  url: string;
+  requestId?: string;
+  title?: string;
+  settings: TranscriptSettings;
+}
+
+export interface TranscriptMarkdownResponse {
+  success: boolean;
+  message: string;
+  filePath?: string;
+  markdown?: string;
+  title?: string;
+  language?: string;
+  availableLanguages?: CaptionLanguage[];
+  segmentCount?: number;
+  wordCount?: number;
+  errorCode?: TranscriptErrorCode;
+}
+
+export interface TranscriptProgress {
+  requestId: string;
+  url: string;
+  title?: string;
+  status: 'pending' | 'analyzing' | 'extracting' | 'formatting' | 'saving' | 'completed' | 'error';
+  progress: number;
+  filePath?: string;
+  error?: string;
+}
+
 /**
  * Quality preferences for downloads
  */
@@ -21,7 +80,7 @@ export interface DownloadQualityPreferences {
  */
 export interface DownloadRequest {
   url: string;
-  format: 'mp4' | 'mp3';
+  format: MediaDownloadFormat;
   cookiesPath?: string; // YouTube 쿠키 파일 경로 (옵션)
   quality?: DownloadQualityPreferences;
   formatOverrides?: {
@@ -135,7 +194,7 @@ export interface DownloadHistoryEntry {
   status: 'success' | 'error';
   filePath: string | null;
   errorMessage?: string;
-  format: 'mp4' | 'mp3';
+  format: HistoryOutputFormat;
 }
 
 /**
@@ -185,6 +244,13 @@ export interface IElectronAPI {
   getAvailableFormats: (url: string) => Promise<FormatOption[]>;
   openDownloadsFolder: () => Promise<void>;
   onDownloadProgress: (callback: (progress: DownloadProgress) => void) => void;
+  getTranscriptLanguages: (url: string) => Promise<CaptionLanguage[]>;
+  getTranscriptSettings: () => Promise<TranscriptSettings>;
+  setTranscriptSettings: (settings: TranscriptSettings) => Promise<void>;
+  convertTranscriptToMarkdown: (request: TranscriptRequest) => Promise<TranscriptMarkdownResponse>;
+  convertMultipleTranscriptsToMarkdown: (requests: TranscriptRequest[]) => Promise<void>;
+  onTranscriptProgress: (callback: (progress: TranscriptProgress) => void) => void;
+  offTranscriptProgress?: (callback: (progress: TranscriptProgress) => void) => void;
   readBatchFile: () => Promise<string[] | null>;
   getUpdateSettings: () => Promise<UpdateSettings>;
   saveUpdateSettings: (settings: UpdateSettings) => Promise<void>;
