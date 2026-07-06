@@ -237,7 +237,22 @@ export const downloadAppUpdate = async (): Promise<void> => {
 
   downloading = true;
   try {
-    await autoUpdater.downloadUpdate();
+    const result = await autoUpdater.checkForUpdates();
+    if (!result?.isUpdateAvailable) {
+      const version = result?.updateInfo?.version ?? currentUpdateVersion;
+      const message = version
+        ? `No app update is available (latest version: ${version})`
+        : 'No app update is available';
+      emitAppUpdateEvent({ type: 'not-available', version });
+      throw new Error(message);
+    }
+
+    if (result.downloadPromise) {
+      await result.downloadPromise;
+      return;
+    }
+
+    await autoUpdater.downloadUpdate(result.cancellationToken);
   } catch (error: unknown) {
     downloading = false;
     const message = error instanceof Error ? error.message : String(error);
