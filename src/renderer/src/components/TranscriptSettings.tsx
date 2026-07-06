@@ -8,9 +8,9 @@ interface TranscriptSettingsProps {
 }
 
 const languageOptions = [
-  { label: 'Auto', value: '' },
-  { label: 'Korean', value: 'ko' },
   { label: 'English', value: 'en' },
+  { label: 'Auto', value: 'auto' },
+  { label: 'Korean', value: 'ko' },
   { label: 'Japanese', value: 'ja' },
   { label: 'Chinese', value: 'zh' },
 ];
@@ -33,8 +33,8 @@ export const TranscriptSettings: React.FC<TranscriptSettingsProps> = ({ settings
             <Languages size={13} /> Language
           </span>
           <select
-            value={settings.language ?? ''}
-            onChange={(event) => update({ language: event.target.value || null })}
+            value={settings.language ?? 'en'}
+            onChange={(event) => update({ language: event.target.value })}
             className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-gray-200 outline-none focus:border-blue-500/60"
           >
             {languageOptions.map((option) => (

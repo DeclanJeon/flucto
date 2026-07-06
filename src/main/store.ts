@@ -200,7 +200,12 @@ export const isTranscriptSettings = (value: unknown): value is TranscriptSetting
 export const getStoredTranscriptSettings = (): TranscriptSettings => {
   const stored: unknown = settingsStore.get('transcriptSettings');
   if (isTranscriptSettings(stored)) {
-    return { ...getTranscriptSettingsDefaults(), ...stored };
+    const settings = { ...getTranscriptSettingsDefaults(), ...stored };
+    if (settings.language === null) {
+      settings.language = defaultTranscriptSettings.language;
+      settingsStore.set('transcriptSettings', settings);
+    }
+    return settings;
   }
   const defaults = getTranscriptSettingsDefaults();
   settingsStore.set('transcriptSettings', defaults);

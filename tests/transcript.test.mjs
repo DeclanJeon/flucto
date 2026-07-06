@@ -208,6 +208,7 @@ test('caption language resolver honors exact requests, base-language fallback, m
   assert.equal(resolveCaptionLanguage(mixedInfo, 'fr-CA'), 'fr');
   assert.equal(resolveCaptionLanguage(mixedInfo, 'de'), 'en');
   assert.equal(resolveCaptionLanguage({ automatic_captions: { ja: [{}] } }, null), 'ja');
+  assert.equal(resolveCaptionLanguage(mixedInfo, 'auto'), 'en');
   assert.equal(resolveCaptionLanguage({}, 'en'), null);
 });
 

@@ -99,7 +99,7 @@ export const listCaptionLanguagesFromInfo = (info: YtDlpMetadata): CaptionLangua
 export const resolveCaptionLanguage = (info: YtDlpMetadata, requestedLanguage?: string | null): string | null => {
   const manual = captionMap(info, 'subtitles');
   const automatic = captionMap(info, 'automatic_captions');
-  const requested = requestedLanguage?.trim() || null;
+  const requested = requestedLanguage?.trim() === 'auto' ? null : requestedLanguage?.trim() || null;
   const base = requested?.split('-')[0] ?? null;
 
   if (requested && manual[requested]) return requested;
