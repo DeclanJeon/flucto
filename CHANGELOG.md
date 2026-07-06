@@ -4,6 +4,9 @@
 ### Bug Fixes
 
 * **transcript:** migrate saved auto language to english default ([5283157](https://github.com/DeclanJeon/flucto/commit/5283157cecfb4475d17d88da1db8511d1861b9ea))
+  * Migrates existing saved `language: null` transcript settings to `en` so upgraded installs show English as the default.
+  * Uses explicit `auto` in the UI for the Auto option, keeping automatic caption selection available without colliding with the English default.
+  * Normalizes `auto` to automatic caption resolution only at extraction time.
 
 # [1.8.0](https://github.com/DeclanJeon/flucto/compare/v1.7.1...v1.8.0) (2026-07-06)
 
