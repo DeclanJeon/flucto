@@ -50,11 +50,15 @@ const saveMarkdown = (title: string, markdown: string): string => {
 
 const normalizeTranscriptSettings = (settings?: Partial<TranscriptSettings>): TranscriptSettings => {
   const defaults = getStoredTranscriptSettings();
+  const hasLanguage = settings !== undefined && Object.prototype.hasOwnProperty.call(settings, 'language');
+  const language = hasLanguage
+    ? (typeof settings.language === 'string' && settings.language.trim() ? settings.language.trim() : null)
+    : defaults.language;
   const paragraphGapSeconds = typeof settings?.paragraphGapSeconds === 'number'
     ? settings.paragraphGapSeconds
     : defaults.paragraphGapSeconds;
   return {
-    language: settings?.language?.trim() || defaults.language,
+    language,
     includeTimestamps: typeof settings?.includeTimestamps === 'boolean' ? settings.includeTimestamps : defaults.includeTimestamps,
     includeMetadata: typeof settings?.includeMetadata === 'boolean' ? settings.includeMetadata : defaults.includeMetadata,
     paragraphGapSeconds: Math.max(0, paragraphGapSeconds),

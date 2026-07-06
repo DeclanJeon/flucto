@@ -13,7 +13,7 @@ const defaultQualityPreferences: DownloadQualityPreferences = {
 };
 
 const defaultTranscriptSettings: TranscriptSettings = {
-  language: null,
+  language: 'en',
   includeTimestamps: true,
   includeMetadata: true,
   paragraphGapSeconds: 3,
@@ -200,7 +200,7 @@ export const isTranscriptSettings = (value: unknown): value is TranscriptSetting
 export const getStoredTranscriptSettings = (): TranscriptSettings => {
   const stored: unknown = settingsStore.get('transcriptSettings');
   if (isTranscriptSettings(stored)) {
-    return { ...stored };
+    return { ...getTranscriptSettingsDefaults(), ...stored };
   }
   const defaults = getTranscriptSettingsDefaults();
   settingsStore.set('transcriptSettings', defaults);

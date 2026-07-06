@@ -117,7 +117,7 @@ export const MainDownloader: React.FC = () => {
     notifyPerItemInBatch: false,
   });
   const [transcriptSettings, setTranscriptSettings] = useState<TranscriptSettingsType>({
-    language: null,
+    language: 'en',
     includeTimestamps: true,
     includeMetadata: true,
     paragraphGapSeconds: 3,
