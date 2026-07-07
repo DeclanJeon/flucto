@@ -10,6 +10,10 @@ Usage:
   flucto formats <url> [--json]
   flucto languages <url> [--json]
   flucto doctor [--json]
+  flucto setup [--force] [--check-only] [--bin-dir DIR] [--json]
+  flucto update check [--json]
+  flucto update download [--output-dir DIR] [--json]
+  flucto update apply --asset PATH [--json]
   flucto --version
 
 Global options:
@@ -19,6 +23,9 @@ Global options:
   --bin-dir DIR          Directory containing yt-dlp and ffmpeg
   --yt-dlp PATH          Explicit yt-dlp binary path
   --ffmpeg PATH          Explicit ffmpeg binary path
+  --force                Re-download managed setup binaries
+  --check-only           Check setup state without downloading
+  --asset PATH           Update asset path for update apply
 `;
 
 export const writeJson = (value: unknown): void => {

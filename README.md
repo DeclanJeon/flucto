@@ -68,18 +68,26 @@ Packaged releases expose the same command as `flucto` through `package.json`'s `
 | Command | Purpose | Typical output |
 | --- | --- | --- |
 | `flucto doctor` | Verify `yt-dlp` and `ffmpeg` discovery | Binary paths and versions |
+| `flucto setup` | Provision missing managed `yt-dlp` and `ffmpeg` binaries | Setup status, paths, versions, and fix guidance |
 | `flucto info <url>` | Read media metadata | id, title, thumbnail, duration, uploader, view count |
 | `flucto formats <url>` | List downloadable formats | format id, extension, resolution, note |
 | `flucto download <url>` | Download MP4 video or MP3 audio | Generated media file |
 | `flucto languages <url>` | List available caption languages | language code/name and auto/manual flag |
 | `flucto transcript <url>` | Convert available captions/subtitles to Markdown | `.md` file or stdout Markdown |
 | `flucto batch <file>` | Process a text file of URLs | Multiple media downloads or Markdown conversions |
+| `flucto update check` | Check GitHub releases for a newer Flucto version | Current/latest version and recommended asset |
+| `flucto update download` | Download the recommended GitHub release asset | Downloaded asset path and checksum status |
+| `flucto update apply` | Apply an already downloaded asset when safe | Conservative apply result or manual install instructions |
 
 ### Common examples
 
 ```bash
 # Check bundled or configured binaries
 flucto doctor --json
+
+# Provision managed binaries without touching system package managers
+flucto setup --json
+flucto setup --check-only --bin-dir ./bin --json
 
 # Inspect a media URL before downloading
 flucto info "https://www.youtube.com/watch?v=..." --json
@@ -97,6 +105,11 @@ flucto transcript "https://www.youtube.com/watch?v=..." --language auto --stdout
 # Process URL lists
 flucto batch urls.txt --format mp4 --concurrency 2 --output-dir ./captures --json
 flucto batch urls.txt --format md --concurrency 2 --output-dir ./notes --json
+
+# Check and download GitHub release updates from CLI
+flucto update check --json
+flucto update download --output-dir ~/Downloads --json
+flucto update apply --asset ~/Downloads/Flucto-1.9.2-x86_64.AppImage --json
 ```
 
 `batch` files are plain text. Empty lines and lines starting with `#`, `;`, or `]` are ignored, so URL lists can contain comments:
@@ -117,7 +130,7 @@ https://samplelib.com/lib/preview/mp4/sample-5s.mp4
 
 ### Binary and output configuration
 
-Flucto bundles `yt-dlp` and `ffmpeg` for the desktop release. For CLI automation, discovery can be overridden:
+Flucto bundles `yt-dlp` and `ffmpeg` for the desktop release. The CLI also supports `flucto setup`, which provisions missing managed binaries without mutating system package managers.
 
 ```bash
 flucto doctor --bin-dir /opt/flucto/bin --json
@@ -130,6 +143,30 @@ Useful settings:
 - `FLUCTO_OUTPUT_DIR`: default output directory when `--output-dir` is omitted.
 - `--bin-dir DIR`: directory containing both `yt-dlp` and `ffmpeg`.
 - `--yt-dlp PATH`, `--ffmpeg PATH`: explicit binary paths.
+- `FLUCTO_BIN_DIR`: default managed binary directory override for `flucto setup`.
+
+Managed binary defaults:
+
+| OS | Default managed bin directory |
+| --- | --- |
+| Linux | `~/.local/share/flucto/bin` or `$XDG_DATA_HOME/flucto/bin` |
+| macOS | `~/Library/Application Support/Flucto/bin` |
+| Windows | `%LOCALAPPDATA%\\Flucto\\bin` |
+
+Resolution order is explicit paths, environment paths, `--bin-dir`, managed bin directory, package-local `bin/`, module-relative `bin/`, then system `PATH`.
+
+
+### CLI updates
+
+The desktop app continues to use Electron's auto-updater. CLI update commands use GitHub releases directly:
+
+```bash
+flucto update check --json
+flucto update download --output-dir ~/Downloads --json
+flucto update apply --asset ~/Downloads/Flucto-1.9.2-x86_64.AppImage --json
+```
+
+`check` and `download` are safe automation commands. `apply` is intentionally conservative: unsupported install modes return manual installation instructions instead of silently overwriting application files. When a release includes `checksums-sha256.txt`, downloaded assets are verified before the command reports success.
 
 ### Current limitations
 
@@ -138,6 +175,13 @@ Useful settings:
 - Direct media URLs from generic extractors are supported by the `v1.9.1` MP4 selector fallback.
 
 ## Recent Updates
+
+### Next
+
+- Added `flucto setup` for managed `yt-dlp` and `ffmpeg` provisioning in CLI-only and repair scenarios.
+- Added CLI GitHub release update commands: `update check`, `update download`, and conservative `update apply`.
+- Added release checksum manifest publishing so CLI downloads can verify release assets when checksum metadata is available.
+- Desktop startup now attempts one managed binary repair before showing the missing-component exit dialog.
 
 ### v1.9.1
 

@@ -186,6 +186,11 @@ jobs:
           path: release
           run-id: ${{ env.RELEASE_SOURCE_RUN_ID }}
 
+      - name: Generate Checksums
+        run: |
+          cd release
+          sha256sum * > checksums-sha256.txt
+
       - name: Semantic Release
         uses: cycjimmy/semantic-release-action@v4
         env:

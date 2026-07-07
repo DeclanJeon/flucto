@@ -2,25 +2,38 @@ import { app } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { logger } from './logger.js';
+import { getManagedBinDir } from './services/binaryInstaller.js';
+
+const isExecutable = (candidate: string): boolean => {
+  const accessMode = process.platform === 'win32' ? fs.constants.F_OK : fs.constants.F_OK | fs.constants.X_OK;
+  try {
+    fs.accessSync(candidate, accessMode);
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 export const getBinaryPath = (binaryName: string): string => {
   const isProd = app.isPackaged;
   const platform = process.platform === 'win32' ? '.exe' : '';
   const binaryWithExt = `${binaryName}${platform}`;
 
-  if (isProd) {
-    const candidates = [
-      path.join(process.resourcesPath, 'bin', binaryWithExt),
-      path.join(process.resourcesPath, 'app', 'bin', binaryWithExt),
-      path.join(process.resourcesPath, 'app.asar.unpacked', 'bin', binaryWithExt),
-      path.join(app.getAppPath(), 'bin', binaryWithExt),
-    ];
+  const candidates = isProd
+    ? [
+        path.join(process.resourcesPath, 'bin', binaryWithExt),
+        path.join(process.resourcesPath, 'app', 'bin', binaryWithExt),
+        path.join(process.resourcesPath, 'app.asar.unpacked', 'bin', binaryWithExt),
+        path.join(app.getAppPath(), 'bin', binaryWithExt),
+        path.join(getManagedBinDir(), binaryWithExt),
+      ]
+    : [
+        path.join(app.getAppPath(), 'bin', binaryWithExt),
+        path.join(getManagedBinDir(), binaryWithExt),
+      ];
 
-    const matched = candidates.find((candidate) => fs.existsSync(candidate));
-    return matched ?? candidates[0];
-  } else {
-    return path.join(app.getAppPath(), 'bin', binaryWithExt);
-  }
+  const matched = candidates.find(isExecutable);
+  return matched ?? candidates[0];
 };
 
 /**

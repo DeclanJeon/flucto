@@ -9,6 +9,8 @@ import { parseBatchFileContent, runWithConcurrency } from '../main/services/batc
 import { runMediaDownload } from '../main/services/mediaDownload.js';
 import { getAvailableFormats, getMediaInfo } from '../main/services/mediaInfo.js';
 import { convertTranscriptToMarkdown, listTranscriptLanguages } from '../main/services/transcriptMarkdown.js';
+import { getManagedBinDir, setupUtilities } from '../main/services/binaryInstaller.js';
+import { applyCliUpdate, checkForCliUpdate, downloadCliUpdate } from '../main/services/cliUpdater.js';
 import { execa } from '../main/spawn.js';
 import type { TranscriptRequest } from '../shared/types.js';
 
@@ -35,8 +37,10 @@ const readPackageVersion = (): string => {
   return '0.0.0';
 };
 
+const setupBinDir = (options: CliOptions): string => path.resolve(options.binDir ?? getManagedBinDir());
+
 const resolveBinaries = (options: CliOptions) => resolveCliBinaries({
-  binDir: options.binDir,
+  binDir: setupBinDir(options),
   ytDlpPath: options.ytDlpPath,
   ffmpegPath: options.ffmpegPath,
 });
@@ -54,6 +58,7 @@ const runDoctor = async (options: CliOptions): Promise<number> => {
     valid: health.valid,
     missing: health.missing,
     paths: health.paths,
+    fix: health.valid ? undefined : 'Run `flucto setup` or pass --yt-dlp/--ffmpeg paths.',
     versions: {
       ytDlp: health.missing.includes('yt-dlp') ? null : await binaryVersion(binaries.ytDlpPath, ['--version']),
       ffmpeg: health.missing.includes('ffmpeg') ? null : await binaryVersion(binaries.ffmpegPath, ['-version']),
@@ -66,10 +71,72 @@ const runDoctor = async (options: CliOptions): Promise<number> => {
     writeHuman(`yt-dlp: ${result.versions.ytDlp ?? binaries.ytDlpPath}`);
     writeHuman(`ffmpeg: ${result.versions.ffmpeg?.split(' ')[0] ?? binaries.ffmpegPath}`);
   } else {
-    writeError(`Missing binaries: ${result.missing.join(', ')}`);
+    writeError(`Missing binaries: ${result.missing.join(', ')}. ${result.fix}`);
   }
 
   return result.valid ? 0 : 3;
+};
+
+const runSetup = async (options: CliOptions): Promise<number> => {
+  const result = await setupUtilities({
+    binDir: setupBinDir(options),
+    ytDlpPath: options.ytDlpPath,
+    ffmpegPath: options.ffmpegPath,
+    force: options.force,
+    checkOnly: options.checkOnly,
+    onStatus: options.json ? undefined : writeStatus,
+  });
+
+  if (options.json) {
+    writeJson(result);
+  } else if (result.valid) {
+    writeHuman(`Binary directory: ${result.binDir}`);
+    for (const utility of result.utilities) {
+      writeHuman(`${utility.name}: ${utility.status}${utility.version ? ` (${utility.version})` : ''}`);
+    }
+  } else {
+    writeError(`Missing binaries: ${result.missing.join(', ') || 'unknown'}. ${result.fix ?? 'Run `flucto setup`.'}`);
+  }
+
+  return result.valid ? 0 : 3;
+};
+
+const runUpdate = async (options: CliOptions): Promise<number> => {
+  const currentVersion = readPackageVersion();
+  try {
+    if (options.updateAction === 'download') {
+      const result = await downloadCliUpdate({ currentVersion, outputDir: options.outputDir });
+      if (options.json) writeJson(result);
+      else writeHuman(result.downloaded ? `${result.path}\n${result.next}` : result.next);
+      return result.downloaded ? 0 : 4;
+    }
+    if (options.updateAction === 'apply') {
+      const result = await applyCliUpdate({ currentVersion, assetPath: options.assetPath });
+      if (options.json) writeJson(result);
+      else if (result.applied) writeHuman(result.next);
+      else writeError(`${result.reason ?? 'Update was not applied.'} ${result.next}`);
+      return result.applied ? 0 : 4;
+    }
+
+    const result = await checkForCliUpdate({ currentVersion });
+    if (options.json) {
+      writeJson(result);
+    } else if (result.updateAvailable) {
+      writeHuman(`Flucto ${result.latestVersion} is available: ${result.releaseUrl}`);
+      if (result.recommendedAsset) writeHuman(`Recommended asset: ${result.recommendedAsset}`);
+    } else {
+      writeHuman(`Flucto is up to date (${result.currentVersion}).`);
+    }
+    return 0;
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (options.json) {
+      writeJson({ success: false, command: 'update', action: options.updateAction, message, currentVersion });
+    } else {
+      writeError(message);
+    }
+    return 4;
+  }
 };
 
 const runDownload = async (options: CliOptions): Promise<number> => {
@@ -216,6 +283,10 @@ const dispatch = async (options: CliOptions): Promise<number> => {
       return 0;
     case 'doctor':
       return runDoctor(options);
+    case 'setup':
+      return runSetup(options);
+    case 'update':
+      return runUpdate(options);
     case 'download':
       return runDownload(options);
     case 'batch':

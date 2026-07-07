@@ -1,0 +1,93 @@
+{
+  "aiSlopCleaner": {
+    "status": "passed",
+    "evidence": "Changed-files cleanup pass found and fixed setupUtilities --check-only side effect and dead import; reran verification after cleanup. Fallback-like findings were grounded explicit failure/manual-instruction paths, not masking fallback slop."
+  },
+  "verification": {
+    "status": "passed",
+    "commands": [
+      "npm test",
+      "npm run lint",
+      "npm run build",
+      "node dist-electron/cli/index.js setup --check-only --bin-dir ./bin --json",
+      "node dist-electron/cli/index.js doctor --json",
+      "node dist-electron/cli/index.js update check --json"
+    ],
+    "evidence": "Final rerun: npm test 30 pass, npm run lint pass, npm run build pass, setup/doctor/update smoke checks returned valid JSON."
+  },
+  "codeReview": {
+    "recommendation": "APPROVE",
+    "architectStatus": "CLEAR",
+    "evidence": "Initial review found four blockers; all were fixed and regression-tested. Re-review returned APPROVE and CLEAR.",
+    "independentReview": {
+      "codeReviewer": {
+        "agentRole": "Code Reviewer",
+        "evidence": "CodeReviewFixGate: Recommendation APPROVE; no CRITICAL/HIGH/MEDIUM/LOW findings. Confirmed explicit paths are non-provisioned, checksum manifest verification fails closed, update --json errors are structured, and getBinaryPath skips non-executable candidates."
+      },
+      "architect": {
+        "agentRole": "Architect",
+        "evidence": "ArchitectFixGate: Architectural Status CLEAR; confirmed explicit/env overrides are validation-only, provisioning remains managed-bin only, CLI JSON failures are scriptable, repaired managed binaries are not shadowed, and CLI/services remain Electron-free."
+      }
+    }
+  },
+  "architectureInvariantGate": {
+    "status": "passed",
+    "sourceArtifacts": [
+      ".omx/ultragoal/brief.md",
+      ".omx/ultragoal/goals.json",
+      ".omx/plans/flucto-install-and-cli-update-design.md",
+      ".omx/plans/flucto-install-and-cli-update-work-order.md"
+    ],
+    "evidence": "All invariants were checked by implementation, tests, smoke checks, grep import boundary check, and independent review.",
+    "invariants": [
+      {
+        "invariant": "CLI commands must not import Electron runtime modules or electron-updater.",
+        "source": ".omx/ultragoal/brief.md#architecture-invariants",
+        "status": "proved",
+        "implementationEvidence": "src/cli/index.ts imports Electron-free services only; grep found no electron/electron-updater imports in src/main/services/*.ts or src/cli/*.ts.",
+        "testEvidence": "npm test, npm run build, and CLI smoke checks passed.",
+        "reviewEvidence": "ArchitectFixGate reported CLI/services remain Electron-free."
+      },
+      {
+        "invariant": "Desktop auto-update remains handled by electron-updater.",
+        "source": ".omx/ultragoal/brief.md#architecture-invariants",
+        "status": "proved",
+        "implementationEvidence": "src/main/index.ts still calls initializeAutoUpdater(); CLI update service is separate from src/main/updater.ts.",
+        "testEvidence": "npm run build passed.",
+        "reviewEvidence": "ArchitectReviewGate and ArchitectFixGate confirmed desktop update boundary."
+      },
+      {
+        "invariant": "Utility provisioning must not mutate system package managers or explicit override paths.",
+        "source": ".omx/ultragoal/brief.md#architecture-invariants",
+        "status": "proved",
+        "implementationEvidence": "setupUtilities provisions only managedTargetPath when no explicit path exists; explicit/env paths are validated and never provisioned even with --force.",
+        "testEvidence": "tests/cli.test.mjs covers force with explicit paths and confirms file contents are unchanged.",
+        "reviewEvidence": "CodeReviewFixGate and ArchitectFixGate confirmed blocker fixed."
+      },
+      {
+        "invariant": "Machine-readable CLI JSON must go to stdout and remain valid on update failures.",
+        "source": ".omx/ultragoal/brief.md#architecture-invariants",
+        "status": "proved",
+        "implementationEvidence": "runUpdate catches update service errors and writes structured JSON when --json is set.",
+        "testEvidence": "CLI update smoke returned valid JSON; npm test covers update services.",
+        "reviewEvidence": "CodeReviewFixGate confirmed structured JSON failure behavior."
+      },
+      {
+        "invariant": "Release downloads must verify checksum metadata when available.",
+        "source": ".omx/ultragoal/brief.md#architecture-invariants",
+        "status": "proved",
+        "implementationEvidence": "downloadCliUpdate throws if checksum manifest fetch fails, selected asset is absent, or SHA256 mismatch occurs.",
+        "testEvidence": "tests/cli.test.mjs covers omitted selected asset and SHA256 verification.",
+        "reviewEvidence": "CodeReviewFixGate confirmed checksum path fails closed."
+      },
+      {
+        "invariant": "Unsupported update apply modes must not mutate files.",
+        "source": ".omx/ultragoal/brief.md#architecture-invariants",
+        "status": "proved",
+        "implementationEvidence": "applyCliUpdate only validates readable asset path and returns applied:false with manual instructions.",
+        "testEvidence": "tests/cli.test.mjs covers conservative apply result.",
+        "reviewEvidence": "ArchitectFixGate confirmed unsupported apply remains non-mutating."
+      }
+    ]
+  }
+}

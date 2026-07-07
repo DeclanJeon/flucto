@@ -21,7 +21,8 @@
           {"path": "release/*.dmg", "label": "macOS Installer"},
           {"path": "release/*.zip", "label": "macOS Portable"},
           {"path": "release/*.AppImage", "label": "Linux AppImage"},
-          {"path": "release/*.deb", "label": "Linux DEB"}
+          {"path": "release/*.deb", "label": "Linux DEB"},
+          {"path": "release/checksums-sha256.txt", "label": "SHA256 Checksums"}
         ]
       }
     ]

@@ -1,55 +1,69 @@
-# Ultragoal Brief: Flucto CLI Mode
+# Ultragoal Brief: Flucto Install Utilities and CLI GitHub Update
 
-## Objective
+## User Request
 
-Implement and release a first-class `flucto` CLI mode for AI-agent automation. Users must be able to run Flucto media download and transcript-to-Markdown workflows from a terminal without installing or launching the desktop app.
+Implement the design for reliable Flucto installation utilities and CLI GitHub update support. Preserve the current Electron/TypeScript stack. Use the design and work order as implementation authorities. Repeat QA and tests until the result is release-ready, then write a report, commit, and push.
 
-## Source Artifacts
+## Source Design
 
-- `.omx/plans/flucto-cli-mode-design.md`
-- `.omx/plans/flucto-cli-mode-work-order.md`
+- `.omx/plans/flucto-install-and-cli-update-design.md`
 
-## Scope
+## Required Deliverables
 
-In scope:
+1. Durable implementation work order under `.omx/plans/`.
+2. Shared Electron-free service for checking/provisioning required utilities (`yt-dlp`, `ffmpeg`).
+3. CLI setup command for managed utility provisioning.
+4. CLI doctor guidance for missing utilities.
+5. CLI GitHub release update commands:
+   - `flucto update check`
+   - `flucto update download`
+   - `flucto update apply`
+6. Conservative update-apply behavior: never silently mutate unsupported install types.
+7. Release metadata hardened with checksum publishing support.
+8. Desktop missing-binary startup repair path that does not replace `electron-updater`.
+9. Focused tests and smoke checks for new CLI/service behavior.
+10. Final report under `.omx/ultragoal/`.
+11. Lore-protocol commit and push to `origin/master`.
 
-- Electron-free service layer for downloader, metadata, formats, batch parsing, transcript conversion, settings defaults, and binary resolution.
-- CLI entrypoint with commands: `download`, `batch`, `transcript`, `info`, `formats`, `languages`, `doctor`, `--help`, `--version`.
-- Desktop IPC adapters updated to use shared services where required for parity.
-- Tests and smoke verification for CLI and shared services.
-- README/CHANGELOG/release notes updates.
-- Commit, push, version/release workflow verification, and final report.
+## Constraints
 
-Out of scope unless required to satisfy tests:
-
-- Publishing standalone CLI zip artifacts.
-- Adding a new CLI parsing dependency.
-- Changing media extraction backend away from yt-dlp/ffmpeg.
-- Replacing Electron desktop UI.
+- Do not change the application stack.
+- Do not introduce a new runtime dependency unless Node built-ins are insufficient.
+- Keep CLI import graph Electron-free.
+- Preserve explicit binary override behavior:
+  - `--bin-dir`
+  - `--yt-dlp`
+  - `--ffmpeg`
+  - `FLUCTO_YT_DLP_PATH`
+  - `FLUCTO_FFMPEG_PATH`
+- Do not install global/system packages by default.
+- Use Flucto-managed local binary directories for auto-provisioning.
+- Keep desktop app updates on `electron-updater`.
+- CLI update service may read GitHub releases directly, but automatic apply must be conservative.
+- Do not include unrelated untracked artifacts in the commit.
 
 ## Architecture Invariants
 
-1. CLI execution path must not import Electron runtime modules.
-2. Desktop IPC and CLI must share service logic instead of duplicating downloader/transcript behavior.
-3. Human progress must go to stderr; machine-readable final output must go to stdout.
-4. Transcript `--stdout` must emit only Markdown to stdout.
-5. CLI binary resolution must not depend on Electron app path APIs.
-6. Existing desktop behavior must remain available through IPC handlers.
-7. No new runtime dependency unless Node built-ins are insufficient and the tradeoff is documented.
+1. CLI commands must not import Electron runtime modules or `electron-updater`.
+2. Binary setup/update services must be Electron-free and reusable by CLI.
+3. Desktop auto-update remains handled by `src/main/updater.ts` / `electron-updater`.
+4. Utility provisioning must not mutate system package managers or require admin/root by default.
+5. Explicit binary paths and env overrides must remain authoritative over managed paths.
+6. Machine-readable CLI JSON must go to stdout; human progress/errors must not corrupt JSON stdout.
+7. Release downloads must verify checksum metadata when available.
+8. Unsupported update apply modes must return actionable manual instructions instead of mutating files.
 
-## Quality Gates
+## Verification Targets
 
-- `npm run build` passes.
-- `npm run lint` passes.
-- `npm test` passes.
-- `node dist-electron/cli/index.js --help` exits 0.
-- `node dist-electron/cli/index.js doctor --json` exits 0 when local binaries are present.
-- Independent code review returns approve/clear.
-- Architecture invariant audit proves all invariants with implementation, tests, and review evidence.
+- `npm test`
+- `npm run lint`
+- `npm run build`
+- CLI smoke:
+  - `node dist-electron/cli/index.js --help`
+  - `node dist-electron/cli/index.js setup --check-only --bin-dir ./bin --json`
+  - `node dist-electron/cli/index.js doctor --json`
+  - `node dist-electron/cli/index.js update check --json`
 
-## Release Gates
+## Completion Gate
 
-- Changes committed with Lore protocol.
-- Push to `origin/master` succeeds.
-- Version/release workflow is verified.
-- Final report written to `.omx/ultragoal/final-report-cli-mode.md`.
+Work is complete only after implementation, focused tests, build/lint/test verification, cleanup review, independent review, final report, commit, and push all succeed.

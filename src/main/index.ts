@@ -12,6 +12,7 @@ import { settingsStore, getStoredDownloadSettings } from './store.js';
 import { appendHistoryEntry, clearHistory, getHistoryEntries } from './historyStore.js';
 import { getCommonYtDlpArgs, getRefererForUrl, parseLastJsonObjectFromStdout } from './media/ytDlp.js';
 import { runMediaDownload } from './services/mediaDownload.js';
+import { setupUtilities } from './services/binaryInstaller.js';
 import type { BinaryResolver } from './services/binaryResolver.js';
 import './handlers.js';
 import './transcript/transcriptHandlers.js';
@@ -185,17 +186,25 @@ app.whenReady().then(async () => {
 
   if (!health.valid) {
     logger.error("Missing required binaries:", { missing: health.missing });
+    logger.info("Attempting to repair missing binaries in the managed Flucto bin directory.");
+    const repair = await setupUtilities({ onStatus: (message) => logger.info(message) });
+    const repairedHealth = repair.valid ? await checkSystemHealth() : repair;
 
-    dialog.showMessageBoxSync({
-      type: "error",
-      title: "Flucto - System Error",
-      message: "Required system components are missing.",
-      detail: `The following binaries were not found:\n${health.missing.join(", ")}\n\nPlease restart the application setup.`,
-      buttons: ["Exit"],
-    });
+    if (!repairedHealth.valid) {
+      const missing = repairedHealth.missing.length > 0 ? repairedHealth.missing : health.missing;
+      dialog.showMessageBoxSync({
+        type: "error",
+        title: "Flucto - System Error",
+        message: "Required system components are missing.",
+        detail: `The following binaries were not found or could not be repaired:\n${missing.join(", ")}\n\nRun flucto setup or reinstall the application.`,
+        buttons: ["Exit"],
+      });
 
-    app.quit();
-    return;
+      app.quit();
+      return;
+    }
+
+    logger.info("Missing binaries repaired successfully.");
   }
 
   // 2. 윈도우 생성

@@ -9,8 +9,12 @@ export type CliCommand =
   | 'formats'
   | 'languages'
   | 'doctor'
+  | 'setup'
+  | 'update'
   | 'help'
   | 'version';
+
+export type CliUpdateAction = 'check' | 'download' | 'apply';
 
 export interface CliOptions {
   command: CliCommand;
@@ -29,12 +33,16 @@ export interface CliOptions {
   metadata?: boolean;
   stdout: boolean;
   concurrency: number;
+  force: boolean;
+  checkOnly: boolean;
+  updateAction: CliUpdateAction;
+  assetPath?: string;
 }
 
 const videoQualities = new Set(['4k', '1440p', '1080p', '720p', '480p', '360p', 'worst']);
 const audioQualities = new Set(['320kbps', '256kbps', '192kbps', '128kbps', '64kbps', 'worst']);
 const mediaFormats = new Set(['mp4', 'mp3', 'md']);
-const commands = new Set(['download', 'batch', 'transcript', 'info', 'formats', 'languages', 'doctor']);
+const commands = new Set(['download', 'batch', 'transcript', 'info', 'formats', 'languages', 'doctor', 'setup', 'update']);
 
 export class CliUsageError extends Error {
   readonly exitCode = 1;
@@ -105,6 +113,9 @@ export const parseCliArgs = (argv: string[]): CliOptions => {
       'no-metadata': { type: 'boolean' },
       stdout: { type: 'boolean' },
       concurrency: { type: 'string', short: 'c' },
+      force: { type: 'boolean' },
+      'check-only': { type: 'boolean' },
+      asset: { type: 'string' },
     },
   });
 
@@ -147,7 +158,18 @@ const baseOptions = (
   metadata: booleanOption(values.metadata) ? true : booleanOption(values['no-metadata']) ? false : undefined,
   stdout: booleanOption(values.stdout),
   concurrency: parseConcurrency(values.concurrency),
+  force: booleanOption(values.force),
+  checkOnly: booleanOption(values['check-only']),
+  updateAction: parseUpdateAction(command, positional),
+  assetPath: stringOption(values.asset),
 });
+
+const parseUpdateAction = (command: CliCommand, positional: string[]): CliUpdateAction => {
+  if (command !== 'update') return 'check';
+  const action = positional[0] ?? 'check';
+  if (action === 'check' || action === 'download' || action === 'apply') return action;
+  throw new CliUsageError('update action must be one of check, download, apply.');
+};
 
 const validateCommand = (options: CliOptions): void => {
   if (['download', 'transcript', 'info', 'formats', 'languages'].includes(options.command) && options.positional.length !== 1) {
@@ -156,6 +178,13 @@ const validateCommand = (options: CliOptions): void => {
 
   if (options.command === 'batch' && options.positional.length !== 1) {
     throw new CliUsageError('batch requires exactly one file path.');
+  }
+
+  if (options.command === 'update') {
+    const expected = options.updateAction === 'check' ? [0, 1] : [1];
+    if (!expected.includes(options.positional.length)) {
+      throw new CliUsageError(`update ${options.updateAction} received unexpected arguments.`);
+    }
   }
 
   if (options.command === 'download' && options.format === 'md') {
