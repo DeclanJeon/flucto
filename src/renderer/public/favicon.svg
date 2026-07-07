@@ -1,17 +1,27 @@
-﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc" xmlns:xlink="http://www.w3.org/1999/xlink">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
   <title id="title">Flucto Favicon</title>
-  <desc id="desc">Flucto compact icon</desc>
+  <desc id="desc">Compact wave download mark.</desc>
   <defs>
-    <linearGradient id="brandGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#6d5bff" />
-      <stop offset="45%" stop-color="#44c3ff" />
-      <stop offset="100%" stop-color="#14d6b2" />
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#020814" />
+      <stop offset="100%" stop-color="#10122c" />
     </linearGradient>
+    <linearGradient id="mark" x1="12%" y1="14%" x2="86%" y2="88%">
+      <stop offset="0%" stop-color="#83ffff" />
+      <stop offset="42%" stop-color="#22c8ff" />
+      <stop offset="72%" stop-color="#245dff" />
+      <stop offset="100%" stop-color="#aa5cff" />
+    </linearGradient>
+    <filter id="glow" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="7" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
   </defs>
-  <rect width="512" height="512" rx="128" fill="#070b16" />
-  <circle cx="256" cy="256" r="168" fill="url(#brandGradient)" opacity="0.2" />
-  <path
-    d="M164 136h84.5L292 286.5 356 136h90L328 372h-79L164 136zM320 136h76l-26 236h-76L320 136zm-56 120h-8c-36.7 0-66-17.6-66-63 0-43 28.5-64 66-64h8v127z"
-    fill="#ecedff"
-  />
+  <rect x="28" y="28" width="456" height="456" rx="112" fill="url(#bg)" />
+  <path d="M135 291 C180 295 211 265 236 210 C264 149 323 110 382 137 C427 158 442 204 418 240 C402 263 376 273 354 261 C374 256 386 240 382 223 C377 199 347 190 320 204 C285 223 273 270 251 310 C225 357 177 378 128 354 C100 340 83 317 87 293 C101 296 118 296 135 291Z" fill="url(#mark)" filter="url(#glow)" />
+  <path d="M258 239 C282 247 302 264 316 290 L344 345 H394 L298 443 L202 345 H250 L250 286 C250 266 253 250 258 239Z" fill="url(#mark)" filter="url(#glow)" />
+  <path d="M120 319 C168 340 224 325 257 282 C286 242 293 197 333 180 C358 170 384 176 402 192 C376 177 340 193 322 229 C296 282 265 343 191 357 C158 363 132 351 120 319Z" fill="#030916" opacity="0.56" />
 </svg>

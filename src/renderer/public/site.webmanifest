@@ -1,16 +1,28 @@
-﻿{
+{
   "name": "Flucto",
   "short_name": "Flucto",
   "description": "Flowing Speed. Flawless media downloads for creators and curators.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#070b16",
-  "theme_color": "#6d5bff",
+  "theme_color": "#22c8ff",
   "icons": [
     {
       "src": "/logo.svg",
       "sizes": "any",
-      "type": "image/svg+xml"
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
     }
   ]
 }

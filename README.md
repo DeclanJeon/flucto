@@ -11,7 +11,12 @@
   <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-100%25-3178C6?style=flat&logo=typescript&logoColor=white" alt="TypeScript"></a>
 </p>
 
-> Flucto is an open-source desktop application for creators and curators who want one reliable way to capture media and turn available captions into Markdown notes from YouTube, X, Reddit, Bilibili, and Instagram.
+<p align="center">
+  <img src="src/renderer/public/logo.svg" width="128" height="128" alt="Flucto wave download logo" />
+</p>
+
+
+> Flucto is an open-source desktop application for creators and curators who want one flowing way to capture media and turn available captions into Markdown notes from YouTube, X, Reddit, Bilibili, and Instagram.
 
 - ✨ **Stunning UI**: Apple-inspired dark mode with glassmorphism & smooth animations
 - 🌍 **Universal Support**: Download from YouTube, X, Reddit, Bilibili, Instagram
@@ -38,6 +43,22 @@
 - **Download History:** Records output type (`mp4`, `mp3`, or `md`) so media downloads and Markdown conversions stay visible in history.
 - **Zero Configuration:** Unlike other GUI wrappers, Flucto includes a `setup-binaries` script that automatically downloads the correct version of `yt-dlp` and `ffmpeg` for your OS upon installation.
 - **Network Resilience:** Implements retry logic, updater metadata checks, and transcript circuit-breaker behavior for unstable connections, rate limits, and unavailable caption sources.
+
+## Brand
+
+Flucto's logo is a wave-download mark: the `🌊` idea reshaped into a cyan-to-violet flow that curls like a wave and lands as a download arrow. The mark is used consistently across the packaged app icon, favicon, Apple touch icon, web manifest, and social preview card.
+
+Brand assets live in:
+
+| Asset | Path |
+| --- | --- |
+| App icon source | `assets/icon.png` |
+| Windows icon | `assets/icon.ico` |
+| Web logo | `src/renderer/public/logo.svg` |
+| Favicon | `src/renderer/public/favicon.svg` |
+| Social preview | `src/renderer/public/og-image.svg` |
+| Brand source of truth | `DESIGN.md` |
+
 
 ## Output Modes
 
@@ -182,6 +203,7 @@ flucto update apply --asset ~/Downloads/Flucto-1.9.2-x86_64.AppImage --json
 - Added CLI GitHub release update commands: `update check`, `update download`, and conservative `update apply`.
 - Added release checksum manifest publishing so CLI downloads can verify release assets when checksum metadata is available.
 - Desktop startup now attempts one managed binary repair before showing the missing-component exit dialog.
+- Refreshed Flucto branding with a new `🌊`-inspired wave-download logo across app icons, favicon, manifest assets, and social preview imagery.
 
 ### v1.9.1
 

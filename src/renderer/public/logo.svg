@@ -1,33 +1,47 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc" xmlns:xlink="http://www.w3.org/1999/xlink">
-  <title id="title">Flucto Logo</title>
-  <desc id="desc">Flucto branding icon</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Flucto Wave Logo</title>
+  <desc id="desc">A glowing wave flowing into a download arrow on a dark rounded app tile.</desc>
   <defs>
-    <linearGradient id="brandGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#6d5bff" />
-      <stop offset="45%" stop-color="#44c3ff" />
-      <stop offset="100%" stop-color="#14d6b2" />
+    <linearGradient id="tile" x1="14%" y1="0%" x2="88%" y2="100%">
+      <stop offset="0%" stop-color="#020814" />
+      <stop offset="48%" stop-color="#08152d" />
+      <stop offset="100%" stop-color="#11102c" />
     </linearGradient>
-    <filter id="softGlow" x="-25%" y="-25%" width="150%" height="150%">
-      <feGaussianBlur stdDeviation="3" result="blur" />
+    <linearGradient id="wave" x1="14%" y1="18%" x2="83%" y2="86%">
+      <stop offset="0%" stop-color="#7dfcff" />
+      <stop offset="36%" stop-color="#23c9ff" />
+      <stop offset="68%" stop-color="#245eff" />
+      <stop offset="100%" stop-color="#a85cff" />
+    </linearGradient>
+    <linearGradient id="rim" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7dfcff" stop-opacity="0.9" />
+      <stop offset="52%" stop-color="#4c82ff" stop-opacity="0.55" />
+      <stop offset="100%" stop-color="#b865ff" stop-opacity="0.9" />
+    </linearGradient>
+    <filter id="glow" x="-35%" y="-35%" width="170%" height="170%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.06 0 0 0 0 0.82 0 0 0 0 1 0 0 0 0.65 0" result="cyanGlow" />
       <feMerge>
-        <feMergeNode in="blur" />
+        <feMergeNode in="cyanGlow" />
         <feMergeNode in="SourceGraphic" />
       </feMerge>
     </filter>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#000000" flood-opacity="0.42" />
+      <feDropShadow dx="0" dy="0" stdDeviation="12" flood-color="#25d9ff" flood-opacity="0.26" />
+    </filter>
   </defs>
 
-  <rect width="512" height="512" rx="112" fill="#070b16" />
-  <rect x="56" y="56" width="400" height="400" rx="88" fill="url(#brandGradient)" opacity="0.22" />
+  <rect x="26" y="26" width="460" height="460" rx="106" fill="url(#tile)" />
+  <rect x="31" y="31" width="450" height="450" rx="101" fill="none" stroke="url(#rim)" stroke-width="5" opacity="0.75" />
+  <rect x="45" y="45" width="422" height="422" rx="92" fill="#ffffff" opacity="0.025" />
 
-  <g transform="translate(86 90)" filter="url(#softGlow)">
-    <path
-      d="M74 70h68l38 170 42-170h58l-70 260h-56L74 70z"
-      fill="url(#brandGradient)"
-      fill-opacity="0.95"
-    />
-    <path
-      d="M252 70h48l44 260h-48L252 70zM220 132c0-24 18-42 42-42h28c24 0 42 18 42 42v6h-42v-4c0-8-6-14-14-14h-8c-9 0-14 6-14 14 0 9 6 14 18 20 28 12 40 24 40 49 0 33-25 50-57 50h-13c-32 0-56-17-56-49v-8h42v12c0 8 6 14 14 14h16c9 0 14-6 14-14 0-9-5-15-19-22-24-12-40-23-40-52z"
-      fill="#e7ebff"
-    />
+  <g filter="url(#softShadow)">
+    <path d="M130 300 C180 305 213 270 240 210 C269 145 331 103 394 132 C442 155 458 206 432 246 C416 271 386 281 363 267 C386 262 399 244 395 226 C390 198 357 188 328 203 C289 223 277 274 254 316 C227 365 178 388 125 363 C93 348 77 323 80 296 C94 300 111 302 130 300Z" fill="url(#wave)" filter="url(#glow)" />
+    <path d="M112 323 C162 343 224 331 259 283 C291 238 296 191 339 174 C366 164 394 170 413 190 C386 173 346 189 327 229 C300 285 267 350 188 365 C153 372 124 358 112 323Z" fill="#030916" opacity="0.58" />
+    <path d="M256 232 C281 240 304 258 319 286 L349 346 H403 L298 452 L193 346 H247 L247 284 C247 262 250 246 256 232Z" fill="url(#wave)" filter="url(#glow)" />
+    <path d="M274 284 C304 278 339 279 369 299 C344 290 310 293 286 312 C277 319 270 329 265 341 L248 341 L248 296 C248 291 250 287 254 285 C259 283 266 283 274 284Z" fill="#061027" opacity="0.62" />
+    <path d="M142 292 C189 290 216 257 238 205 C251 174 270 149 295 133 C256 153 239 184 224 221 C201 277 166 301 111 291 C120 294 130 295 142 292Z" fill="#dcffff" opacity="0.54" />
+    <path d="M279 251 C303 199 350 166 397 181 C365 167 319 187 297 230 C288 245 280 263 274 284 C274 273 275 262 279 251Z" fill="#b9ffff" opacity="0.28" />
   </g>
 </svg>

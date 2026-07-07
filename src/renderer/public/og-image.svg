@@ -1,28 +1,43 @@
-﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
   <title id="title">Flucto Preview</title>
-  <desc id="desc">Flucto social card</desc>
+  <desc id="desc">Flucto social card with wave download logo.</desc>
   <defs>
     <linearGradient id="hero" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#050914" />
-      <stop offset="100%" stop-color="#0b1d46" />
+      <stop offset="0%" stop-color="#020712" />
+      <stop offset="54%" stop-color="#081932" />
+      <stop offset="100%" stop-color="#121032" />
     </linearGradient>
-    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#6d5bff" />
-      <stop offset="50%" stop-color="#44c3ff" />
-      <stop offset="100%" stop-color="#14d6b2" />
+    <linearGradient id="accent" x1="8%" y1="8%" x2="94%" y2="92%">
+      <stop offset="0%" stop-color="#7dfcff" />
+      <stop offset="42%" stop-color="#24c8ff" />
+      <stop offset="74%" stop-color="#265dff" />
+      <stop offset="100%" stop-color="#a95cff" />
     </linearGradient>
+    <filter id="glow" x="-35%" y="-35%" width="170%" height="170%">
+      <feGaussianBlur stdDeviation="11" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
   </defs>
+
   <rect width="1200" height="630" fill="url(#hero)" />
-  <g opacity="0.22">
-    <circle cx="220" cy="150" r="110" fill="url(#accent)" />
-    <circle cx="1030" cy="540" r="170" fill="url(#accent)" />
+  <circle cx="108" cy="92" r="184" fill="#20d6ff" opacity="0.12" />
+  <circle cx="1080" cy="560" r="230" fill="#9f5cff" opacity="0.14" />
+  <rect x="56" y="56" width="1088" height="518" rx="54" fill="#081125" opacity="0.92" />
+  <rect x="60" y="60" width="1080" height="510" rx="50" fill="none" stroke="url(#accent)" stroke-width="3" opacity="0.55" />
+
+  <g transform="translate(105 112) scale(0.78)" filter="url(#glow)">
+    <rect x="26" y="26" width="460" height="460" rx="106" fill="#040b18" opacity="0.78" />
+    <rect x="31" y="31" width="450" height="450" rx="101" fill="none" stroke="url(#accent)" stroke-width="5" opacity="0.72" />
+    <path d="M130 300 C180 305 213 270 240 210 C269 145 331 103 394 132 C442 155 458 206 432 246 C416 271 386 281 363 267 C386 262 399 244 395 226 C390 198 357 188 328 203 C289 223 277 274 254 316 C227 365 178 388 125 363 C93 348 77 323 80 296 C94 300 111 302 130 300Z" fill="url(#accent)" />
+    <path d="M256 232 C281 240 304 258 319 286 L349 346 H403 L298 452 L193 346 H247 L247 284 C247 262 250 246 256 232Z" fill="url(#accent)" />
+    <path d="M112 323 C162 343 224 331 259 283 C291 238 296 191 339 174 C366 164 394 170 413 190 C386 173 346 189 327 229 C300 285 267 350 188 365 C153 372 124 358 112 323Z" fill="#030916" opacity="0.58" />
   </g>
-  <rect x="56" y="56" width="1088" height="518" rx="46" fill="#0f1630" opacity="0.9" />
-  <g transform="translate(110 150)">
-    <path d="M56 40h84L168 190 232 40h90L244 280h-79L56 40z" fill="url(#accent)" />
-    <path d="M298 40h76L372 276H298V40zm-46 116h-8c-36.7 0-66-17.6-66-63 0-43 28.5-64 66-64h8v127z" fill="#edf0ff" />
-  </g>
-  <text x="520" y="286" font-family="Arial" font-size="72" font-weight="700" fill="#ffffff">Flucto</text>
-  <text x="520" y="360" font-family="Arial" font-size="36" fill="#a6b5e4">Universal media download studio for creators</text>
-  <text x="520" y="420" font-family="Arial" font-size="30" fill="#7f8fba">YouTube, Instagram, X, Reddit, Bilibili support</text>
+
+  <text x="520" y="258" font-family="Inter, Arial, sans-serif" font-size="78" font-weight="800" fill="#ffffff">Flucto</text>
+  <text x="520" y="328" font-family="Inter, Arial, sans-serif" font-size="36" font-weight="600" fill="#c6eeff">Flowing downloads. Markdown-ready captions.</text>
+  <text x="520" y="392" font-family="Inter, Arial, sans-serif" font-size="29" fill="#8fa3d5">Capture media from YouTube, Instagram, X, Reddit, and Bilibili.</text>
+  <text x="520" y="442" font-family="Inter, Arial, sans-serif" font-size="29" fill="#8fa3d5">Export captions and transcripts into clean Markdown.</text>
 </svg>
