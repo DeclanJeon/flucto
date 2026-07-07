@@ -79,26 +79,32 @@ Flucto ships `flucto` and the shorter `fl` command for automation, batch jobs, a
 ```bash
 npm install
 npm run build:electron
-npm run cli -- --help
+npm link
+fl h
+fl doc
 ```
 
-Packaged releases expose both commands through `package.json`'s `bin` entry. Short command aliases are available for common flows: `fl d` = download, `fl t` = transcript, `fl i` = info, `fl f` = formats, `fl l` = languages, `fl b` = batch, `fl doc` = doctor, `fl s` = setup, and `fl u` = update.
+`npm link` registers the local build as both `flucto` and `fl`. Without linking, use `npm run cli -- --help` from the project root.
+
+Packaged releases expose both commands through `package.json`'s `bin` entry. Short command aliases are available for common flows.
 
 ### Commands
 
-| Command | Purpose | Typical output |
-| --- | --- | --- |
-| `flucto doctor` | Verify `yt-dlp` and `ffmpeg` discovery | Binary paths and versions |
-| `flucto setup` | Provision missing managed `yt-dlp` and `ffmpeg` binaries | Setup status, paths, versions, and fix guidance |
-| `flucto info <url>` | Read media metadata | id, title, thumbnail, duration, uploader, view count |
-| `flucto formats <url>` | List downloadable formats | format id, extension, resolution, note |
-| `flucto download <url>` | Download MP4 video or MP3 audio | Generated media file |
-| `flucto languages <url>` | List available caption languages | language code/name and auto/manual flag |
-| `flucto transcript <url>` | Convert available captions/subtitles to Markdown | `.md` file or stdout Markdown |
-| `flucto batch <file>` | Process a text file of URLs | Multiple media downloads or Markdown conversions |
-| `flucto update check` | Check GitHub releases for a newer Flucto version | Current/latest version and recommended asset |
-| `flucto update download` | Download the recommended GitHub release asset | Downloaded asset path and checksum status |
-| `flucto update apply` | Apply an already downloaded asset when safe | Conservative apply result or manual install instructions |
+| Command | Short form | Purpose | Typical output |
+| --- | --- | --- | --- |
+| `flucto doctor` | `fl doc` | Verify `yt-dlp` and `ffmpeg` discovery | Binary paths and versions |
+| `flucto setup` | `fl s` | Provision missing managed `yt-dlp` and `ffmpeg` binaries | Setup status, paths, versions, and fix guidance |
+| `flucto info <url>` | `fl i <url>` | Read media metadata | id, title, thumbnail, duration, uploader, view count |
+| `flucto formats <url>` | `fl f <url>` | List downloadable formats | format id, extension, resolution, note |
+| `flucto download <url>` | `fl d <url>` | Download MP4 video or MP3 audio | Generated media file |
+| `flucto languages <url>` | `fl l <url>` | List available caption languages | language code/name and auto/manual flag |
+| `flucto transcript <url>` | `fl t <url>` | Convert available captions/subtitles to Markdown | `.md` file or stdout Markdown |
+| `flucto batch <file>` | `fl b <file>` | Process a text file of URLs | Multiple media downloads or Markdown conversions |
+| `flucto update check` | `fl u check` | Check GitHub releases for a newer Flucto version | Current/latest version and recommended asset |
+| `flucto update download` | `fl u download` | Download the recommended GitHub release asset | Downloaded asset path and checksum status |
+| `flucto update apply` | `fl u apply` | Apply an already downloaded asset when safe | Conservative apply result or manual install instructions |
+
+Short option aliases: `-j` = `--json`, `-p` = `--progress-json`, `-f` = `--format`, `-q` = `--quality`, `-a` = `--audio-quality`, `-l` = `--language`, `-s` = `--stdout`, `-o` = `--output-dir`, and `-c` = `--concurrency`.
 
 ### Common examples
 
@@ -143,19 +149,19 @@ https://samplelib.com/lib/preview/mp4/sample-5s.mp4
 
 ### Output and automation rules
 
-- `--json`: writes the final result object to stdout.
-- `--progress-json`: writes progress events as newline-delimited JSON to stderr.
+- `--json` / `-j`: writes the final result object to stdout.
+- `--progress-json` / `-p`: writes progress events as newline-delimited JSON to stderr.
 - Human progress messages are written to stderr when `--progress-json` is not set.
-- `--stdout` on `transcript` writes Markdown content to stdout instead of only saving a file.
+- `--stdout` / `-s` on `transcript` writes Markdown content to stdout instead of only saving a file.
 - Non-zero exit codes indicate command failure; the JSON response includes the error message when `--json` is set.
 
 ### Binary and output configuration
 
-Flucto bundles `yt-dlp` and `ffmpeg` for the desktop release. The CLI also supports `flucto setup`, which provisions missing managed binaries without mutating system package managers.
+Flucto bundles `yt-dlp` and `ffmpeg` for the desktop release. The CLI also supports `fl s`, which provisions missing managed binaries without mutating system package managers.
 
 ```bash
-flucto doctor --bin-dir /opt/flucto/bin --json
-flucto download "$URL" --yt-dlp /usr/local/bin/yt-dlp --ffmpeg /usr/local/bin/ffmpeg
+fl doc --bin-dir /opt/flucto/bin -j
+fl d "$URL" --yt-dlp /usr/local/bin/yt-dlp --ffmpeg /usr/local/bin/ffmpeg
 ```
 
 Useful settings:
