@@ -42,7 +42,31 @@ export interface CliOptions {
 const videoQualities = new Set(['4k', '1440p', '1080p', '720p', '480p', '360p', 'worst']);
 const audioQualities = new Set(['320kbps', '256kbps', '192kbps', '128kbps', '64kbps', 'worst']);
 const mediaFormats = new Set(['mp4', 'mp3', 'md']);
-const commands = new Set(['download', 'batch', 'transcript', 'info', 'formats', 'languages', 'doctor', 'setup', 'update']);
+const commandAliases: Record<string, CliCommand> = {
+  download: 'download',
+  d: 'download',
+  batch: 'batch',
+  b: 'batch',
+  transcript: 'transcript',
+  t: 'transcript',
+  info: 'info',
+  i: 'info',
+  formats: 'formats',
+  f: 'formats',
+  languages: 'languages',
+  l: 'languages',
+  doctor: 'doctor',
+  doc: 'doctor',
+  setup: 'setup',
+  s: 'setup',
+  update: 'update',
+  u: 'update',
+  help: 'help',
+  h: 'help',
+  version: 'version',
+  v: 'version',
+};
+const commands = new Set(Object.keys(commandAliases));
 
 export class CliUsageError extends Error {
   readonly exitCode = 1;
@@ -97,11 +121,11 @@ export const parseCliArgs = (argv: string[]): CliOptions => {
     options: {
       help: { type: 'boolean', short: 'h' },
       version: { type: 'boolean', short: 'v' },
-      json: { type: 'boolean' },
-      'progress-json': { type: 'boolean' },
+      json: { type: 'boolean', short: 'j' },
+      'progress-json': { type: 'boolean', short: 'p' },
       format: { type: 'string', short: 'f' },
       quality: { type: 'string', short: 'q' },
-      'audio-quality': { type: 'string' },
+      'audio-quality': { type: 'string', short: 'a' },
       'output-dir': { type: 'string', short: 'o' },
       'bin-dir': { type: 'string' },
       'yt-dlp': { type: 'string' },
@@ -111,7 +135,7 @@ export const parseCliArgs = (argv: string[]): CliOptions => {
       'no-timestamps': { type: 'boolean' },
       metadata: { type: 'boolean' },
       'no-metadata': { type: 'boolean' },
-      stdout: { type: 'boolean' },
+      stdout: { type: 'boolean', short: 's' },
       concurrency: { type: 'string', short: 'c' },
       force: { type: 'boolean' },
       'check-only': { type: 'boolean' },
@@ -127,12 +151,13 @@ export const parseCliArgs = (argv: string[]): CliOptions => {
     return baseOptions('help', parsed.positionals, parsed.values);
   }
 
-  const [command, ...positional] = parsed.positionals;
-  if (!commands.has(command)) {
-    throw new CliUsageError(`Unknown command: ${command}`);
+  const [rawCommand, ...positional] = parsed.positionals;
+  const command = commandAliases[rawCommand];
+  if (!command || !commands.has(rawCommand)) {
+    throw new CliUsageError(`Unknown command: ${rawCommand}`);
   }
 
-  const options = baseOptions(command as CliCommand, positional, parsed.values);
+  const options = baseOptions(command, positional, parsed.values);
   validateCommand(options);
   return options;
 };

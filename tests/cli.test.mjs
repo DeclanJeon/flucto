@@ -59,6 +59,29 @@ test('CLI parser handles setup and update commands', () => {
   assert.equal(apply.assetPath, '/tmp/Flucto.AppImage');
 });
 
+test('CLI parser accepts short command and option aliases', () => {
+  const download = parseCliArgs(['d', 'https://example.test/video', '-f', 'mp3', '-o', '/tmp/out', '-j']);
+  assert.equal(download.command, 'download');
+  assert.equal(download.format, 'mp3');
+  assert.equal(download.outputDir, '/tmp/out');
+  assert.equal(download.json, true);
+
+  const transcript = parseCliArgs(['t', 'https://example.test/video', '-l', 'auto', '-s', '-j']);
+  assert.equal(transcript.command, 'transcript');
+  assert.equal(transcript.language, 'auto');
+  assert.equal(transcript.stdout, true);
+  assert.equal(transcript.json, true);
+
+  const languages = parseCliArgs(['l', 'https://example.test/video']);
+  assert.equal(languages.command, 'languages');
+
+  const doctor = parseCliArgs(['doc']);
+  assert.equal(doctor.command, 'doctor');
+
+  const version = parseCliArgs(['v']);
+  assert.equal(version.command, 'version');
+});
+
 test('batch parser matches desktop comment and blank-line rules', () => {
   assert.deepEqual(
     parseBatchFileContent('\n# comment\nhttps://one.example\n; skipped\n] skipped\n https://two.example \n'),

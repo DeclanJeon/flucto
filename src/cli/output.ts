@@ -16,9 +16,29 @@ Usage:
   flucto update apply --asset PATH [--json]
   flucto --version
 
+Short form:
+  fl d <url> [-f mp4|mp3] [-o DIR] [-j]
+  fl t <url> [-l en|ko|ja|zh|auto] [-s] [-j]
+  fl i <url> [-j]
+  fl f <url> [-j]
+  fl l <url> [-j]
+  fl b <file> [-f mp4|mp3|md] [-c N] [-o DIR] [-j]
+  fl doc [-j]
+  fl s [-j]
+  fl u check|download|apply [-j]
+
+Command aliases:
+  d=download, b=batch, t=transcript, i=info, f=formats, l=languages
+  doc=doctor, s=setup, u=update, h=help, v=version
+
 Global options:
-  --json                 Emit final result as JSON to stdout
-  --progress-json        Emit progress events as NDJSON to stderr
+  --json, -j             Emit final result as JSON to stdout
+  --progress-json, -p    Emit progress events as NDJSON to stderr
+  --format, -f VALUE     Output format: mp4, mp3, or md where supported
+  --quality, -q VALUE    Video quality preset
+  --audio-quality, -a VALUE
+  --language, -l VALUE   Transcript language code or auto
+  --stdout, -s           Write transcript Markdown to stdout
   --output-dir, -o DIR   Output directory (default: FLUCTO_OUTPUT_DIR or cwd)
   --bin-dir DIR          Directory containing yt-dlp and ffmpeg
   --yt-dlp PATH          Explicit yt-dlp binary path

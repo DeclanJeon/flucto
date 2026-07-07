@@ -72,7 +72,7 @@ Markdown conversion is caption-based. If a platform or video does not expose cap
 
 ## CLI Mode
 
-Flucto ships a `flucto` command for automation, batch jobs, and AI-agent workflows. The CLI uses the same TypeScript service layer as the desktop app; it does not launch the Electron window and does not call desktop IPC handlers.
+Flucto ships `flucto` and the shorter `fl` command for automation, batch jobs, and AI-agent workflows. The CLI uses the same TypeScript service layer as the desktop app; it does not launch the Electron window and does not call desktop IPC handlers.
 
 ### Build and run locally
 
@@ -82,7 +82,7 @@ npm run build:electron
 npm run cli -- --help
 ```
 
-Packaged releases expose the same command as `flucto` through `package.json`'s `bin` entry.
+Packaged releases expose both commands through `package.json`'s `bin` entry. Short command aliases are available for common flows: `fl d` = download, `fl t` = transcript, `fl i` = info, `fl f` = formats, `fl l` = languages, `fl b` = batch, `fl doc` = doctor, `fl s` = setup, and `fl u` = update.
 
 ### Commands
 
@@ -104,33 +104,33 @@ Packaged releases expose the same command as `flucto` through `package.json`'s `
 
 ```bash
 # Check bundled or configured binaries
-flucto doctor --json
+fl doc -j
 
 # Provision managed binaries without touching system package managers
-flucto setup --json
-flucto setup --check-only --bin-dir ./bin --json
+fl s -j
+fl s --check-only --bin-dir ./bin -j
 
 # Inspect a media URL before downloading
-flucto info "https://www.youtube.com/watch?v=..." --json
-flucto formats "https://www.youtube.com/watch?v=..."
+fl i "https://www.youtube.com/watch?v=..." -j
+fl f "https://www.youtube.com/watch?v=..."
 
 # Download video or audio
-flucto download "https://www.youtube.com/watch?v=..." --format mp4 --output-dir ./captures --json
-flucto download "https://www.youtube.com/watch?v=..." --format mp3 --output-dir ./audio --json
+fl d "https://www.youtube.com/watch?v=..." -f mp4 -o ./captures -j
+fl d "https://www.youtube.com/watch?v=..." -f mp3 -o ./audio -j
 
 # Convert captions/subtitles to Markdown
-flucto languages "https://www.youtube.com/watch?v=..." --json
-flucto transcript "https://www.youtube.com/watch?v=..." --language en --output-dir ./notes --json
-flucto transcript "https://www.youtube.com/watch?v=..." --language auto --stdout > transcript.md
+fl l "https://www.youtube.com/watch?v=..." -j
+fl t "https://www.youtube.com/watch?v=..." -l en -o ./notes -j
+fl t "https://www.youtube.com/watch?v=..." -l auto -s > transcript.md
 
 # Process URL lists
-flucto batch urls.txt --format mp4 --concurrency 2 --output-dir ./captures --json
-flucto batch urls.txt --format md --concurrency 2 --output-dir ./notes --json
+fl b urls.txt -f mp4 -c 2 -o ./captures -j
+fl b urls.txt -f md -c 2 -o ./notes -j
 
 # Check and download GitHub release updates from CLI
-flucto update check --json
-flucto update download --output-dir ~/Downloads --json
-flucto update apply --asset ~/Downloads/Flucto-1.9.2-x86_64.AppImage --json
+fl u check -j
+fl u download -o ~/Downloads -j
+fl u apply --asset ~/Downloads/Flucto-1.9.2-x86_64.AppImage -j
 ```
 
 `batch` files are plain text. Empty lines and lines starting with `#`, `;`, or `]` are ignored, so URL lists can contain comments:

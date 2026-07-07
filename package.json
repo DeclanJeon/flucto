@@ -17,7 +17,8 @@
   "type": "module",
   "main": "./dist-electron/main/index.js",
   "bin": {
-    "flucto": "./dist-electron/cli/index.js"
+    "flucto": "./dist-electron/cli/index.js",
+    "fl": "./dist-electron/cli/index.js"
   },
   "author": "Flucto Team",
   "scripts": {
