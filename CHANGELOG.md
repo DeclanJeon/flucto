@@ -1,3 +1,15 @@
+# [1.10.0](https://github.com/DeclanJeon/flucto/compare/v1.9.1...v1.10.0) (2026-07-07)
+
+
+### Bug Fixes
+
+* **ci:** keep release binary setup controlled ([9a168a3](https://github.com/DeclanJeon/flucto/commit/9a168a3dc904cfab3fed4caf69b09bec825602f3))
+
+
+### Features
+
+* **cli:** make install recovery and CLI updates self-service ([b8b0bda](https://github.com/DeclanJeon/flucto/commit/b8b0bda572371ecabbfd5980e8d0c68c091e8c50))
+
 ## [1.9.1](https://github.com/DeclanJeon/flucto/compare/v1.9.0...v1.9.1) (2026-07-07)
 
 
