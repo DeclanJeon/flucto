@@ -1,5 +1,4 @@
 import { execa } from '../spawn.js';
-import { getBinaryPath } from '../utils.js';
 
 export type YtDlpMetadata = Record<string, unknown>;
 
@@ -132,8 +131,7 @@ export const parseLastJsonObjectFromStdout = (stdout: string): YtDlpMetadata => 
   throw new Error('Could not parse yt-dlp JSON output');
 };
 
-export const runYtDlpJson = async (url: string, extraArgs: string[]): Promise<YtDlpMetadata> => {
-  const ytDlpPath = getBinaryPath('yt-dlp');
+export const runYtDlpJson = async (url: string, extraArgs: string[], ytDlpPath: string): Promise<YtDlpMetadata> => {
   const referer = getRefererForUrl(url);
   const result = await execa(
     ytDlpPath,

@@ -11,6 +11,8 @@ import type { DownloadRequest, DownloadQualityPreferences, DownloadSettings, For
 import { settingsStore, getStoredDownloadSettings } from './store.js';
 import { appendHistoryEntry, clearHistory, getHistoryEntries } from './historyStore.js';
 import { getCommonYtDlpArgs, getRefererForUrl, parseLastJsonObjectFromStdout } from './media/ytDlp.js';
+import { runMediaDownload } from './services/mediaDownload.js';
+import type { BinaryResolver } from './services/binaryResolver.js';
 import './handlers.js';
 import './transcript/transcriptHandlers.js';
 const __filename = fileURLToPath(import.meta.url);
@@ -124,6 +126,11 @@ const showDesktopNotification = (title: string, body: string): void => {
   }
 };
 
+const getDesktopBinaries = (): BinaryResolver => ({
+  ytDlpPath: getBinaryPath("yt-dlp"),
+  ffmpegPath: getBinaryPath("ffmpeg"),
+});
+
 // 가비지 컬렉션 방지를 위한 전역 변수
 let mainWindow: BrowserWindow | null = null;
 
@@ -230,17 +237,15 @@ const extractBestThumbnail = (info: YtDlpMetadata): string | null => {
     info.thumbnails.length > 0
   ) {
     // url 필드가 있는 마지막 아이템을 찾음
-    const validItems = info.thumbnails.filter(
-      (thumbnail) =>
-        typeof thumbnail === "object" &&
-        thumbnail !== null &&
-        "url" in thumbnail &&
-        typeof (thumbnail as { url: unknown }).url === "string",
-    ) as Array<{ url: unknown }>;
+    const validItems = info.thumbnails.filter((thumbnail): thumbnail is { url: string } => {
+      if (typeof thumbnail !== "object" || thumbnail === null || !("url" in thumbnail)) {
+        return false;
+      }
+      return typeof thumbnail.url === "string";
+    });
     if (validItems.length > 0) {
       const candidate = validItems[validItems.length - 1];
-      const candidateUrl = candidate?.url;
-      return typeof candidateUrl === "string" ? candidateUrl : null;
+      return candidate?.url ?? null;
     }
   }
 
@@ -901,158 +906,49 @@ ipcMain.handle("clear-download-history", async () => {
 
 ipcMain.handle("download-single", async (event, args: { url: string; format: 'mp4' | 'mp3'; requestId: string; title?: string; quality?: DownloadQualityPreferences; formatOverrides?: { videoFormatId: string | null; audioFormatId: string | null } }) => {
   const { url, format, requestId, title } = args;
-  
-  const ytDlpPath = getBinaryPath("yt-dlp");
-  const ffmpegPath = getBinaryPath("ffmpeg");
-  
   const settings = getStoredDownloadSettings();
   const downloadsPath = settings.downloadsDirectory || config.paths.downloads;
-  const outputTemplate = path.join(downloadsPath, "%(title)s.%(ext)s");
   const quality = args.quality ?? settings.qualityPreferences;
   const formatOverrides = args.formatOverrides ?? settings.formatOverrides;
 
   logger.info(`Starting single download: ${url} (Format: ${format}, RequestId: ${requestId})`);
   showDesktopNotification('Download Started', title || 'Download has started.');
 
-  try {
-    const referer = getRefererForUrl(url) ?? "";
-
-    const downloadArgs = [
+  const response = await runMediaDownload(
+    {
       url,
-      "--output", outputTemplate,
-      "--encoding", "utf-8",
-      "--no-check-certificates",
-      "--no-warnings",
-      "--newline",
-      "--no-playlist",
-      "--force-overwrites",
-      ...(referer ? ["--add-header", `referer:${referer}`] : []),
-      "--ffmpeg-location", path.dirname(ffmpegPath),
-      ...getCommonYtDlpArgs(url),
-    ];
-
-    if (format === "mp3") {
-      const resolvedAudioOverrideId = isInstagramUrl(url) ? null : formatOverrides.audioFormatId;
-      if (resolvedAudioOverrideId) {
-        downloadArgs.push("--format", resolvedAudioOverrideId);
-      }
-      const resolvedAudioQuality = getAudioQualityValue(quality.audio);
-      downloadArgs.push(
-        "--extract-audio",
-        "--audio-format", "mp3",
-        "--audio-quality", resolvedAudioQuality,
-      );
-      logger.info('Single download audio selection', {
-        requestId,
-        url,
-        preset: quality.audio,
-        overrideFormatId: resolvedAudioOverrideId,
-        resolvedAudioQuality,
-      });
-    } else {
-      const resolvedVideoSelector = getResolvedVideoFormatSelector(
-        url,
-        quality.video,
-        formatOverrides.videoFormatId,
-      );
-      downloadArgs.push(
-        "--format",
-        resolvedVideoSelector,
-        "--merge-output-format",
-        "mp4",
-      );
-      logger.info('Single download video selection', {
-        requestId,
-        url,
-        preset: quality.video,
-        overrideFormatId: isInstagramUrl(url) ? null : formatOverrides.videoFormatId,
-        resolvedVideoSelector,
-      });
-    }
-
-    event.sender.send("download-progress", {
-      requestId,
-      url,
-      status: "downloading",
-      progress: 0,
-      title: title || "Downloading...",
-    });
-
-    const subprocess = execa(ytDlpPath, downloadArgs);
-    let finalFilePath: string | undefined;
-
-    subprocess.stdout?.on("data", (data) => {
-      const output = data.toString();
-      const progressMatch = output.match(/(\d+\.?\d*)%.*?(\d+\.?\d*\w+\/s).*?ETA\s+(\d+:\d+)/);
-      if (progressMatch) {
-        event.sender.send("download-progress", {
-          requestId,
-          url,
-          status: "downloading",
-          progress: parseFloat(progressMatch[1]),
-          speed: progressMatch[2],
-          eta: progressMatch[3],
-          title: title || "Downloading...",
-        });
-      }
-      const filePathMatch = output.match(/\[Merger\].*?-> (.+\.mp4)|Merging formats into.*?"(.+\.mp4)"/);
-      if (filePathMatch) {
-        finalFilePath = filePathMatch[1] || filePathMatch[2];
-      }
-    });
-
-    await subprocess;
-
-    const historyEntry = {
-      id: requestId,
-      url,
-      title: title || "Downloaded Media",
-      timestamp: Date.now(),
-      status: "success" as const,
-      filePath: finalFilePath || outputTemplate,
       format,
-    };
-    appendHistoryEntry(historyEntry);
-
-    event.sender.send("download-progress", {
+      outputDir: downloadsPath,
+      quality,
+      formatOverrides,
       requestId,
-      url,
-      status: "completed",
-      progress: 100,
-      filePath: finalFilePath || outputTemplate,
-      title: title || "Download Complete",
-    });
+      title,
+    },
+    {
+      binaries: getDesktopBinaries(),
+      onProgress: (progress) => {
+        event.sender.send("download-progress", progress);
+      },
+    },
+  );
 
+  appendHistoryEntry({
+    id: requestId,
+    url,
+    title: title || (response.success ? "Downloaded Media" : "Failed Download"),
+    timestamp: Date.now(),
+    status: response.success ? "success" : "error",
+    filePath: response.filePath ?? null,
+    errorMessage: response.success ? undefined : response.message,
+    format,
+  });
+
+  if (response.success) {
     showDesktopNotification('Download Complete', title || 'Your media has been downloaded successfully.');
-
-    return { success: true, message: "Download Complete!", filePath: finalFilePath || outputTemplate };
-  } catch (error: unknown) {
-    const errorMessage = getErrorMessage(error);
-    logger.error("Download Single Error:", { error: errorMessage });
-
-    const historyEntry = {
-      id: requestId,
-      url,
-      title: title || "Failed Download",
-      timestamp: Date.now(),
-      status: "error" as const,
-      filePath: null,
-      errorMessage,
-      format,
-    };
-    appendHistoryEntry(historyEntry);
-
-    event.sender.send("download-progress", {
-      requestId,
-      url,
-      status: "error",
-      progress: 0,
-      error: errorMessage,
-      title: title || "Download Failed",
-    });
-
-    showDesktopNotification('Download Failed', errorMessage);
-
-    return { success: false, message: errorMessage };
+  } else {
+    logger.error("Download Single Error:", { error: response.message });
+    showDesktopNotification('Download Failed', response.message);
   }
+
+  return { success: response.success, message: response.message, filePath: response.filePath };
 });

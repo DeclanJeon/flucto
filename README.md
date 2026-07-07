@@ -49,6 +49,33 @@
 
 Markdown conversion is caption-based. If a platform or video does not expose captions/subtitles through `yt-dlp`, Flucto reports the transcript as unavailable instead of silently falling back to speech-to-text. No Python/FastAPI server, Whisper runtime, or external transcription service is embedded.
 
+## CLI Mode
+
+Flucto also ships a `flucto` command for automation and AI-agent workflows. The CLI uses the same TypeScript service layer as the desktop app; it does not launch the Electron window or import desktop IPC handlers.
+
+```bash
+# Check bundled or configured binaries
+flucto doctor --json
+
+# Download media
+flucto download "https://www.youtube.com/watch?v=..." --format mp4 --output-dir ./captures
+flucto download "https://www.youtube.com/watch?v=..." --format mp3 --json
+
+# Convert captions/subtitles to Markdown
+flucto transcript "https://www.youtube.com/watch?v=..." --language en --stdout > transcript.md
+flucto transcript "https://www.youtube.com/watch?v=..." --language auto --json
+
+# Process URL lists
+flucto batch urls.txt --format md --concurrency 2 --output-dir ./notes --json
+```
+
+Useful CLI flags:
+
+- `--json`: writes the final result object to stdout.
+- `--progress-json`: writes progress events as newline-delimited JSON to stderr.
+- `--bin-dir`, `--yt-dlp`, `--ffmpeg`: override binary discovery when running outside the packaged app.
+- `FLUCTO_OUTPUT_DIR`: sets the default output directory when `--output-dir` is omitted.
+
 ## Recent Updates
 
 ### v1.7.1

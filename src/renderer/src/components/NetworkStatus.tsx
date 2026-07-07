@@ -30,7 +30,7 @@ export function NetworkStatus() {
     const handleNetworkChange = (event: NetworkStatusEvent | { detail: NetworkStatusEvent }) => {
       const payload = isNetworkStatusEvent(event)
         ? event
-        : (event as { detail?: NetworkStatusEvent }).detail;
+        : event.detail;
 
       if (!isNetworkStatusEvent(payload)) {
         return;

@@ -2,8 +2,6 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { execa } from '../spawn.js';
-import { getBinaryPath } from '../utils.js';
-import { logger } from '../logger.js';
 import { getCommonYtDlpArgs, getRefererForUrl, runYtDlpJson, type YtDlpMetadata } from '../media/ytDlp.js';
 import { CircuitBreaker } from './circuitBreaker.js';
 import { TranscriptCache } from './transcriptCache.js';
@@ -240,16 +238,16 @@ const buildMetadata = (info: YtDlpMetadata, url: string, language: string): Tran
   };
 };
 
-const fetchCaptionInfo = async (url: string): Promise<YtDlpMetadata> => {
-  return runYtDlpJson(url, ['--skip-download', '--no-playlist']);
+const fetchCaptionInfo = async (url: string, binaries?: { ytDlpPath?: string }): Promise<YtDlpMetadata> => {
+  return runYtDlpJson(url, ['--skip-download', '--no-playlist'], binaries?.ytDlpPath ?? 'yt-dlp');
 };
 
-export const listCaptionLanguages = async (url: string): Promise<CaptionLanguage[]> => {
-  const info = await fetchCaptionInfo(url);
+export const listCaptionLanguages = async (url: string, binaries?: { ytDlpPath?: string }): Promise<CaptionLanguage[]> => {
+  const info = await fetchCaptionInfo(url, binaries);
   return listCaptionLanguagesFromInfo(info);
 };
 
-export const extractTranscript = async (url: string, requestedLanguage?: string | null): Promise<TranscriptExtractionResult> => {
+export const extractTranscript = async (url: string, requestedLanguage?: string | null, binaries?: { ytDlpPath?: string }): Promise<TranscriptExtractionResult> => {
   let parsedUrl: URL;
   try {
     parsedUrl = new URL(url);
@@ -273,7 +271,7 @@ export const extractTranscript = async (url: string, requestedLanguage?: string 
 
   let tmpDir: string | null = null;
   try {
-    const info = await fetchCaptionInfo(url);
+    const info = await fetchCaptionInfo(url, binaries);
     const availableLanguages = listCaptionLanguagesFromInfo(info);
     const resolvedLanguage = resolveCaptionLanguage(info, requestedLanguage);
     if (!resolvedLanguage) {
@@ -281,9 +279,9 @@ export const extractTranscript = async (url: string, requestedLanguage?: string 
     }
 
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flucto-transcript-'));
-    const ytDlpPath = getBinaryPath('yt-dlp');
+    const ytDlpPath = binaries?.ytDlpPath ?? 'yt-dlp';
     const referer = getRefererForUrl(url);
-    const result = await execa(
+    await execa(
       ytDlpPath,
       [
         url,
@@ -303,10 +301,6 @@ export const extractTranscript = async (url: string, requestedLanguage?: string 
       ],
       { reject: false },
     );
-
-    if (result.failed) {
-      logger.warn('yt-dlp subtitle extraction exited non-zero', { url, stderr: result.stderr });
-    }
 
     const files = fs.readdirSync(tmpDir)
       .map((file) => path.join(tmpDir as string, file))

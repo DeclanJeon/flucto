@@ -1,24 +1,21 @@
 import Store from 'electron-store';
 import type { DownloadQualityPreferences, TranscriptSettings, UpdateSettings } from '../shared/types.js';
+import {
+  defaultTranscriptSettings,
+  getDownloadSettingsDefaults,
+  getTranscriptSettingsDefaults,
+  getUpdateSettingsDefaults,
+  isQualityPreferences,
+  isTranscriptSettings,
+  isUpdateSettings,
+} from './services/settingsDefaults.js';
 
-const defaultUpdateSettings: UpdateSettings = {
-  autoUpdate: true,
-  checkInterval: 86400000,
-  notifyOnUpdateReady: true,
-};
-
-const defaultQualityPreferences: DownloadQualityPreferences = {
-  video: '1080p',
-  audio: '320kbps',
-};
-
-const defaultTranscriptSettings: TranscriptSettings = {
-  language: 'en',
-  includeTimestamps: true,
-  includeMetadata: true,
-  paragraphGapSeconds: 3,
-  saveMarkdownFile: true,
-  copyMarkdownToClipboard: false,
+export {
+  getDownloadSettingsDefaults,
+  getTranscriptSettingsDefaults,
+  getUpdateSettingsDefaults,
+  isTranscriptSettings,
+  isUpdateSettings,
 };
 
 type FluctoSettingsStore = {
@@ -39,36 +36,13 @@ type FluctoSettingsStore = {
 export const settingsStore = new Store<FluctoSettingsStore>({
   name: 'flucto-settings',
   defaults: {
-    updateSettings: defaultUpdateSettings,
+    updateSettings: getUpdateSettingsDefaults(),
     lastAppUpdateCheckAt: 0,
-    downloadSettings: {
-      downloadsDirectory: null,
-      qualityPreferences: { ...defaultQualityPreferences },
-      formatOverrides: {
-        videoFormatId: null,
-        audioFormatId: null,
-      },
-      notifyPerItemInBatch: false,
-    },
-    transcriptSettings: { ...defaultTranscriptSettings },
+    downloadSettings: getDownloadSettingsDefaults(),
+    transcriptSettings: getTranscriptSettingsDefaults(),
   },
 });
 
-export const getUpdateSettingsDefaults = (): UpdateSettings => ({
-  ...defaultUpdateSettings,
-});
-
-export const isUpdateSettings = (value: unknown): value is UpdateSettings => {
-  if (!value || typeof value !== 'object') return false;
-  const candidate = value as Record<string, unknown>;
-  return (
-    typeof candidate.autoUpdate === 'boolean' &&
-    typeof candidate.checkInterval === 'number' &&
-    Number.isInteger(candidate.checkInterval) &&
-    candidate.checkInterval > 0 &&
-    typeof candidate.notifyOnUpdateReady === 'boolean'
-  );
-};
 
 const isLegacyUpdateSettings = (value: unknown): value is {
   autoUpdate: boolean;
@@ -124,24 +98,6 @@ export const markAutoUpdateCheckNow = (): void => {
   settingsStore.set('lastAppUpdateCheckAt', Date.now());
 };
 
-const isQualityPreferences = (value: unknown): value is DownloadQualityPreferences => {
-  if (!value || typeof value !== 'object') return false;
-  const candidate = value as Record<string, unknown>;
-  return (
-    typeof candidate.video === 'string' &&
-    typeof candidate.audio === 'string'
-  );
-};
-
-const getDownloadSettingsDefaults = () => ({
-  downloadsDirectory: null,
-  qualityPreferences: { ...defaultQualityPreferences },
-  formatOverrides: {
-    videoFormatId: null,
-    audioFormatId: null,
-  },
-  notifyPerItemInBatch: false,
-});
 
 const isDownloadSettings = (value: unknown): value is { downloadsDirectory: string | null; qualityPreferences: DownloadQualityPreferences } => {
   if (!value || typeof value !== 'object') return false;
@@ -178,24 +134,6 @@ export const getStoredDownloadSettings = (): {
   return defaults;
 };
 
-export const getTranscriptSettingsDefaults = (): TranscriptSettings => ({
-  ...defaultTranscriptSettings,
-});
-
-export const isTranscriptSettings = (value: unknown): value is TranscriptSettings => {
-  if (!value || typeof value !== 'object') return false;
-  const candidate = value as Record<string, unknown>;
-  return (
-    (candidate.language === null || typeof candidate.language === 'string') &&
-    typeof candidate.includeTimestamps === 'boolean' &&
-    typeof candidate.includeMetadata === 'boolean' &&
-    typeof candidate.paragraphGapSeconds === 'number' &&
-    Number.isFinite(candidate.paragraphGapSeconds) &&
-    candidate.paragraphGapSeconds >= 0 &&
-    typeof candidate.saveMarkdownFile === 'boolean' &&
-    typeof candidate.copyMarkdownToClipboard === 'boolean'
-  );
-};
 
 export const getStoredTranscriptSettings = (): TranscriptSettings => {
   const stored: unknown = settingsStore.get('transcriptSettings');

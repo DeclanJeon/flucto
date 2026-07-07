@@ -16,6 +16,9 @@
   ],
   "type": "module",
   "main": "./dist-electron/main/index.js",
+  "bin": {
+    "flucto": "./dist-electron/cli/index.js"
+  },
   "author": "Flucto Team",
   "scripts": {
     "dev": "npm run build:electron && concurrently \"npm run dev:vite\" \"npm run dev:electron\"",
@@ -45,6 +48,7 @@
     "supabase:smoke": "node scripts/supabase-smoke-check.mjs",
     "postinstall": "node scripts/setup-binaries.mjs",
     "lint": "eslint .",
+    "cli": "node dist-electron/cli/index.js",
     "test": "npm run build:electron && node --import ./tests/electron-stub-loader.mjs --test tests/*.test.mjs",
     "preview": "vite preview"
   },
