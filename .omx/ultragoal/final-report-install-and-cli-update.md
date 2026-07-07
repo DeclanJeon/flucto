@@ -18,6 +18,7 @@ Implemented Flucto install/setup reliability and CLI GitHub update support based
 - `flucto setup --force` redownloads managed binaries only; explicit/env binary overrides are validation-only and are never overwritten.
 - `flucto doctor --json` now includes actionable `fix` guidance when invalid.
 - CLI binary resolution now defaults to Flucto managed bin dir while preserving explicit/env/bin-dir overrides.
+- Runtime setup now has a Linux FFmpeg fallback source when the johnvansickle static archive is unavailable.
 
 ### CLI GitHub update support
 
@@ -38,10 +39,15 @@ Implemented Flucto install/setup reliability and CLI GitHub update support based
 - `getBinaryPath()` now skips non-executable candidates and can fall through to a repaired managed binary.
 - Desktop app updates remain on `electron-updater` through `initializeAutoUpdater()`.
 
-### Release metadata and docs
+### Release metadata and CI reliability
 
 - `.github/workflows/release.yml` now generates `release/checksums-sha256.txt`.
 - `.releaserc.json` publishes the checksum manifest as a GitHub release asset.
+- Release dependency install now uses `npm install --ignore-scripts`; the workflow runs binary setup explicitly in the controlled `Setup Binaries` step.
+- `scripts/setup-binaries.mjs` now validates HTTP download status, uses a Flucto user-agent, cleans partial downloads, and falls back to BtbN Linux FFmpeg builds if johnvansickle is unavailable or returns a bad archive.
+
+### Docs
+
 - `README.md` documents `flucto setup`, `flucto update`, managed bin dirs, resolution order, and conservative apply behavior.
 
 ## Changed Files
@@ -57,6 +63,7 @@ Implemented Flucto install/setup reliability and CLI GitHub update support based
 - `src/cli/output.ts`
 - `src/main/utils.ts`
 - `src/main/index.ts`
+- `scripts/setup-binaries.mjs`
 
 ### Tests
 
@@ -77,7 +84,7 @@ Implemented Flucto install/setup reliability and CLI GitHub update support based
 
 ## Verification Evidence
 
-Final verification after blocker fixes:
+Final local verification after blocker fixes and release workflow/setup fallback fix:
 
 ```text
 npm test
@@ -139,6 +146,13 @@ Re-review results:
 - Checksum boundary: manifest presence now requires successful selected-asset verification.
 - Non-mutating apply boundary: unsupported update apply returns `applied:false` and instructions.
 
+## Remote Release Workflow Evidence
+
+- First push of `b8b0bda` triggered release workflow `28842780318`.
+- That run failed during `npm install` because `postinstall` downloaded a non-tar Linux FFmpeg payload from johnvansickle and attempted extraction.
+- Fix applied: disable install scripts during workflow dependency install, run setup explicitly, add HTTP validation and Linux FFmpeg fallback to setup paths.
+- Final push/run result is reported in the final chat response after GitHub Actions completes.
+
 ## Known Limits
 
 - `flucto update apply` remains intentionally conservative and does not auto-replace packaged installers/AppImages/deb installs.
@@ -147,4 +161,5 @@ Re-review results:
 
 ## Commit and Push
 
-Pending at report-write time. Final chat response will include the commit and push result.
+Initial implementation commit: `b8b0bda`.
+Workflow-fix commit and final push status are reported in the final chat response after the remote release gate completes.

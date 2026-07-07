@@ -74,7 +74,7 @@ jobs:
           corepack prepare pnpm@latest --activate
 
       - name: Install Dependencies
-        run: npm install
+        run: npm install --ignore-scripts
 
       - name: Setup Binaries
         run: npm run postinstall

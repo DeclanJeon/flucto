@@ -40,7 +40,7 @@ interface UtilitySpec {
   name: UtilityName;
   executableName: string;
   versionArgs: string[];
-  downloadUrl: string;
+  downloadUrls: string[];
   archiveMember?: string;
 }
 interface ZipEntry {
@@ -87,24 +87,27 @@ const utilitySpecs = (): UtilitySpec[] => {
       ? 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos'
       : 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp';
 
-  const ffmpegUrl = platform === 'win32'
-    ? 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip'
+  const ffmpegUrls = platform === 'win32'
+    ? ['https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip']
     : platform === 'darwin'
-      ? 'https://evermeet.cx/ffmpeg/getrelease/zip'
-      : `https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz`;
+      ? ['https://evermeet.cx/ffmpeg/getrelease/zip']
+      : [
+        'https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz',
+        'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz',
+      ];
 
   return [
     {
       name: 'yt-dlp',
       executableName: executableName('yt-dlp'),
       versionArgs: ['--version'],
-      downloadUrl: ytDlpUrl,
+      downloadUrls: [ytDlpUrl],
     },
     {
       name: 'ffmpeg',
       executableName: executableName('ffmpeg'),
       versionArgs: ['-version'],
-      downloadUrl: ffmpegUrl,
+      downloadUrls: ffmpegUrls,
       archiveMember: platform === 'win32' || platform === 'darwin' ? executableName('ffmpeg') : 'ffmpeg',
     },
   ];
@@ -175,12 +178,12 @@ const findFileNamed = (directory: string, filename: string): string | null => {
   return null;
 };
 
-const provisionUtility = async (spec: UtilitySpec, targetPath: string, onStatus?: (message: string) => void): Promise<void> => {
+const provisionUtilityFromUrl = async (spec: UtilitySpec, url: string, targetPath: string, onStatus?: (message: string) => void): Promise<void> => {
   const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'flucto-download-'));
-  const archivePath = path.join(tempDir, path.basename(new URL(spec.downloadUrl).pathname) || `${spec.name}.download`);
+  const archivePath = path.join(tempDir, path.basename(new URL(url).pathname) || `${spec.name}.download`);
   try {
     onStatus?.(`Downloading ${spec.name}...`);
-    await downloadFile(spec.downloadUrl, archivePath);
+    await downloadFile(url, archivePath);
     if (spec.name === 'yt-dlp') {
       await fs.promises.copyFile(archivePath, targetPath);
     } else if (process.platform === 'linux') {
@@ -192,6 +195,19 @@ const provisionUtility = async (spec: UtilitySpec, targetPath: string, onStatus?
   } finally {
     await fs.promises.rm(tempDir, { recursive: true, force: true });
   }
+};
+
+const provisionUtility = async (spec: UtilitySpec, targetPath: string, onStatus?: (message: string) => void): Promise<void> => {
+  const errors: string[] = [];
+  for (const url of spec.downloadUrls) {
+    try {
+      await provisionUtilityFromUrl(spec, url, targetPath, onStatus);
+      return;
+    } catch (error: unknown) {
+      errors.push(error instanceof Error ? error.message : String(error));
+    }
+  }
+  throw new Error(`Failed to provision ${spec.name}: ${errors.join(' | ')}`);
 };
 
 const managedTargetPath = (binDir: string, name: UtilityName): string => path.join(binDir, executableName(name));

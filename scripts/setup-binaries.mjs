@@ -18,24 +18,45 @@ const URLS = {
     // Using reliable sources for FFmpeg binaries
     win32: 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip',
     darwin: 'https://evermeet.cx/ffmpeg/ffmpeg-6.0.zip',
-    linux: 'https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz',
+    linux: [
+      'https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz',
+      'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz',
+    ],
   }
 };
 
 async function downloadFile(url, destPath) {
   const writer = fs.createWriteStream(destPath);
-  const response = await axios({
-    url,
-    method: 'GET',
-    responseType: 'stream',
-  });
+  try {
+    const response = await axios({
+      url,
+      method: 'GET',
+      responseType: 'stream',
+      timeout: 120000,
+      maxRedirects: 5,
+      headers: {
+        'User-Agent': `Flucto binary setup (${OS})`,
+        Accept: 'application/octet-stream,*/*',
+      },
+      validateStatus: (status) => status >= 200 && status < 300,
+    });
 
-  response.data.pipe(writer);
+    response.data.pipe(writer);
 
-  return new Promise((resolve, reject) => {
-    writer.on('finish', resolve);
-    writer.on('error', reject);
-  });
+    await new Promise((resolve, reject) => {
+      writer.on('finish', resolve);
+      writer.on('error', reject);
+      response.data.on('error', reject);
+    });
+  } catch (error) {
+    writer.destroy();
+    try {
+      fs.rmSync(destPath, { force: true });
+    } catch {
+      // Best-effort cleanup only.
+    }
+    throw new Error(`Failed to download ${url}: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 async function extractZip(zipPath, extractTo) {
@@ -49,6 +70,19 @@ async function extractTar(tarPath, extractTo) {
   const { execSync } = await import('child_process');
   execSync(`tar -xf "${tarPath}" -C "${extractTo}"`, { stdio: 'inherit' });
   return true;
+}
+
+function findFileNamed(directory, filename) {
+  const entries = fs.readdirSync(directory, { withFileTypes: true });
+  for (const entry of entries) {
+    const candidate = path.join(directory, entry.name);
+    if (entry.isFile() && entry.name === filename) return candidate;
+    if (entry.isDirectory()) {
+      const nested = findFileNamed(candidate, filename);
+      if (nested) return nested;
+    }
+  }
+  return null;
 }
 
 async function setup() {
@@ -125,25 +159,32 @@ async function setup() {
       execSync(`chmod +x "${ffmpegPath}"`);
       console.log(`✅ FFmpeg ready.`);
     } else {
-      const tarPath = path.join(BIN_DIR, 'ffmpeg.tar.xz');
-      await downloadFile(URLS.ffmpeg.linux, tarPath);
-      await extractTar(tarPath, BIN_DIR);
-      
-      // Find the ffmpeg binary in the extracted folder
-      const extractedFiles = fs.readdirSync(BIN_DIR);
-      const ffmpegDir = extractedFiles.find(f => f.startsWith('ffmpeg-') && fs.statSync(path.join(BIN_DIR, f)).isDirectory());
-      
-      if (ffmpegDir) {
-        const extractedFfmpegPath = path.join(BIN_DIR, ffmpegDir, 'ffmpeg');
-        if (fs.existsSync(extractedFfmpegPath)) {
+      let lastError = null;
+      for (const url of URLS.ffmpeg.linux) {
+        const tarPath = path.join(BIN_DIR, path.basename(new URL(url).pathname));
+        const extractTemp = path.join(BIN_DIR, `ffmpeg-linux-${Date.now()}`);
+        try {
+          await downloadFile(url, tarPath);
+          fs.mkdirSync(extractTemp, { recursive: true });
+          await extractTar(tarPath, extractTemp);
+          const extractedFfmpegPath = findFileNamed(extractTemp, 'ffmpeg');
+          if (!extractedFfmpegPath) {
+            throw new Error(`ffmpeg not found in ${url}`);
+          }
           fs.copyFileSync(extractedFfmpegPath, ffmpegPath);
           execSync(`chmod +x "${ffmpegPath}"`);
-          // Clean up the extracted directory
-          fs.rmSync(path.join(BIN_DIR, ffmpegDir), { recursive: true, force: true });
           console.log(`✅ FFmpeg ready.`);
+          lastError = null;
+          break;
+        } catch (error) {
+          lastError = error;
+          console.warn(`⚠️  FFmpeg source failed: ${url}`);
+        } finally {
+          fs.rmSync(extractTemp, { recursive: true, force: true });
+          fs.rmSync(tarPath, { force: true });
         }
       }
-      fs.unlinkSync(tarPath);
+      if (lastError) throw lastError;
     }
   } else {
     console.log(`✅ FFmpeg already exists.`);
