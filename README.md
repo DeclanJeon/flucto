@@ -51,32 +51,105 @@ Markdown conversion is caption-based. If a platform or video does not expose cap
 
 ## CLI Mode
 
-Flucto also ships a `flucto` command for automation and AI-agent workflows. The CLI uses the same TypeScript service layer as the desktop app; it does not launch the Electron window or import desktop IPC handlers.
+Flucto ships a `flucto` command for automation, batch jobs, and AI-agent workflows. The CLI uses the same TypeScript service layer as the desktop app; it does not launch the Electron window and does not call desktop IPC handlers.
+
+### Build and run locally
+
+```bash
+npm install
+npm run build:electron
+npm run cli -- --help
+```
+
+Packaged releases expose the same command as `flucto` through `package.json`'s `bin` entry.
+
+### Commands
+
+| Command | Purpose | Typical output |
+| --- | --- | --- |
+| `flucto doctor` | Verify `yt-dlp` and `ffmpeg` discovery | Binary paths and versions |
+| `flucto info <url>` | Read media metadata | id, title, thumbnail, duration, uploader, view count |
+| `flucto formats <url>` | List downloadable formats | format id, extension, resolution, note |
+| `flucto download <url>` | Download MP4 video or MP3 audio | Generated media file |
+| `flucto languages <url>` | List available caption languages | language code/name and auto/manual flag |
+| `flucto transcript <url>` | Convert available captions/subtitles to Markdown | `.md` file or stdout Markdown |
+| `flucto batch <file>` | Process a text file of URLs | Multiple media downloads or Markdown conversions |
+
+### Common examples
 
 ```bash
 # Check bundled or configured binaries
 flucto doctor --json
 
-# Download media
-flucto download "https://www.youtube.com/watch?v=..." --format mp4 --output-dir ./captures
-flucto download "https://www.youtube.com/watch?v=..." --format mp3 --json
+# Inspect a media URL before downloading
+flucto info "https://www.youtube.com/watch?v=..." --json
+flucto formats "https://www.youtube.com/watch?v=..."
+
+# Download video or audio
+flucto download "https://www.youtube.com/watch?v=..." --format mp4 --output-dir ./captures --json
+flucto download "https://www.youtube.com/watch?v=..." --format mp3 --output-dir ./audio --json
 
 # Convert captions/subtitles to Markdown
-flucto transcript "https://www.youtube.com/watch?v=..." --language en --stdout > transcript.md
-flucto transcript "https://www.youtube.com/watch?v=..." --language auto --json
+flucto languages "https://www.youtube.com/watch?v=..." --json
+flucto transcript "https://www.youtube.com/watch?v=..." --language en --output-dir ./notes --json
+flucto transcript "https://www.youtube.com/watch?v=..." --language auto --stdout > transcript.md
 
 # Process URL lists
+flucto batch urls.txt --format mp4 --concurrency 2 --output-dir ./captures --json
 flucto batch urls.txt --format md --concurrency 2 --output-dir ./notes --json
 ```
 
-Useful CLI flags:
+`batch` files are plain text. Empty lines and lines starting with `#`, `;`, or `]` are ignored, so URL lists can contain comments:
+
+```text
+# research clips
+https://www.youtube.com/watch?v=...
+https://samplelib.com/lib/preview/mp4/sample-5s.mp4
+```
+
+### Output and automation rules
 
 - `--json`: writes the final result object to stdout.
 - `--progress-json`: writes progress events as newline-delimited JSON to stderr.
-- `--bin-dir`, `--yt-dlp`, `--ffmpeg`: override binary discovery when running outside the packaged app.
-- `FLUCTO_OUTPUT_DIR`: sets the default output directory when `--output-dir` is omitted.
+- Human progress messages are written to stderr when `--progress-json` is not set.
+- `--stdout` on `transcript` writes Markdown content to stdout instead of only saving a file.
+- Non-zero exit codes indicate command failure; the JSON response includes the error message when `--json` is set.
+
+### Binary and output configuration
+
+Flucto bundles `yt-dlp` and `ffmpeg` for the desktop release. For CLI automation, discovery can be overridden:
+
+```bash
+flucto doctor --bin-dir /opt/flucto/bin --json
+flucto download "$URL" --yt-dlp /usr/local/bin/yt-dlp --ffmpeg /usr/local/bin/ffmpeg
+```
+
+Useful settings:
+
+- `--output-dir DIR`: write generated media or Markdown files to `DIR`.
+- `FLUCTO_OUTPUT_DIR`: default output directory when `--output-dir` is omitted.
+- `--bin-dir DIR`: directory containing both `yt-dlp` and `ffmpeg`.
+- `--yt-dlp PATH`, `--ffmpeg PATH`: explicit binary paths.
+
+### Current limitations
+
+- Markdown conversion is caption-based. If the platform/video does not expose captions through `yt-dlp`, Flucto reports the transcript as unavailable; it does not run Whisper or another speech-to-text engine.
+- Some platforms, including YouTube, can return media-download `403`/rate-limit/cookie errors while still allowing metadata, format, language, or caption reads. In that case the CLI returns a structured error instead of silently retrying with credentials.
+- Direct media URLs from generic extractors are supported by the `v1.9.1` MP4 selector fallback.
 
 ## Recent Updates
+
+### v1.9.1
+
+- Fixed CLI MP4 downloads for generic direct media URLs where `yt-dlp` exposes a literal `mp4` format id instead of YouTube-style `bestvideo`/`bestaudio` formats.
+- Verified real CLI flows for binary discovery, metadata, format listing, caption language listing, caption-to-Markdown conversion, generic MP4 download, and generated artifact cleanup.
+
+### v1.9.0
+
+- Added first-class `flucto` CLI mode for automation and AI-agent workflows.
+- Added CLI commands for `doctor`, `info`, `formats`, `download`, `languages`, `transcript`, and `batch`.
+- Reused the desktop TypeScript service layer without launching Electron or importing desktop IPC handlers.
+- Added JSON output and NDJSON progress streams for script-friendly automation.
 
 ### v1.7.1
 
