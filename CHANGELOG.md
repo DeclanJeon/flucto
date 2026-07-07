@@ -1,3 +1,10 @@
+## [1.9.1](https://github.com/DeclanJeon/flucto/compare/v1.9.0...v1.9.1) (2026-07-07)
+
+
+### Bug Fixes
+
+* **cli:** fallback to generic mp4 formats ([696a8cf](https://github.com/DeclanJeon/flucto/commit/696a8cfd1f13b63929ba8f61c611f361b8b49986))
+
 # [1.9.0](https://github.com/DeclanJeon/flucto/compare/v1.8.1...v1.9.0) (2026-07-07)
 
 
