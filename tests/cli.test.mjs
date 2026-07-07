@@ -74,7 +74,7 @@ test('download arg builder preserves quality, ffmpeg, and platform options', () 
   assert.ok(args.includes('--ffmpeg-location'));
   assert.ok(args.includes('/opt/flucto/bin'));
   assert.ok(args.includes('--merge-output-format'));
-  assert.ok(args.includes('bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/best[ext=mp4][height<=720][acodec!=none]/best[ext=mp4][acodec!=none]/worst[ext=mp4][acodec!=none]'));
+  assert.ok(args.includes('bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/best[ext=mp4][height<=720][acodec!=none]/best[ext=mp4][acodec!=none]/worst[ext=mp4][acodec!=none]/mp4/best'));
   assert.ok(args.includes('--force-ipv4'));
 });
 

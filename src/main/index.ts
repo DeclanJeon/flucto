@@ -52,7 +52,7 @@ const sleep = (ms: number): Promise<void> => {
 
 const getVideoFormatSelector = (preset: DownloadQualityPreferences['video']): string => {
   const constrainedSelector = (height: number): string => {
-    return `bestvideo[ext=mp4][height<=${height}]+bestaudio[ext=m4a]/best[ext=mp4][height<=${height}][acodec!=none]/best[ext=mp4][acodec!=none]/worst[ext=mp4][acodec!=none]`;
+    return `bestvideo[ext=mp4][height<=${height}]+bestaudio[ext=m4a]/best[ext=mp4][height<=${height}][acodec!=none]/best[ext=mp4][acodec!=none]/worst[ext=mp4][acodec!=none]/mp4/best`;
   };
 
   switch (preset) {
@@ -69,7 +69,7 @@ const getVideoFormatSelector = (preset: DownloadQualityPreferences['video']): st
     case '360p':
       return constrainedSelector(360);
     case 'worst':
-      return 'worst[ext=mp4]/worst';
+      return 'worst[ext=mp4]/mp4/worst';
     default:
       return constrainedSelector(1080);
   }
