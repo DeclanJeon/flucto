@@ -1,3 +1,10 @@
+# [1.9.0](https://github.com/DeclanJeon/flucto/compare/v1.8.1...v1.9.0) (2026-07-07)
+
+
+### Features
+
+* **cli:** add automation command surface for media and transcripts ([59a724c](https://github.com/DeclanJeon/flucto/commit/59a724cb480a865e7002b9a5b19e7d54fb0c23d0))
+
 ## [1.8.1](https://github.com/DeclanJeon/flucto/compare/v1.8.0...v1.8.1) (2026-07-06)
 
 
