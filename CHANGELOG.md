@@ -1,3 +1,10 @@
+# [1.11.0](https://github.com/DeclanJeon/flucto/compare/v1.10.0...v1.11.0) (2026-07-10)
+
+
+### Features
+
+* **cli:** channel to-md multi export with dedicated job folders ([8552c27](https://github.com/DeclanJeon/flucto/commit/8552c2709ee1c2b6939a0449c69dd9b5fa8c3dee))
+
 # [1.10.0](https://github.com/DeclanJeon/flucto/compare/v1.9.1...v1.10.0) (2026-07-07)
 
 
