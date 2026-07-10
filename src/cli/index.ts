@@ -3,20 +3,35 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { parseCliArgs, CliUsageError, type CliOptions } from './args.js';
-import { helpText, renderDownloadProgress, renderTranscriptProgress, writeError, writeHuman, writeJson, writeStatus } from './output.js';
+import {
+  helpText,
+  progressBar,
+  renderDownloadProgress,
+  renderTranscriptProgress,
+  writeError,
+  writeHuman,
+  writeJson,
+  writeStatus,
+} from './output.js';
+import { createMultiJobOutputDir, slugifyJobLabel } from './jobOutput.js';
 import { checkBinaryHealth, resolveCliBinaries } from '../main/services/binaryResolver.js';
 import { parseBatchFileContent, runWithConcurrency } from '../main/services/batch.js';
 import { runMediaDownload } from '../main/services/mediaDownload.js';
-import { getAvailableFormats, getMediaInfo } from '../main/services/mediaInfo.js';
+import { getAvailableFormats, getMediaInfo, listChannelVideos, normalizeChannelTarget } from '../main/services/mediaInfo.js';
 import { convertTranscriptToMarkdown, listTranscriptLanguages } from '../main/services/transcriptMarkdown.js';
+import { sanitizeMarkdownFilename } from '../main/transcript/markdownFormatter.js';
 import { getManagedBinDir, setupUtilities } from '../main/services/binaryInstaller.js';
 import { applyCliUpdate, checkForCliUpdate, downloadCliUpdate } from '../main/services/cliUpdater.js';
 import { execa } from '../main/spawn.js';
-import type { TranscriptRequest } from '../shared/types.js';
+import type { TranscriptMarkdownResponse, TranscriptRequest } from '../shared/types.js';
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 
-const outputDir = (options: CliOptions): string => path.resolve(options.outputDir ?? process.cwd());
+/** Base output directory (parent). Multi-file jobs create a dedicated subfolder under this. */
+const outputBaseDir = (options: CliOptions): string => path.resolve(options.outputDir ?? process.cwd());
+
+/** @deprecated single-file jobs still write directly into base */
+const outputDir = (options: CliOptions): string => outputBaseDir(options);
 
 const readPackageVersion = (): string => {
   const candidates = [
@@ -208,11 +223,19 @@ const runTranscript = async (options: CliOptions): Promise<number> => {
 const runBatch = async (options: CliOptions): Promise<number> => {
   const filePath = path.resolve(options.positional[0]);
   const urls = parseBatchFileContent(fs.readFileSync(filePath, 'utf8'));
+  const formatKind = options.format === 'md' ? 'batch-md' : options.format === 'mp3' ? 'batch-mp3' : 'batch-mp4';
+  const batchLabel = path.parse(filePath).name || 'batch';
+  const jobDir = createMultiJobOutputDir(outputBaseDir(options), formatKind, batchLabel);
+
+  if (!options.json) {
+    writeStatus(`→ batch job folder: ${jobDir}`);
+  }
+
   const results = await runWithConcurrency(urls, options.concurrency, async (url) => {
     if (options.format === 'md') {
       return convertTranscriptToMarkdown(transcriptRequest(url, options), {
         binaries: resolveBinaries(options),
-        outputDir: outputDir(options),
+        outputDir: jobDir,
         onProgress: (progress) => renderTranscriptProgress(progress, options.progressJson),
       });
     }
@@ -220,7 +243,7 @@ const runBatch = async (options: CliOptions): Promise<number> => {
       {
         url,
         format: options.format === 'mp3' ? 'mp3' : 'mp4',
-        outputDir: outputDir(options),
+        outputDir: jobDir,
         quality: {
           video: options.quality,
           audio: options.audioQuality,
@@ -235,9 +258,16 @@ const runBatch = async (options: CliOptions): Promise<number> => {
   const failed = results.filter((result) => !result.success);
 
   if (options.json) {
-    writeJson({ success: failed.length === 0, total: results.length, failed: failed.length, results });
+    writeJson({
+      success: failed.length === 0,
+      total: results.length,
+      failed: failed.length,
+      outputDir: jobDir,
+      results,
+    });
   } else {
     writeHuman(`Processed ${results.length} item(s), failed ${failed.length}.`);
+    writeHuman(`Output folder: ${jobDir}`);
   }
 
   return failed.length === 0 ? 0 : 7;
@@ -273,6 +303,175 @@ const runLanguages = async (options: CliOptions): Promise<number> => {
   return 0;
 };
 
+const runChannelToMd = async (options: CliOptions): Promise<number> => {
+  const version = readPackageVersion();
+  const binaries = resolveBinaries(options);
+  const targetInput = options.positional[0];
+  const channelUrl = normalizeChannelTarget(targetInput);
+  const startedAt = Date.now();
+
+  if (!options.json) {
+    writeStatus(`◈ flucto cli  v${version}  ·  channel to-md`);
+    writeStatus(`→ 채널 해석 중…  ${targetInput}`);
+  }
+
+  let listed;
+  try {
+    listed = await listChannelVideos(channelUrl, binaries, { limit: options.limit });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (options.json) {
+      writeJson({ success: false, command: 'channel-to-md', message, channelUrl });
+    } else {
+      writeError(message);
+    }
+    return 5;
+  }
+
+  const videos = listed.videos;
+  // Dedicated job folder under --out / cwd (never dump loose files into base)
+  const outDir = createMultiJobOutputDir(
+    outputBaseDir(options),
+    'channel-md',
+    listed.channelTitle || slugifyJobLabel(targetInput),
+  );
+
+  if (!options.json) {
+    writeStatus(`✓ 채널 확인  ·  ${listed.channelTitle}`);
+    writeStatus(`→ job folder: ${outDir}`);
+    writeStatus(`→ 업로드 목록 수집 완료`);
+    writeStatus(`✓ 영상 ${videos.length}개 발견 (limit ${options.limit})`);
+    writeStatus('→ 각 영상을 마크다운으로 추출합니다 (captions → md)');
+  }
+
+  if (videos.length === 0) {
+    if (options.json) {
+      writeJson({
+        success: true,
+        command: 'channel-to-md',
+        channelTitle: listed.channelTitle,
+        channelUrl: listed.channelUrl,
+        total: 0,
+        succeeded: 0,
+        failed: 0,
+        outputDir: outDir,
+        results: [],
+      });
+    } else {
+      writeHuman('No videos found on this channel.');
+      writeHuman(`Output folder: ${outDir}`);
+    }
+    return 0;
+  }
+
+  type ItemResult = {
+    index: number;
+    id: string;
+    title: string;
+    url: string;
+    success: boolean;
+    filePath?: string;
+    message: string;
+  };
+
+  const results: ItemResult[] = new Array(videos.length);
+  let completed = 0;
+
+  await runWithConcurrency(videos.map((video, index) => ({ video, index })), options.concurrency, async ({ video, index }) => {
+    const url = video.originalUrl || `https://www.youtube.com/watch?v=${video.id}`;
+    const response: TranscriptMarkdownResponse = await convertTranscriptToMarkdown(
+      {
+        ...transcriptRequest(url, options),
+        title: video.title,
+      },
+      {
+        binaries,
+        outputDir: outDir,
+        onProgress: options.json || options.stdout
+          ? undefined
+          : (progress) => {
+            if (options.progressJson) renderTranscriptProgress(progress, true);
+          },
+      },
+    );
+
+    let filePath = response.filePath;
+    // Rename to ordered 001_title.md when possible
+    if (response.success && filePath && fs.existsSync(filePath)) {
+      const pad = String(index + 1).padStart(3, '0');
+      const safe = path.parse(sanitizeMarkdownFilename(response.title || video.title)).name;
+      const dest = path.join(outDir, `${pad}_${safe}.md`);
+      if (path.resolve(filePath) !== path.resolve(dest)) {
+        try {
+          if (fs.existsSync(dest)) fs.unlinkSync(dest);
+          fs.renameSync(filePath, dest);
+          filePath = dest;
+        } catch {
+          // keep original path if rename fails
+        }
+      }
+    }
+
+    const item: ItemResult = {
+      index: index + 1,
+      id: video.id,
+      title: response.title || video.title,
+      url,
+      success: response.success,
+      filePath,
+      message: response.message,
+    };
+    results[index] = item;
+    completed += 1;
+
+    if (!options.json) {
+      const bar = progressBar(completed, videos.length);
+      const shortTitle = (item.title || '').slice(0, 42);
+      writeStatus(`[${bar}] ${String(completed).padStart(3, ' ')}/${videos.length}  ${shortTitle}`);
+      if (item.success && item.filePath) {
+        writeStatus(`    → ${item.filePath}`);
+      } else if (!item.success) {
+        writeStatus(`    ✗ ${item.message}`);
+      }
+    }
+
+    return item;
+  });
+
+  const ordered = results.filter(Boolean);
+  const failed = ordered.filter((item) => !item.success);
+  const succeeded = ordered.length - failed.length;
+  const elapsedSec = ((Date.now() - startedAt) / 1000).toFixed(1);
+  const avg = ordered.length > 0 ? ((Date.now() - startedAt) / 1000 / ordered.length).toFixed(1) : '0';
+
+  const payload = {
+    success: failed.length === 0,
+    command: 'channel-to-md',
+    channelTitle: listed.channelTitle,
+    channelUrl: listed.channelUrl,
+    outputDir: outDir,
+    limit: options.limit,
+    total: ordered.length,
+    succeeded,
+    failed: failed.length,
+    elapsedSeconds: Number(elapsedSec),
+    averageSecondsPerVideo: Number(avg),
+    results: ordered,
+  };
+
+  if (options.json) {
+    writeJson(payload);
+  } else {
+    writeStatus('');
+    writeStatus(`✓ 완료  ·  ${succeeded}/${ordered.length} markdown files` + (failed.length ? `  (failed ${failed.length})` : ''));
+    writeStatus(`  out:  ${outDir}`);
+    writeStatus(`  time: ${elapsedSec}s  ·  평균 추출 ${avg}s/영상`);
+    writeHuman(`agent: 채널 1개 → 영상 ${ordered.length}개 → 마크다운 ${succeeded}파일`);
+  }
+
+  return failed.length === 0 ? 0 : 7;
+};
+
 const dispatch = async (options: CliOptions): Promise<number> => {
   switch (options.command) {
     case 'help':
@@ -293,6 +492,8 @@ const dispatch = async (options: CliOptions): Promise<number> => {
       return runBatch(options);
     case 'transcript':
       return runTranscript(options);
+    case 'channel-to-md':
+      return runChannelToMd(options);
     case 'info':
       return runInfo(options);
     case 'formats':

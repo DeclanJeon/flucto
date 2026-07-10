@@ -5,6 +5,7 @@ export type CliCommand =
   | 'download'
   | 'batch'
   | 'transcript'
+  | 'channel-to-md'
   | 'info'
   | 'formats'
   | 'languages'
@@ -33,6 +34,7 @@ export interface CliOptions {
   metadata?: boolean;
   stdout: boolean;
   concurrency: number;
+  limit: number;
   force: boolean;
   checkOnly: boolean;
   updateAction: CliUpdateAction;
@@ -42,13 +44,15 @@ export interface CliOptions {
 const videoQualities = new Set(['4k', '1440p', '1080p', '720p', '480p', '360p', 'worst']);
 const audioQualities = new Set(['320kbps', '256kbps', '192kbps', '128kbps', '64kbps', 'worst']);
 const mediaFormats = new Set(['mp4', 'mp3', 'md']);
-const commandAliases: Record<string, CliCommand> = {
+const commandAliases: Record<string, CliCommand | 'channel'> = {
   download: 'download',
   d: 'download',
   batch: 'batch',
   b: 'batch',
   transcript: 'transcript',
   t: 'transcript',
+  'channel-to-md': 'channel-to-md',
+  channel: 'channel',
   info: 'info',
   i: 'info',
   formats: 'formats',
@@ -90,6 +94,16 @@ const parseConcurrency = (value: string | boolean | undefined): number => {
   return parsed;
 };
 
+const parseLimit = (value: string | boolean | undefined, fallback: number): number => {
+  const raw = stringOption(value);
+  if (!raw) return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 5000) {
+    throw new CliUsageError('--limit must be an integer from 1 to 5000.');
+  }
+  return parsed;
+};
+
 const parseFormat = (value: string | boolean | undefined, fallback: MediaOutputMode): MediaOutputMode => {
   const raw = stringOption(value) ?? fallback;
   if (!mediaFormats.has(raw)) {
@@ -127,6 +141,7 @@ export const parseCliArgs = (argv: string[]): CliOptions => {
       quality: { type: 'string', short: 'q' },
       'audio-quality': { type: 'string', short: 'a' },
       'output-dir': { type: 'string', short: 'o' },
+      out: { type: 'string' },
       'bin-dir': { type: 'string' },
       'yt-dlp': { type: 'string' },
       ffmpeg: { type: 'string' },
@@ -137,6 +152,7 @@ export const parseCliArgs = (argv: string[]): CliOptions => {
       'no-metadata': { type: 'boolean' },
       stdout: { type: 'boolean', short: 's' },
       concurrency: { type: 'string', short: 'c' },
+      limit: { type: 'string' },
       force: { type: 'boolean' },
       'check-only': { type: 'boolean' },
       asset: { type: 'string' },
@@ -151,9 +167,21 @@ export const parseCliArgs = (argv: string[]): CliOptions => {
     return baseOptions('help', parsed.positionals, parsed.values);
   }
 
-  const [rawCommand, ...positional] = parsed.positionals;
+  let [rawCommand, ...positional] = parsed.positionals;
+
+  // Nested: flucto channel to-md <url>
+  if (rawCommand === 'channel') {
+    const sub = positional[0];
+    if (sub === 'to-md' || sub === 'tomd' || sub === 'md') {
+      rawCommand = 'channel-to-md';
+      positional = positional.slice(1);
+    } else {
+      throw new CliUsageError('channel subcommand must be: to-md');
+    }
+  }
+
   const command = commandAliases[rawCommand];
-  if (!command || !commands.has(rawCommand)) {
+  if (!command || command === 'channel' || !commands.has(rawCommand)) {
     throw new CliUsageError(`Unknown command: ${rawCommand}`);
   }
 
@@ -174,7 +202,7 @@ const baseOptions = (
   format: parseFormat(values.format, command === 'batch' ? 'mp4' : 'mp4'),
   quality: parseVideoQuality(values.quality),
   audioQuality: parseAudioQuality(values['audio-quality']),
-  outputDir: stringOption(values['output-dir']) ?? process.env.FLUCTO_OUTPUT_DIR,
+  outputDir: stringOption(values['output-dir']) ?? stringOption(values.out) ?? process.env.FLUCTO_OUTPUT_DIR,
   binDir: stringOption(values['bin-dir']),
   ytDlpPath: stringOption(values['yt-dlp']),
   ffmpegPath: stringOption(values.ffmpeg),
@@ -183,6 +211,7 @@ const baseOptions = (
   metadata: booleanOption(values.metadata) ? true : booleanOption(values['no-metadata']) ? false : undefined,
   stdout: booleanOption(values.stdout),
   concurrency: parseConcurrency(values.concurrency),
+  limit: parseLimit(values.limit, 100),
   force: booleanOption(values.force),
   checkOnly: booleanOption(values['check-only']),
   updateAction: parseUpdateAction(command, positional),
@@ -201,6 +230,10 @@ const validateCommand = (options: CliOptions): void => {
     throw new CliUsageError(`${options.command} requires exactly one URL.`);
   }
 
+  if (options.command === 'channel-to-md' && options.positional.length !== 1) {
+    throw new CliUsageError('channel to-md requires exactly one channel URL or @handle.');
+  }
+
   if (options.command === 'batch' && options.positional.length !== 1) {
     throw new CliUsageError('batch requires exactly one file path.');
   }
@@ -213,7 +246,7 @@ const validateCommand = (options: CliOptions): void => {
   }
 
   if (options.command === 'download' && options.format === 'md') {
-    throw new CliUsageError('download supports only mp4 or mp3. Use transcript or batch --format md for Markdown.');
+    throw new CliUsageError('download supports only mp4 or mp3. Use transcript, channel to-md, or batch --format md for Markdown.');
   }
 
   if (options.command === 'transcript' && options.format !== 'mp4') {

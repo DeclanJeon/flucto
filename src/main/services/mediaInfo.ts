@@ -98,21 +98,98 @@ export const getMediaInfo = async (url: string, binaries: BinaryResolver): Promi
   };
 };
 
-export const getPlaylistInfo = async (url: string, binaries: BinaryResolver): Promise<VideoInfo[]> => {
-  const result = await execa(
-    binaries.ytDlpPath,
-    [
-      url,
-      '--flat-playlist',
-      '--dump-single-json',
-      '--no-warnings',
-      ...getCommonYtDlpArgs(url),
-    ],
-    { reject: false },
-  );
+export interface ChannelListResult {
+  channelTitle: string;
+  channelUrl: string;
+  videos: VideoInfo[];
+}
+
+/** Normalize @handle / bare handle / channel URL for yt-dlp. */
+export const normalizeChannelTarget = (input: string): string => {
+  const raw = String(input || '').trim();
+  if (!raw) {
+    throw new Error('Channel URL or @handle is required.');
+  }
+
+  if (raw.startsWith('@')) {
+    const handle = raw.slice(1).replace(/\/.*$/, '').trim();
+    if (!handle) throw new Error('Invalid channel handle.');
+    return `https://www.youtube.com/@${handle}/videos`;
+  }
+
+  if (/^https?:\/\//i.test(raw)) {
+    // Prefer the videos tab for pure @channel roots.
+    if (/youtube\.com\/@[^/?#]+\/?$/i.test(raw)) {
+      return raw.replace(/\/?$/, '/videos');
+    }
+    return raw;
+  }
+
+  // Bare handle without @
+  if (/^[\w.-]+$/.test(raw)) {
+    return `https://www.youtube.com/@${raw}/videos`;
+  }
+
+  return raw;
+};
+
+const mapFlatPlaylistEntry = (item: YtDlpMetadata): VideoInfo => {
+  const id = toStringValue(item.id) ?? 'Unknown';
+  const webpage = toStringValue(item.webpage_url);
+  const urlField = toStringValue(item.url);
+  let originalUrl = webpage;
+  if (!originalUrl && urlField?.startsWith('http')) {
+    originalUrl = urlField;
+  }
+  if (!originalUrl && id && id !== 'Unknown') {
+    originalUrl = `https://www.youtube.com/watch?v=${id}`;
+  }
+  return {
+    id,
+    title: toStringValue(item.title) ?? 'Untitled Video',
+    thumbnail: extractBestThumbnail(item) ?? '',
+    duration: toNumberValue(item.duration),
+    uploader: toStringValue(item.uploader) ?? toStringValue(item.channel) ?? 'Unknown',
+    view_count: toNumberValue(item.view_count),
+    originalUrl: originalUrl ?? `https://www.youtube.com/watch?v=${id}`,
+  };
+};
+
+export const getPlaylistInfo = async (
+  url: string,
+  binaries: BinaryResolver,
+  options: { limit?: number } = {},
+): Promise<VideoInfo[]> => {
+  const listed = await listChannelVideos(url, binaries, options);
+  return listed.videos;
+};
+
+/** List videos on a channel/playlist with optional hard cap (playlist-end). */
+export const listChannelVideos = async (
+  url: string,
+  binaries: BinaryResolver,
+  options: { limit?: number } = {},
+): Promise<ChannelListResult> => {
+  const channelUrl = normalizeChannelTarget(url);
+  const limit = typeof options.limit === 'number' && options.limit > 0
+    ? Math.floor(options.limit)
+    : undefined;
+
+  const args = [
+    channelUrl,
+    '--flat-playlist',
+    '--dump-single-json',
+    '--no-warnings',
+    ...getCommonYtDlpArgs(channelUrl),
+  ];
+  if (limit) {
+    args.push('--playlist-end', String(limit));
+  }
+
+  const result = await execa(binaries.ytDlpPath, args, { reject: false });
 
   if (result.failed && !result.stdout.trim()) {
-    throw new Error(result.stderr || 'Failed to fetch playlist info');
+    throw new Error(result.stderr || 'Failed to fetch channel / playlist info');
   }
 
   const root = parseLastJsonObjectFromStdout(result.stdout);
@@ -122,15 +199,19 @@ export const getPlaylistInfo = async (url: string, binaries: BinaryResolver): Pr
     return metadata !== null && typeof metadata.id === 'string' && metadata._type !== 'playlist';
   });
 
-  return playlistItems.map((item) => ({
-    id: toStringValue(item.id) ?? 'Unknown',
-    title: toStringValue(item.title) ?? 'Untitled Video',
-    thumbnail: extractBestThumbnail(item) ?? '',
-    duration: toNumberValue(item.duration),
-    uploader: toStringValue(item.uploader) ?? toStringValue(item.channel) ?? 'Unknown',
-    view_count: toNumberValue(item.view_count),
-    originalUrl: toStringValue(item.url) ?? `https://www.youtube.com/watch?v=${toStringValue(item.id) ?? ''}`,
-  }));
+  const videos = playlistItems.map(mapFlatPlaylistEntry);
+  const channelTitle =
+    toStringValue(root.channel)
+    ?? toStringValue(root.uploader)
+    ?? toStringValue(root.title)
+    ?? toStringValue(root.playlist)
+    ?? 'channel';
+
+  return {
+    channelTitle,
+    channelUrl,
+    videos: limit ? videos.slice(0, limit) : videos,
+  };
 };
 
 export const getAvailableFormats = async (url: string, binaries: BinaryResolver): Promise<FormatOption[]> => {

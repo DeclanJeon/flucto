@@ -74,6 +74,10 @@ Markdown conversion is caption-based. If a platform or video does not expose cap
 
 Flucto ships `flucto` and the shorter `fl` command for automation, batch jobs, and AI-agent workflows. The CLI uses the same TypeScript service layer as the desktop app; it does not launch the Electron window and does not call desktop IPC handlers.
 
+Demo (channel → many Markdown notes into a dedicated job folder):
+
+![flucto channel to-md demo](assets/demo/flucto-channel-to-md.gif)
+
 ### Build and run locally
 
 ```bash
@@ -99,12 +103,14 @@ Packaged releases expose both commands through `package.json`'s `bin` entry. Sho
 | `flucto download <url>` | `fl d <url>` | Download MP4 video or MP3 audio | Generated media file |
 | `flucto languages <url>` | `fl l <url>` | List available caption languages | language code/name and auto/manual flag |
 | `flucto transcript <url>` | `fl t <url>` | Convert available captions/subtitles to Markdown | `.md` file or stdout Markdown |
-| `flucto batch <file>` | `fl b <file>` | Process a text file of URLs | Multiple media downloads or Markdown conversions |
+| `flucto channel to-md <channel\|@handle>` | `fl channel to-md …` | List up to N channel videos and convert each caption set to Markdown | Dedicated job folder with numbered `.md` files |
+| `flucto batch <file>` | `fl b <file>` | Process a text file of URLs | Dedicated job folder with media or Markdown outputs |
 | `flucto update check` | `fl u check` | Check GitHub releases for a newer Flucto version | Current/latest version and recommended asset |
 | `flucto update download` | `fl u download` | Download the recommended GitHub release asset | Downloaded asset path and checksum status |
 | `flucto update apply` | `fl u apply` | Apply an already downloaded asset when safe | Conservative apply result or manual install instructions |
 
 Short option aliases: `-j` = `--json`, `-p` = `--progress-json`, `-f` = `--format`, `-q` = `--quality`, `-a` = `--audio-quality`, `-l` = `--language`, `-s` = `--stdout`, `-o` = `--output-dir`, and `-c` = `--concurrency`.
+
 
 ### Common examples
 
@@ -129,9 +135,14 @@ fl l "https://www.youtube.com/watch?v=..." -j
 fl t "https://www.youtube.com/watch?v=..." -l en -o ./notes -j
 fl t "https://www.youtube.com/watch?v=..." -l auto -s > transcript.md
 
-# Process URL lists
+# Whole channel → Markdown notes (capped by --limit; dedicated job folder under --out)
+fl channel to-md "@LIFECODEofficial" --limit 100 -o ./notes
+flucto channel to-md "https://www.youtube.com/@learn-ai-lab" --limit 20 -o ./notes -l ko -c 2
+
+# Process URL lists (also creates a dedicated job subfolder under the base output dir)
 fl b urls.txt -f mp4 -c 2 -o ./captures -j
 fl b urls.txt -f md -c 2 -o ./notes -j
+
 
 # Check and download GitHub release updates from CLI
 fl u check -j
@@ -153,6 +164,10 @@ https://samplelib.com/lib/preview/mp4/sample-5s.mp4
 - `--progress-json` / `-p`: writes progress events as newline-delimited JSON to stderr.
 - Human progress messages are written to stderr when `--progress-json` is not set.
 - `--stdout` / `-s` on `transcript` writes Markdown content to stdout instead of only saving a file.
+- **Multi-file jobs** (`batch`, `channel to-md`) always create a **dedicated subfolder** under `--output-dir` / `--out` (or the current working directory). Files are never dumped loose into the base path.
+  - Channel example: `./notes/라이프코드_LIFECODE-channel-md-20260710-143012/001_….md`
+  - Batch example: `./captures/urls-batch-mp4-20260710-143012/….mp4`
+- JSON results for multi-file jobs include the resolved `outputDir` (the job folder).
 - Non-zero exit codes indicate command failure; the JSON response includes the error message when `--json` is set.
 
 ### Binary and output configuration

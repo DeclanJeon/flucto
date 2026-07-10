@@ -5,6 +5,7 @@ import path from 'node:path';
 import test from 'node:test';
 
 import { parseCliArgs, CliUsageError } from '../dist-electron/cli/args.js';
+import { createMultiJobOutputDir, slugifyJobLabel } from '../dist-electron/cli/jobOutput.js';
 import { parseBatchFileContent, runWithConcurrency } from '../dist-electron/main/services/batch.js';
 import { checkBinaryHealth, resolveCliBinaries } from '../dist-electron/main/services/binaryResolver.js';
 import { setupUtilities } from '../dist-electron/main/services/binaryInstaller.js';
@@ -35,6 +36,51 @@ test('CLI parser handles transcript stdout/json flags and defaults', () => {
   assert.equal(options.json, true);
   assert.equal(options.language, 'auto');
   assert.equal(options.timestamps, false);
+});
+
+test('CLI parser handles channel to-md nested command and limit/out flags', () => {
+  const nested = parseCliArgs(['channel', 'to-md', '@learn-ai-lab', '--limit', '20', '--out', './notes', '--json']);
+  assert.equal(nested.command, 'channel-to-md');
+  assert.equal(nested.positional[0], '@learn-ai-lab');
+  assert.equal(nested.limit, 20);
+  assert.equal(nested.outputDir, './notes');
+  assert.equal(nested.json, true);
+
+  const flat = parseCliArgs(['channel-to-md', 'https://youtube.com/@x', '--limit', '5', '-o', '/tmp/md']);
+  assert.equal(flat.command, 'channel-to-md');
+  assert.equal(flat.limit, 5);
+  assert.equal(flat.outputDir, '/tmp/md');
+
+  assert.throws(() => parseCliArgs(['channel', 'wat', '@x']), /channel subcommand/);
+  assert.throws(() => parseCliArgs(['channel', 'to-md']), /exactly one channel/);
+});
+
+test('multi-file job folders are created as dedicated subdirectories', () => {
+  const temp = makeTempDir();
+  assert.equal(slugifyJobLabel('@LIFECODEofficial'), 'LIFECODEofficial');
+  const jobA = createMultiJobOutputDir(temp, 'channel-md', '라이프코드 LIFECODE');
+  const jobB = createMultiJobOutputDir(temp, 'batch-md', 'urls');
+  assert.ok(jobA.startsWith(temp));
+  assert.ok(jobB.startsWith(temp));
+  assert.notEqual(jobA, jobB);
+  assert.ok(fs.existsSync(jobA));
+  assert.ok(fs.existsSync(jobB));
+  assert.match(path.basename(jobA), /channel-md-/);
+  assert.match(path.basename(jobB), /batch-md-/);
+});
+
+test('normalizeChannelTarget expands handles and @ URLs', async () => {
+  const { normalizeChannelTarget } = await import('../dist-electron/main/services/mediaInfo.js');
+  assert.equal(normalizeChannelTarget('@learn-ai-lab'), 'https://www.youtube.com/@learn-ai-lab/videos');
+  assert.equal(normalizeChannelTarget('learn-ai-lab'), 'https://www.youtube.com/@learn-ai-lab/videos');
+  assert.equal(
+    normalizeChannelTarget('https://www.youtube.com/@learn-ai-lab'),
+    'https://www.youtube.com/@learn-ai-lab/videos',
+  );
+  assert.equal(
+    normalizeChannelTarget('https://www.youtube.com/@learn-ai-lab/videos'),
+    'https://www.youtube.com/@learn-ai-lab/videos',
+  );
 });
 
 test('CLI parser rejects unknown commands and invalid download formats', () => {
