@@ -28,8 +28,10 @@
 - 🛡️ **Type Safe**: Built with 100% TypeScript for stability and reliability
 
 <p align="center">
-  <img src="https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExMmZiM2g1MmJiZHk0am8xcXkxMXBrb3I2OWxrMXJ2a3BuczAxN3NwbSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/arv0uz1yGEtdL8Xkqq/giphy.gif" width="100%" alt="Flucto Screenshot" />
+  <img src="assets/demo/flucto-channel-to-md.gif" width="100%" alt="Flucto CLI demo: channel to Markdown" />
 </p>
+
+<p align="center"><em>CLI demo — one channel → many Markdown notes in a dedicated job folder</em></p>
 
 - [Report Bug](https://github.com/DeclanJeon/flucto/issues)
 
@@ -74,9 +76,18 @@ Markdown conversion is caption-based. If a platform or video does not expose cap
 
 Flucto ships `flucto` and the shorter `fl` command for automation, batch jobs, and AI-agent workflows. The CLI uses the same TypeScript service layer as the desktop app; it does not launch the Electron window and does not call desktop IPC handlers.
 
-Demo (channel → many Markdown notes into a dedicated job folder):
+### Demo: channel → Markdown
 
 ![flucto channel to-md demo](assets/demo/flucto-channel-to-md.gif)
+
+```bash
+# Real command (creates a dedicated job folder under --out)
+flucto channel to-md "@LIFECODEofficial" --limit 100 --out ./notes
+# → ./notes/<channel>-channel-md-<timestamp>/001_….md …
+```
+
+Demo assets: `assets/demo/flucto-channel-to-md.gif`, `assets/demo/flucto-channel-to-md.mp4`  
+(MP4 is used for Threads / social video posts; GIF for README embeds.)
 
 ### Build and run locally
 
