@@ -4,15 +4,22 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { parseCliArgs, CliUsageError, type CliOptions } from './args.js';
 import {
+  banner,
   helpText,
-  progressBar,
+  info,
+  kv,
+  ok,
   renderDownloadProgress,
+  renderJobProgress,
+  renderSummaryBox,
   renderTranscriptProgress,
+  step,
   writeError,
   writeHuman,
   writeJson,
   writeStatus,
 } from './output.js';
+import { c } from './theme.js';
 import { createMultiJobOutputDir, slugifyJobLabel } from './jobOutput.js';
 import { checkBinaryHealth, resolveCliBinaries } from '../main/services/binaryResolver.js';
 import { parseBatchFileContent, runWithConcurrency } from '../main/services/batch.js';
@@ -83,9 +90,12 @@ const runDoctor = async (options: CliOptions): Promise<number> => {
   if (options.json) {
     writeJson(result);
   } else if (result.valid) {
-    writeHuman(`yt-dlp: ${result.versions.ytDlp ?? binaries.ytDlpPath}`);
-    writeHuman(`ffmpeg: ${result.versions.ffmpeg?.split(' ')[0] ?? binaries.ffmpegPath}`);
+    banner('doctor  ·  binary health', readPackageVersion());
+    ok(`yt-dlp   ${c.white(result.versions.ytDlp ?? binaries.ytDlpPath)}`);
+    ok(`ffmpeg   ${c.white((result.versions.ffmpeg ?? binaries.ffmpegPath).split(' ')[0] ?? '')}`);
+    writeStatus('');
   } else {
+    banner('doctor  ·  binary health', readPackageVersion());
     writeError(`Missing binaries: ${result.missing.join(', ')}. ${result.fix}`);
   }
 
@@ -226,36 +236,58 @@ const runBatch = async (options: CliOptions): Promise<number> => {
   const formatKind = options.format === 'md' ? 'batch-md' : options.format === 'mp3' ? 'batch-mp3' : 'batch-mp4';
   const batchLabel = path.parse(filePath).name || 'batch';
   const jobDir = createMultiJobOutputDir(outputBaseDir(options), formatKind, batchLabel);
+  const startedAt = Date.now();
 
   if (!options.json) {
-    writeStatus(`→ batch job folder: ${jobDir}`);
+    banner(`batch · ${options.format.toUpperCase()} · ${urls.length} items`, readPackageVersion());
+    step(`source  ${filePath}`);
+    ok(`job folder  ${jobDir}`);
+    step(`running with concurrency ${options.concurrency}`);
   }
 
-  const results = await runWithConcurrency(urls, options.concurrency, async (url) => {
-    if (options.format === 'md') {
-      return convertTranscriptToMarkdown(transcriptRequest(url, options), {
+  let completed = 0;
+  const results = await runWithConcurrency(urls, options.concurrency, async (url, index) => {
+    const result = options.format === 'md'
+      ? await convertTranscriptToMarkdown(transcriptRequest(url, options), {
         binaries: resolveBinaries(options),
         outputDir: jobDir,
-        onProgress: (progress) => renderTranscriptProgress(progress, options.progressJson),
+        onProgress: options.progressJson
+          ? (progress) => renderTranscriptProgress(progress, true)
+          : undefined,
+      })
+      : await runMediaDownload(
+        {
+          url,
+          format: options.format === 'mp3' ? 'mp3' : 'mp4',
+          outputDir: jobDir,
+          quality: {
+            video: options.quality,
+            audio: options.audioQuality,
+          },
+        },
+        {
+          binaries: resolveBinaries(options),
+          onProgress: options.progressJson
+            ? (progress) => renderDownloadProgress(progress, true)
+            : undefined,
+        },
+      );
+
+    completed += 1;
+    if (!options.json && !options.progressJson) {
+      const title = ('title' in result && result.title) ? String(result.title) : url;
+      renderJobProgress({
+        done: completed,
+        total: urls.length,
+        title,
+        filePath: result.success ? result.filePath : undefined,
+        error: result.success ? undefined : result.message,
       });
     }
-    return runMediaDownload(
-      {
-        url,
-        format: options.format === 'mp3' ? 'mp3' : 'mp4',
-        outputDir: jobDir,
-        quality: {
-          video: options.quality,
-          audio: options.audioQuality,
-        },
-      },
-      {
-        binaries: resolveBinaries(options),
-        onProgress: (progress) => renderDownloadProgress(progress, options.progressJson),
-      },
-    );
+    return result;
   });
   const failed = results.filter((result) => !result.success);
+  const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
 
   if (options.json) {
     writeJson({
@@ -266,8 +298,12 @@ const runBatch = async (options: CliOptions): Promise<number> => {
       results,
     });
   } else {
-    writeHuman(`Processed ${results.length} item(s), failed ${failed.length}.`);
-    writeHuman(`Output folder: ${jobDir}`);
+    renderSummaryBox([
+      c.bold(failed.length === 0 ? c.green('Batch complete') : c.yellow('Batch finished with errors')),
+      `${c.dim('processed')}  ${results.length - failed.length}/${results.length} ok`,
+      `${c.dim('folder')}     ${jobDir}`,
+      `${c.dim('time')}       ${elapsed}s`,
+    ]);
   }
 
   return failed.length === 0 ? 0 : 7;
@@ -311,8 +347,8 @@ const runChannelToMd = async (options: CliOptions): Promise<number> => {
   const startedAt = Date.now();
 
   if (!options.json) {
-    writeStatus(`◈ flucto cli  v${version}  ·  channel to-md`);
-    writeStatus(`→ 채널 해석 중…  ${targetInput}`);
+    banner('channel to-md  ·  captions → Markdown', version);
+    step(`resolving  ${c.white(targetInput)}`);
   }
 
   let listed;
@@ -337,11 +373,11 @@ const runChannelToMd = async (options: CliOptions): Promise<number> => {
   );
 
   if (!options.json) {
-    writeStatus(`✓ 채널 확인  ·  ${listed.channelTitle}`);
-    writeStatus(`→ job folder: ${outDir}`);
-    writeStatus(`→ 업로드 목록 수집 완료`);
-    writeStatus(`✓ 영상 ${videos.length}개 발견 (limit ${options.limit})`);
-    writeStatus('→ 각 영상을 마크다운으로 추출합니다 (captions → md)');
+    ok(`channel   ${c.bold(listed.channelTitle)}`);
+    ok(`folder    ${c.cyan(outDir)}`);
+    ok(`videos    ${c.bold(String(videos.length))}  ${c.dim(`(limit ${options.limit})`)}`);
+    step('extracting captions → markdown');
+    writeStatus('');
   }
 
   if (videos.length === 0) {
@@ -358,8 +394,8 @@ const runChannelToMd = async (options: CliOptions): Promise<number> => {
         results: [],
       });
     } else {
-      writeHuman('No videos found on this channel.');
-      writeHuman(`Output folder: ${outDir}`);
+      info('No videos found on this channel.');
+      kv('folder', outDir);
     }
     return 0;
   }
@@ -424,15 +460,14 @@ const runChannelToMd = async (options: CliOptions): Promise<number> => {
     results[index] = item;
     completed += 1;
 
-    if (!options.json) {
-      const bar = progressBar(completed, videos.length);
-      const shortTitle = (item.title || '').slice(0, 42);
-      writeStatus(`[${bar}] ${String(completed).padStart(3, ' ')}/${videos.length}  ${shortTitle}`);
-      if (item.success && item.filePath) {
-        writeStatus(`    → ${item.filePath}`);
-      } else if (!item.success) {
-        writeStatus(`    ✗ ${item.message}`);
-      }
+    if (!options.json && !options.progressJson) {
+      renderJobProgress({
+        done: completed,
+        total: videos.length,
+        title: item.title || video.title,
+        filePath: item.success ? item.filePath : undefined,
+        error: item.success ? undefined : item.message,
+      });
     }
 
     return item;
@@ -462,11 +497,14 @@ const runChannelToMd = async (options: CliOptions): Promise<number> => {
   if (options.json) {
     writeJson(payload);
   } else {
-    writeStatus('');
-    writeStatus(`✓ 완료  ·  ${succeeded}/${ordered.length} markdown files` + (failed.length ? `  (failed ${failed.length})` : ''));
-    writeStatus(`  out:  ${outDir}`);
-    writeStatus(`  time: ${elapsedSec}s  ·  평균 추출 ${avg}s/영상`);
-    writeHuman(`agent: 채널 1개 → 영상 ${ordered.length}개 → 마크다운 ${succeeded}파일`);
+    renderSummaryBox([
+      c.bold(failed.length === 0 ? c.green('Complete') : c.yellow('Finished with some failures')),
+      `${c.dim('channel')}   ${listed.channelTitle}`,
+      `${c.dim('markdown')}  ${succeeded}/${ordered.length} files` + (failed.length ? c.red(`  ·  ${failed.length} failed`) : ''),
+      `${c.dim('folder')}    ${outDir}`,
+      `${c.dim('time')}      ${elapsedSec}s  ·  avg ${avg}s / video`,
+      `${c.dim('agent')}     채널 1 → 영상 ${ordered.length} → MD ${succeeded}`,
+    ]);
   }
 
   return failed.length === 0 ? 0 : 7;
