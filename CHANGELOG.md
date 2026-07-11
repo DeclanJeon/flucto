@@ -1,3 +1,11 @@
+# [1.13.0](https://github.com/DeclanJeon/flucto/compare/v1.12.0...v1.13.0) (2026-07-11)
+
+
+### Features
+
+* add TikTok/Vimeo adapters + MarkdownPipeline (G005-G006) ([3be5de9](https://github.com/DeclanJeon/flucto/commit/3be5de9ba0c2dc922256abfc174b55d5c2fee8de))
+* implement Platform Adapter architecture (G001-G003) ([8bd179d](https://github.com/DeclanJeon/flucto/commit/8bd179daf5aff1677e53c0228c9e093b56db64f1))
+
 ## [1.11.1](https://github.com/DeclanJeon/flucto/compare/v1.11.0...v1.11.1) (2026-07-11)
 
 
