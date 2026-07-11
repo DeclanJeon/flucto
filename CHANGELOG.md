@@ -1,3 +1,10 @@
+## [1.11.1](https://github.com/DeclanJeon/flucto/compare/v1.11.0...v1.11.1) (2026-07-11)
+
+
+### Bug Fixes
+
+* **updater:** 업데이트 메타데이터를 릴리스에 포함 ([e256419](https://github.com/DeclanJeon/flucto/commit/e256419d8732b5a7c648d6a77a99583d6298840e))
+
 # [1.11.0](https://github.com/DeclanJeon/flucto/compare/v1.10.0...v1.11.0) (2026-07-10)
 
 
