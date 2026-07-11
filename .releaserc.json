@@ -22,6 +22,10 @@
           {"path": "release/*.zip", "label": "macOS Portable"},
           {"path": "release/*.AppImage", "label": "Linux AppImage"},
           {"path": "release/*.deb", "label": "Linux DEB"},
+          {"path": "release/latest.yml", "label": "Windows Update Manifest"},
+          {"path": "release/latest-mac.yml", "label": "macOS Update Manifest"},
+          {"path": "release/latest-linux.yml", "label": "Linux Update Manifest"},
+          {"path": "release/*.blockmap", "label": "Differential Update Metadata"},
           {"path": "release/checksums-sha256.txt", "label": "SHA256 Checksums"}
         ]
       }

@@ -138,6 +138,8 @@ jobs:
             release/*.zip
             release/*.AppImage
             release/*.deb
+            release/latest*.yml
+            release/*.blockmap
           retention-days: 1
 
   release:
