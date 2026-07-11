@@ -1,8 +1,10 @@
 import type { FormatOption, VideoInfo } from '../../shared/types.js';
 import { execa } from '../spawn.js';
-import { getCommonYtDlpArgs, getRefererForUrl, isThreadsUrl, parseJsonLines, parseLastJsonObjectFromStdout, type YtDlpMetadata } from '../media/ytDlp.js';
-import { getThreadsVideoInfo } from '../media/threads.js';
+import { getCommonYtDlpArgs, getRefererForUrl, parseJsonLines, parseLastJsonObjectFromStdout, type YtDlpMetadata } from '../media/ytDlp.js';
+import { createPlatformRegistry } from '../platforms/index.js';
 import type { BinaryResolver } from './binaryResolver.js';
+
+const registry = createPlatformRegistry();
 
 const toStringValue = (value: unknown): string | null => {
   return typeof value === 'string' ? value : null;
@@ -46,10 +48,15 @@ export const extractBestThumbnail = (info: YtDlpMetadata): string | null => {
 };
 
 export const getMediaInfo = async (url: string, binaries: BinaryResolver): Promise<VideoInfo> => {
-  // Threads: bypass yt-dlp entirely (no extractor available)
-  if (isThreadsUrl(url)) {
-    return getThreadsVideoInfo(url);
+  // Check if a custom adapter handles this URL (e.g. Threads)
+  const adapter = registry.resolve(url);
+  if (adapter) {
+    const strategy = adapter.getStrategy(url);
+    if ((strategy === 'custom-api' || strategy === 'browser') && adapter.extractInfo) {
+      return adapter.extractInfo(url);
+    }
   }
+
 
   const referer = getRefererForUrl(url) ?? '';
 

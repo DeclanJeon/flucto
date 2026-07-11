@@ -2,10 +2,12 @@ import path from 'path';
 import { randomUUID } from 'crypto';
 import type { DownloadProgress, DownloadQualityPreferences, DownloadResponse, MediaDownloadFormat, SingleDownloadRequest } from '../../shared/types.js';
 import { execa } from '../spawn.js';
-import { getCommonYtDlpArgs, getRefererForUrl, isThreadsUrl } from '../media/ytDlp.js';
-import { downloadThreadsVideo } from '../media/threads.js';
+import { getCommonYtDlpArgs, getRefererForUrl } from '../media/ytDlp.js';
+import { createPlatformRegistry } from '../platforms/index.js';
 import type { BinaryResolver } from './binaryResolver.js';
 import { defaultQualityPreferences } from './settingsDefaults.js';
+
+const registry = createPlatformRegistry();
 
 export interface MediaDownloadOptions {
   url: string;
@@ -87,7 +89,8 @@ export const getResolvedVideoFormatSelector = (
   preset: DownloadQualityPreferences['video'],
   overrideFormatId?: string | null,
 ): string => {
-  if (isInstagramUrl(url) || isThreadsUrl(url)) {
+  const adapter = registry.resolve(url);
+  if (isInstagramUrl(url) || (adapter && (adapter.getStrategy(url) === 'custom-api' || adapter.getStrategy(url) === 'browser'))) {
     return 'best[ext=mp4]/best';
   }
 
@@ -166,13 +169,17 @@ export const runMediaDownload = async (
   const outputTemplate = path.join(options.outputDir, '%(title)s.%(ext)s');
   let finalFilePath: string | undefined;
 
-  // Threads: use dedicated downloader (yt-dlp has no Threads extractor)
-  if (isThreadsUrl(options.url)) {
-    const result = await downloadThreadsVideo(
-      { url: options.url, outputDir: options.outputDir, requestId, title: options.title },
-      deps.onProgress,
-    );
-    return { ...result, format: options.format };
+  // Check if a custom adapter handles this URL (e.g. Threads)
+  const adapter = registry.resolve(options.url);
+  if (adapter) {
+    const strategy = adapter.getStrategy(options.url);
+    if ((strategy === 'custom-api' || strategy === 'browser') && adapter.download) {
+      const result = await adapter.download(
+        { url: options.url, outputDir: options.outputDir, format: options.format, requestId, title: options.title },
+        deps.onProgress,
+      );
+      return { ...result, requestId, title, url: options.url, format: options.format };
+    }
   }
 
   const tryDownload = async (retryCount = 0): Promise<void> => {

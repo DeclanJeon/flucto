@@ -10,13 +10,14 @@ import { initializeAutoUpdater } from "./updater.js";
 import type { DownloadRequest, DownloadQualityPreferences, DownloadSettings, FormatOption } from "../shared/types.js";
 import { settingsStore, getStoredDownloadSettings } from './store.js';
 import { appendHistoryEntry, clearHistory, getHistoryEntries } from './historyStore.js';
-import { getCommonYtDlpArgs, getRefererForUrl, isThreadsUrl, parseLastJsonObjectFromStdout } from './media/ytDlp.js';
-import { getThreadsVideoInfo, downloadThreadsVideo } from './media/threads.js';
+import { getCommonYtDlpArgs, getRefererForUrl, parseLastJsonObjectFromStdout } from './media/ytDlp.js';
+import { createPlatformRegistry } from './platforms/index.js';
 import { runMediaDownload } from './services/mediaDownload.js';
 import { setupUtilities } from './services/binaryInstaller.js';
 import type { BinaryResolver } from './services/binaryResolver.js';
 import './handlers.js';
 import './transcript/transcriptHandlers.js';
+const registry = createPlatformRegistry();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -357,9 +358,13 @@ ipcMain.handle("get-video-info", async (_event, url: string) => {
   try {
     logger.info(`Fetching video info for: ${url}`);
 
-    // Threads: bypass yt-dlp (no extractor available)
-    if (isThreadsUrl(url)) {
-      return await getThreadsVideoInfo(url);
+    // Custom adapter check (e.g. Threads)
+    const adapter = registry.resolve(url);
+    if (adapter) {
+      const strategy = adapter.getStrategy(url);
+      if ((strategy === 'custom-api' || strategy === 'browser') && adapter.extractInfo) {
+        return await adapter.extractInfo(url);
+      }
     }
 
     const referer = getRefererForUrl(url) ?? "";
@@ -562,21 +567,25 @@ ipcMain.handle(
           title: mediaTitle,
         });
 
-        // Threads: use dedicated downloader
-        if (isThreadsUrl(url)) {
-          const result = await downloadThreadsVideo(
-            { url, outputDir: settings.downloadsDirectory || config.paths.downloads, requestId, title: mediaTitle },
-            (progress) => event.sender.send("download-progress", progress),
-          );
-          if (result.filePath) {
-            appendHistoryEntry({ id: requestId, url, title: mediaTitle, timestamp: Date.now(), status: 'success', filePath: result.filePath, format });
-          } else {
-            appendHistoryEntry({ id: requestId, url, title: mediaTitle, timestamp: Date.now(), status: 'error', filePath: null, errorMessage: result.message, format });
+        // Custom adapter check (e.g. Threads)
+        const adapter = registry.resolve(url);
+        if (adapter) {
+          const strategy = adapter.getStrategy(url);
+          if ((strategy === 'custom-api' || strategy === 'browser') && adapter.download) {
+            const result = await adapter.download(
+              { url, outputDir: settings.downloadsDirectory || config.paths.downloads, format, requestId, title: mediaTitle },
+              (progress) => event.sender.send("download-progress", progress),
+            );
+            if (result.filePath) {
+              appendHistoryEntry({ id: requestId, url, title: mediaTitle, timestamp: Date.now(), status: 'success', filePath: result.filePath, format });
+            } else {
+              appendHistoryEntry({ id: requestId, url, title: mediaTitle, timestamp: Date.now(), status: 'error', filePath: null, errorMessage: result.message, format });
+            }
+            if (result.success && shouldNotifyPerItem) {
+              showDesktopNotification('Download Complete', mediaTitle);
+            }
+            return;
           }
-          if (result.success && shouldNotifyPerItem) {
-            showDesktopNotification('Download Complete', mediaTitle);
-          }
-          return;
         }
 
         const referer = getRefererForUrl(url) ?? "";
@@ -760,19 +769,23 @@ ipcMain.handle("download-video", async (_event, args: DownloadRequest) => {
   showDesktopNotification('Download Started', 'Download has started.');
 
   try {
-    // Threads: use dedicated downloader (yt-dlp has no Threads extractor)
-    if (isThreadsUrl(url)) {
-      const result = await downloadThreadsVideo(
-        { url, outputDir: settings.downloadsDirectory || config.paths.downloads, title: args.title },
-        (progress) => _event.sender.send("download-progress", progress),
-      );
-      const requestId = `threads-${Date.now()}`;
-      if (result.filePath) {
-        appendHistoryEntry({ id: requestId, url, title: result.title, timestamp: Date.now(), status: 'success', filePath: result.filePath, format });
-      } else {
-        appendHistoryEntry({ id: requestId, url, title: result.title, timestamp: Date.now(), status: 'error', filePath: null, errorMessage: result.message, format });
+    // Custom adapter check (e.g. Threads)
+    const adapter = registry.resolve(url);
+    if (adapter) {
+      const strategy = adapter.getStrategy(url);
+      if ((strategy === 'custom-api' || strategy === 'browser') && adapter.download) {
+        const requestId = `custom-${Date.now()}`;
+        const result = await adapter.download(
+          { url, outputDir: settings.downloadsDirectory || config.paths.downloads, format, requestId, title: args.title },
+          (progress) => _event.sender.send("download-progress", progress),
+        );
+        if (result.filePath) {
+          appendHistoryEntry({ id: requestId, url, title: args.title ?? 'Downloaded Media', timestamp: Date.now(), status: 'success', filePath: result.filePath, format });
+        } else {
+          appendHistoryEntry({ id: requestId, url, title: args.title ?? 'Failed Download', timestamp: Date.now(), status: 'error', filePath: null, errorMessage: result.message, format });
+        }
+        return result;
       }
-      return result;
     }
 
     const referer = getRefererForUrl(url) ?? "";

@@ -1,0 +1,12 @@
+export type { PlatformAdapter, ExtractionStrategy, QualityLevel, DownloadOptions, ProgressCallback, TranscriptResult, BatchResult, YtDlpPlatformConfig } from './types.js';
+export { PlatformError } from './errors.js';
+export { PlatformRegistry } from './registry.js';
+export { createYtDlpAdapter } from './yt-dlp-adapter.js';
+export { createPlatformRegistry } from './createRegistry.js';
+export { createYouTubeAdapter } from './youtube.js';
+export { createTwitterAdapter } from './twitter.js';
+export { createInstagramAdapter } from './instagram.js';
+export { createRedditAdapter } from './reddit.js';
+export { createBilibiliAdapter } from './bilibili.js';
+export { createThreadsAdapter } from './threads.js';
+export { createGenericAdapter } from './generic.js';
