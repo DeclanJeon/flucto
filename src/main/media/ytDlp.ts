@@ -2,6 +2,9 @@ import { execa } from '../spawn.js';
 
 export type YtDlpMetadata = Record<string, unknown>;
 
+export const isThreadsUrl = (url: string): boolean =>
+  url.includes('threads.com') || url.includes('threads.net');
+
 export const getRefererForUrl = (url: string): string | null => {
   if (url.includes('x.com') || url.includes('twitter.com')) {
     return 'https://x.com/';
@@ -11,6 +14,9 @@ export const getRefererForUrl = (url: string): string | null => {
   }
   if (url.includes('bilibili.com')) {
     return 'https://www.bilibili.com/';
+  }
+  if (isThreadsUrl(url)) {
+    return 'https://www.threads.com/';
   }
   return null;
 };

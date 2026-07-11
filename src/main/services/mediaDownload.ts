@@ -2,7 +2,8 @@ import path from 'path';
 import { randomUUID } from 'crypto';
 import type { DownloadProgress, DownloadQualityPreferences, DownloadResponse, MediaDownloadFormat, SingleDownloadRequest } from '../../shared/types.js';
 import { execa } from '../spawn.js';
-import { getCommonYtDlpArgs, getRefererForUrl } from '../media/ytDlp.js';
+import { getCommonYtDlpArgs, getRefererForUrl, isThreadsUrl } from '../media/ytDlp.js';
+import { downloadThreadsVideo } from '../media/threads.js';
 import type { BinaryResolver } from './binaryResolver.js';
 import { defaultQualityPreferences } from './settingsDefaults.js';
 
@@ -86,7 +87,7 @@ export const getResolvedVideoFormatSelector = (
   preset: DownloadQualityPreferences['video'],
   overrideFormatId?: string | null,
 ): string => {
-  if (isInstagramUrl(url)) {
+  if (isInstagramUrl(url) || isThreadsUrl(url)) {
     return 'best[ext=mp4]/best';
   }
 
@@ -164,6 +165,15 @@ export const runMediaDownload = async (
   const sleep = deps.sleep ?? defaultSleep;
   const outputTemplate = path.join(options.outputDir, '%(title)s.%(ext)s');
   let finalFilePath: string | undefined;
+
+  // Threads: use dedicated downloader (yt-dlp has no Threads extractor)
+  if (isThreadsUrl(options.url)) {
+    const result = await downloadThreadsVideo(
+      { url: options.url, outputDir: options.outputDir, requestId, title: options.title },
+      deps.onProgress,
+    );
+    return { ...result, format: options.format };
+  }
 
   const tryDownload = async (retryCount = 0): Promise<void> => {
     const args = buildDownloadArgs(options, deps.binaries);

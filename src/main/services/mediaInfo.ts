@@ -1,6 +1,7 @@
 import type { FormatOption, VideoInfo } from '../../shared/types.js';
 import { execa } from '../spawn.js';
-import { getCommonYtDlpArgs, getRefererForUrl, parseJsonLines, parseLastJsonObjectFromStdout, type YtDlpMetadata } from '../media/ytDlp.js';
+import { getCommonYtDlpArgs, getRefererForUrl, isThreadsUrl, parseJsonLines, parseLastJsonObjectFromStdout, type YtDlpMetadata } from '../media/ytDlp.js';
+import { getThreadsVideoInfo } from '../media/threads.js';
 import type { BinaryResolver } from './binaryResolver.js';
 
 const toStringValue = (value: unknown): string | null => {
@@ -45,6 +46,11 @@ export const extractBestThumbnail = (info: YtDlpMetadata): string | null => {
 };
 
 export const getMediaInfo = async (url: string, binaries: BinaryResolver): Promise<VideoInfo> => {
+  // Threads: bypass yt-dlp entirely (no extractor available)
+  if (isThreadsUrl(url)) {
+    return getThreadsVideoInfo(url);
+  }
+
   const referer = getRefererForUrl(url) ?? '';
 
   const tryFetch = async (retryCount = 0): Promise<YtDlpMetadata> => {
