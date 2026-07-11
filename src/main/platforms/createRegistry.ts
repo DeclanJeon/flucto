@@ -5,6 +5,8 @@ import { createInstagramAdapter } from './instagram.js';
 import { createRedditAdapter } from './reddit.js';
 import { createBilibiliAdapter } from './bilibili.js';
 import { createThreadsAdapter } from './threads.js';
+import { createTikTokAdapter } from './tiktok.js';
+import { createVimeoAdapter } from './vimeo.js';
 import { createGenericAdapter } from './generic.js';
 
 export function createPlatformRegistry(): PlatformRegistry {
@@ -15,6 +17,8 @@ export function createPlatformRegistry(): PlatformRegistry {
   registry.register(createRedditAdapter());
   registry.register(createBilibiliAdapter());
   registry.register(createThreadsAdapter());
+  registry.register(createTikTokAdapter());
+  registry.register(createVimeoAdapter());
   registry.register(createGenericAdapter());
   return registry;
 }

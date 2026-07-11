@@ -9,6 +9,7 @@ ${c.bold('Usage')}
   flucto download <url> [--format mp4|mp3] [--output-dir DIR] [--json]
   flucto batch <file> [--format mp4|mp3|md] [--concurrency N] [--output-dir DIR] [--json]
   flucto transcript <url> [--language en|ko|ja|zh|auto] [--stdout] [--json]
+  flucto md <url> [--language en|ko|ja|zh|auto] [--stdout] [--json]
   flucto channel to-md <channel-url|@handle> [--limit N] [--out DIR] [--language en|ko|auto] [--json]
   flucto channel-to-md <channel-url|@handle> [--limit N] [--out DIR] [--json]
       ${c.dim('(multi-file jobs create a dedicated subfolder under --out / cwd)')}
@@ -23,8 +24,8 @@ ${c.bold('Usage')}
   flucto --version
 
 ${c.bold('Short form')}
-  fl d <url> [-f mp4|mp3] [-o DIR] [-j]
   fl t <url> [-l en|ko|ja|zh|auto] [-s] [-j]
+  fl m <url> [-l en|ko|ja|zh|auto] [-s] [-j]
   fl channel to-md <@handle|url> [--limit N] [-o DIR] [-j]
   fl i <url> [-j]
   fl f <url> [-j]
@@ -34,8 +35,7 @@ ${c.bold('Short form')}
   fl s [-j]
   fl u check|download|apply [-j]
 
-${c.bold('Command aliases')}
-  d=download, b=batch, t=transcript, i=info, f=formats, l=languages
+  d=download, b=batch, t=transcript, m=md, i=info, f=formats, l=languages
   doc=doctor, s=setup, u=update, h=help, v=version
 
 ${c.bold('Examples')}

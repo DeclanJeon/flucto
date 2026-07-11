@@ -26,6 +26,9 @@ import { parseBatchFileContent, runWithConcurrency } from '../main/services/batc
 import { runMediaDownload } from '../main/services/mediaDownload.js';
 import { getAvailableFormats, getMediaInfo, listChannelVideos, normalizeChannelTarget } from '../main/services/mediaInfo.js';
 import { convertTranscriptToMarkdown, listTranscriptLanguages } from '../main/services/transcriptMarkdown.js';
+import { MarkdownPipeline } from '../main/services/markdownPipeline.js';
+import { MediaOrchestrator } from '../main/services/orchestrator.js';
+import { createPlatformRegistry } from '../main/platforms/createRegistry.js';
 import { sanitizeMarkdownFilename } from '../main/transcript/markdownFormatter.js';
 import { getManagedBinDir, setupUtilities } from '../main/services/binaryInstaller.js';
 import { applyCliUpdate, checkForCliUpdate, downloadCliUpdate } from '../main/services/cliUpdater.js';
@@ -228,6 +231,33 @@ const runTranscript = async (options: CliOptions): Promise<number> => {
   }
 
   return response.success ? 0 : 5;
+};
+
+const runMd = async (options: CliOptions): Promise<number> => {
+  const binaries = resolveBinaries(options);
+  const registry = createPlatformRegistry();
+  const orchestrator = new MediaOrchestrator(registry);
+  const pipeline = new MarkdownPipeline(orchestrator, binaries);
+
+  const result = await pipeline.convert(options.positional[0], {
+    language: options.language ?? undefined,
+    stdout: options.stdout,
+    outputDir: outputDir(options),
+  });
+
+  if (options.stdout && result.markdown) {
+    process.stdout.write(result.markdown);
+    if (!result.markdown.endsWith('\n')) process.stdout.write('\n');
+  } else if (options.json) {
+    writeJson(result);
+  } else if (result.success) {
+    writeHuman(result.filePath ?? result.message ?? 'Markdown conversion complete.');
+  } else {
+    writeError(result.message ?? 'Markdown conversion failed.');
+  }
+
+  await registry.dispose();
+  return result.success ? 0 : 5;
 };
 
 const runBatch = async (options: CliOptions): Promise<number> => {
@@ -530,6 +560,8 @@ const dispatch = async (options: CliOptions): Promise<number> => {
       return runBatch(options);
     case 'transcript':
       return runTranscript(options);
+    case 'md':
+      return runMd(options);
     case 'channel-to-md':
       return runChannelToMd(options);
     case 'info':

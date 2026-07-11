@@ -5,6 +5,7 @@ export type CliCommand =
   | 'download'
   | 'batch'
   | 'transcript'
+  | 'md'
   | 'channel-to-md'
   | 'info'
   | 'formats'
@@ -51,6 +52,8 @@ const commandAliases: Record<string, CliCommand | 'channel'> = {
   b: 'batch',
   transcript: 'transcript',
   t: 'transcript',
+  md: 'md',
+  m: 'md',
   'channel-to-md': 'channel-to-md',
   channel: 'channel',
   info: 'info',
@@ -226,7 +229,7 @@ const parseUpdateAction = (command: CliCommand, positional: string[]): CliUpdate
 };
 
 const validateCommand = (options: CliOptions): void => {
-  if (['download', 'transcript', 'info', 'formats', 'languages'].includes(options.command) && options.positional.length !== 1) {
+  if (['download', 'transcript', 'md', 'info', 'formats', 'languages'].includes(options.command) && options.positional.length !== 1) {
     throw new CliUsageError(`${options.command} requires exactly one URL.`);
   }
 

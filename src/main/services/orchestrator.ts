@@ -106,6 +106,11 @@ const buildYtDlpDownloadArgs = (
 export class MediaOrchestrator {
   constructor(private readonly registry: PlatformRegistry) {}
 
+  /** Resolve the platform adapter for a URL, or null if no adapter matches. */
+  getAdapter(url: string): PlatformAdapter | null {
+    return this.registry.resolve(url);
+  }
+
   // ----- getInfo: resolve adapter → dispatch -----
 
   async getInfo(url: string, signal?: AbortSignal): Promise<VideoInfo> {
