@@ -16,10 +16,10 @@
 </p>
 
 
-> Flucto is an open-source desktop application for creators and curators who want one flowing way to capture media and turn available captions into Markdown notes from YouTube, X, Reddit, Bilibili, and Instagram.
+> Flucto is an open-source desktop application for creators and curators who want one flowing way to capture media and turn available captions into Markdown notes from YouTube, X, Reddit, Bilibili, Instagram, Threads, TikTok, and Vimeo.
 
 - ✨ **Stunning UI**: Apple-inspired dark mode with glassmorphism & smooth animations
-- 🌍 **Universal Support**: Download from YouTube, X, Reddit, Bilibili, Instagram
+- 🌍 **Universal Support**: Download from YouTube, X, Reddit, Bilibili, Instagram, Threads, TikTok, Vimeo
 - 📝 **Caption to Markdown**: Convert available subtitles/captions into clean `.md` files with metadata and timestamps
 - 📦 **Batch Processing**: Import `.txt` lists to download media or convert caption queues automatically
 - ⚡ **Auto-Setup**: Automatically fetches and configures `yt-dlp` and `ffmpeg` binaries
@@ -38,7 +38,7 @@
 ## Key Features
 
 - **Smart Media Engine:** Flucto parses single video, playlist, and social-media URLs while sharing platform-specific `yt-dlp` headers, referers, and retry behavior across preview, download, and transcript flows.
-- **MP4 / MP3 / MD Output Modes:** Choose between media download, audio extraction, or Markdown transcript conversion without changing the Electron + TypeScript desktop stack.
+- **Extensible Platform Architecture:** Plugin-based `PlatformAdapter` system — adding a new platform is one file. Supports yt-dlp-based platforms, custom API extraction, and browser-based fallback strategies.
 - **Caption-to-Markdown Conversion:** Uses `yt-dlp` subtitle/caption output when available, parses JSON3, XML/SRV3, and VTT captions, cleans caption markup, groups nearby captions into readable paragraphs, and writes filesystem-safe `.md` files.
 - **Transcript Options:** Default new Markdown conversions to English captions (`en`) while still allowing `Auto` or a concrete caption language, include/exclude timestamps and metadata, choose paragraph gap rules, save Markdown files, and optionally copy generated Markdown to the clipboard.
 - **Batch Queue System:** Supports loading hundreds of URLs via text files. Batch media downloads and batch transcript conversions both use bounded concurrency so large queues remain responsive.
@@ -114,8 +114,7 @@ Packaged releases expose both commands through `package.json`'s `bin` entry. Sho
 | `flucto download <url>` | `fl d <url>` | Download MP4 video or MP3 audio | Generated media file |
 | `flucto languages <url>` | `fl l <url>` | List available caption languages | language code/name and auto/manual flag |
 | `flucto transcript <url>` | `fl t <url>` | Convert available captions/subtitles to Markdown | `.md` file or stdout Markdown |
-| `flucto channel to-md <channel\|@handle>` | `fl channel to-md …` | List up to N channel videos and convert each caption set to Markdown | Dedicated job folder with numbered `.md` files |
-| `flucto batch <file>` | `fl b <file>` | Process a text file of URLs | Dedicated job folder with media or Markdown outputs |
+| `flucto md <url>` | `fl md <url>` | Download media and convert to Markdown in one step | `.md` file with metadata + transcript |
 | `flucto update check` | `fl u check` | Check GitHub releases for a newer Flucto version | Current/latest version and recommended asset |
 | `flucto update download` | `fl u download` | Download the recommended GitHub release asset | Downloaded asset path and checksum status |
 | `flucto update apply` | `fl u apply` | Apply an already downloaded asset when safe | Conservative apply result or manual install instructions |
@@ -139,9 +138,8 @@ fl f "https://www.youtube.com/watch?v=..."
 
 # Download video or audio
 fl d "https://www.youtube.com/watch?v=..." -f mp4 -o ./captures -j
-fl d "https://www.youtube.com/watch?v=..." -f mp3 -o ./audio -j
-
-# Convert captions/subtitles to Markdown
+fl d "https://www.threads.com/@user/post/ABC" -f mp4 -o ./captures
+fl d "https://www.tiktok.com/@user/video/123" -f mp4 -o ./captures
 fl l "https://www.youtube.com/watch?v=..." -j
 fl t "https://www.youtube.com/watch?v=..." -l en -o ./notes -j
 fl t "https://www.youtube.com/watch?v=..." -l auto -s > transcript.md
@@ -229,14 +227,15 @@ flucto update apply --asset ~/Downloads/Flucto-1.9.2-x86_64.AppImage --json
 
 ## Recent Updates
 
+### v1.12.0
+
+- **Threads Support:** Added Threads (threads.com/threads.net) video download via dedicated `threadsdl.app` API extraction, bypassing yt-dlp.
+- **Extensible Platform Architecture:** Refactored platform-specific code into a plugin-based `PlatformAdapter` system with `PlatformRegistry`, `MediaOrchestrator`, and typed error handling (`PlatformError`).
+- **New Platforms:** Added TikTok and Vimeo adapters (yt-dlp-based).
+- **Markdown Pipeline:** Added `MarkdownPipeline` service and `flucto md` CLI command for direct URL-to-Markdown conversion.
+- **Platform Adapters:** YouTube, Twitter/X, Instagram, Reddit, Bilibili, Threads, TikTok, Vimeo — each as a single adapter file.
+
 ### Next
-
-- Added `flucto setup` for managed `yt-dlp` and `ffmpeg` provisioning in CLI-only and repair scenarios.
-- Added CLI GitHub release update commands: `update check`, `update download`, and conservative `update apply`.
-- Added release checksum manifest publishing so CLI downloads can verify release assets when checksum metadata is available.
-- Desktop startup now attempts one managed binary repair before showing the missing-component exit dialog.
-- Refreshed Flucto branding with a new `🌊`-inspired wave-download logo across app icons, favicon, manifest assets, and social preview imagery.
-
 ### v1.9.1
 
 - Fixed CLI MP4 downloads for generic direct media URLs where `yt-dlp` exposes a literal `mp4` format id instead of YouTube-style `bestvideo`/`bestaudio` formats.
