@@ -1,3 +1,10 @@
+## [1.13.2](https://github.com/DeclanJeon/flucto/compare/v1.13.1...v1.13.2) (2026-08-04)
+
+
+### Bug Fixes
+
+* **binaries:** refresh outdated yt-dlp during setup ([c2f5f9c](https://github.com/DeclanJeon/flucto/commit/c2f5f9c8d2809dc6561cd775de8bebc920db5334))
+
 ## [1.13.1](https://github.com/DeclanJeon/flucto/compare/v1.13.0...v1.13.1) (2026-08-04)
 
 
