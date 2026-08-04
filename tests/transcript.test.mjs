@@ -221,3 +221,34 @@ test('no-caption language resolution stays unavailable instead of becoming an up
   assert.equal(toTranscriptError(unavailable), unavailable);
   assert.equal(toTranscriptError(unavailable).code, 'TRANSCRIPT_UNAVAILABLE');
 });
+
+test('toTranscriptError classifies rate limits, disabled captions, and subtitle download failures', () => {
+  const rateLimited = toTranscriptError(
+    new Error("ERROR: Unable to download video subtitles for 'en': HTTP Error 429: Too Many Requests"),
+  );
+  assert.equal(rateLimited.code, 'RATE_LIMITED');
+  assert.equal(rateLimited.message, 'Caption extraction was rate-limited.');
+  assert.match(rateLimited.detail ?? '', /429/);
+
+  const disabled = toTranscriptError(new Error('ERROR: subtitles are disabled for this video'));
+  assert.equal(disabled.code, 'TRANSCRIPT_DISABLED');
+
+  assert.equal(
+    toTranscriptError(new Error('ERROR: Private video')).code,
+    'VIDEO_UNAVAILABLE',
+  );
+  assert.equal(
+    toTranscriptError(new Error('ERROR: Video unavailable. This video is no longer available')).code,
+    'VIDEO_UNAVAILABLE',
+  );
+  assert.equal(
+    toTranscriptError(new Error("ERROR: Private video. Sign in if you've been granted access.")).code,
+    'VIDEO_UNAVAILABLE',
+  );
+
+  const subtitleFail = toTranscriptError(
+    new Error("ERROR: Unable to download video subtitles for 'ko': HTTP Error 403: Forbidden"),
+  );
+  assert.equal(subtitleFail.code, 'UPSTREAM_ERROR');
+  assert.equal(subtitleFail.message, 'Caption download failed.');
+});

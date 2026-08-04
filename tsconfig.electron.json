@@ -3,6 +3,7 @@
     "module": "NodeNext",
     "target": "ESNext",
     "moduleResolution": "NodeNext",
+    "rootDir": "src",
     "outDir": "dist-electron",
     "sourceMap": true,
     "strict": true,

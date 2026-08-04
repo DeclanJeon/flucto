@@ -281,7 +281,7 @@ export const extractTranscript = async (url: string, requestedLanguage?: string 
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flucto-transcript-'));
     const ytDlpPath = binaries?.ytDlpPath ?? 'yt-dlp';
     const referer = getRefererForUrl(url);
-    await execa(
+    const downloadResult = await execa(
       ytDlpPath,
       [
         url,
@@ -329,7 +329,25 @@ export const extractTranscript = async (url: string, requestedLanguage?: string 
       }
     }
 
-    throw new TranscriptError('TRANSCRIPT_UNAVAILABLE', 'Caption files were not generated or were empty.');
+    const ytDlpOutput = [downloadResult.stderr, downloadResult.stdout]
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .join('\n');
+
+    if (ytDlpOutput) {
+      throw new Error(ytDlpOutput);
+    }
+
+    if (downloadResult.failed) {
+      throw new TranscriptError('UPSTREAM_ERROR', 'Caption download failed.');
+    }
+
+    throw new TranscriptError(
+      'TRANSCRIPT_UNAVAILABLE',
+      files.length > 0
+        ? 'Caption files were empty after download.'
+        : 'Caption files were not generated or were empty.',
+    );
   } catch (error: unknown) {
     const transcriptError = toTranscriptError(error);
     if (!['TRANSCRIPT_UNAVAILABLE', 'INVALID_URL', 'TRANSCRIPT_DISABLED', 'VIDEO_UNAVAILABLE'].includes(transcriptError.code)) {
