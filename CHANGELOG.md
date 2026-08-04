@@ -1,3 +1,12 @@
+## [1.13.1](https://github.com/DeclanJeon/flucto/compare/v1.13.0...v1.13.1) (2026-08-04)
+
+
+### Bug Fixes
+
+* **ci:** harden Windows FFmpeg binary download for releases ([5c618d9](https://github.com/DeclanJeon/flucto/commit/5c618d9d964a0688816f5204774b0ce949e77663))
+* **ci:** restore package-lock.json for release builds ([253868d](https://github.com/DeclanJeon/flucto/commit/253868dc4943fb9be7b680e2553cea65ff3e0b1d))
+* **transcript:** surface yt-dlp caption download failures accurately ([ed5e6c0](https://github.com/DeclanJeon/flucto/commit/ed5e6c057b49ca413d0a88c90517ef1e244e161f))
+
 # [1.13.0](https://github.com/DeclanJeon/flucto/compare/v1.12.0...v1.13.0) (2026-07-11)
 
 
