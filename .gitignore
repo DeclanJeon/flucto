@@ -7,9 +7,9 @@ node_modules/
 jspm_packages/
 
 # ─── Package manager lock files ────────────────────────────────────
-# pnpm is the package manager for this project — ignore others
-package-lock.json
+# Release CI and npm scripts use package-lock.json; ignore other managers.
 yarn.lock
+pnpm-lock.yaml
 
 # ─── Build outputs ─────────────────────────────────────────────────
 dist/
