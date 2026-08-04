@@ -88,7 +88,10 @@ const utilitySpecs = (): UtilitySpec[] => {
       : 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp';
 
   const ffmpegUrls = platform === 'win32'
-    ? ['https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip']
+    ? [
+      'https://github.com/GyanD/codexffmpeg/releases/download/8.1.2/ffmpeg-8.1.2-essentials_build.zip',
+      'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip',
+    ]
     : platform === 'darwin'
       ? ['https://evermeet.cx/ffmpeg/getrelease/zip']
       : [
@@ -125,6 +128,27 @@ const isExecutable = (candidate: string): boolean => {
 
 const chmodExecutable = async (filePath: string): Promise<void> => {
   if (process.platform !== 'win32') await fs.promises.chmod(filePath, 0o755);
+};
+
+const normalizeYtDlpVersion = (value: string | null | undefined): string | null => {
+  if (!value) return null;
+  return value.trim().replace(/^yt-dlp\s+/i, '').replace(/^v/i, '') || null;
+};
+
+const fetchLatestYtDlpVersion = async (): Promise<string | null> => {
+  try {
+    const response = await fetch('https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest', {
+      headers: {
+        'user-agent': `Flucto/${YT_DLP_VERSION}`,
+        accept: 'application/vnd.github+json',
+      },
+    });
+    if (!response.ok) return null;
+    const payload = await response.json() as { tag_name?: unknown };
+    return normalizeYtDlpVersion(typeof payload.tag_name === 'string' ? payload.tag_name : null);
+  } catch {
+    return null;
+  }
 };
 
 const versionFor = async (filePath: string, args: string[]): Promise<string | null> => {
@@ -247,7 +271,35 @@ export const setupUtilities = async (options: UtilitySetupOptions = {}): Promise
     }
 
     if (present && !options.force) {
-      utilities.push({ name: spec.name, path: targetPath, status: 'present', version: await versionFor(targetPath, spec.versionArgs) });
+      const installedVersion = await versionFor(targetPath, spec.versionArgs);
+      if (spec.name === 'yt-dlp') {
+        const latestVersion = await fetchLatestYtDlpVersion();
+        const localVersion = normalizeYtDlpVersion(installedVersion);
+        if (latestVersion && localVersion && latestVersion !== localVersion) {
+          options.onStatus?.(`Updating yt-dlp (${localVersion} → ${latestVersion})...`);
+          try {
+            await provisionUtility(spec, targetPath, options.onStatus);
+            utilities.push({
+              name: spec.name,
+              path: targetPath,
+              status: 'downloaded',
+              version: await versionFor(targetPath, spec.versionArgs),
+            });
+            continue;
+          } catch (error: unknown) {
+            utilities.push({
+              name: spec.name,
+              path: targetPath,
+              status: 'failed',
+              version: installedVersion,
+              error: error instanceof Error ? error.message : String(error),
+            });
+            continue;
+          }
+        }
+      }
+
+      utilities.push({ name: spec.name, path: targetPath, status: 'present', version: installedVersion });
       continue;
     }
 
