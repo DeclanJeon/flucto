@@ -15,8 +15,11 @@ const URLS = {
     linux: 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp',
   },
   ffmpeg: {
-    // Using reliable sources for FFmpeg binaries
-    win32: 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip',
+    // Prefer GitHub-hosted builds; keep vendor mirrors as fallback.
+    win32: [
+      'https://github.com/GyanD/codexffmpeg/releases/download/8.1.2/ffmpeg-8.1.2-essentials_build.zip',
+      'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip',
+    ],
     darwin: 'https://evermeet.cx/ffmpeg/ffmpeg-6.0.zip',
     linux: [
       'https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz',
@@ -59,6 +62,44 @@ async function downloadFile(url, destPath) {
   }
 }
 
+async function downloadFileWithRetry(url, destPath, { attempts = 3, delayMs = 1500 } = {}) {
+  let lastError = null;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      await downloadFile(url, destPath);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts) {
+        console.warn(`⚠️  Download retry ${attempt}/${attempts - 1} for ${url}`);
+        await new Promise((resolve) => setTimeout(resolve, delayMs * attempt));
+      }
+    }
+  }
+  throw lastError ?? new Error(`Failed to download ${url}`);
+}
+
+async function downloadFirstAvailable(urls, destPath) {
+  const candidates = Array.isArray(urls) ? urls : [urls];
+  let lastError = null;
+  for (const url of candidates) {
+    try {
+      console.log(`⬇️  Downloading from ${url}...`);
+      await downloadFileWithRetry(url, destPath);
+      return url;
+    } catch (error) {
+      lastError = error;
+      console.warn(`⚠️  Source failed: ${url}`);
+      try {
+        fs.rmSync(destPath, { force: true });
+      } catch {
+        // Best-effort cleanup only.
+      }
+    }
+  }
+  throw lastError ?? new Error('No download sources available');
+}
+
 async function extractZip(zipPath, extractTo) {
   const admzip = await import('adm-zip');
   const zip = new admzip.default(zipPath);
@@ -95,10 +136,10 @@ async function setup() {
   // 1. Download yt-dlp
   const ytDlpName = OS === 'win32' ? 'yt-dlp.exe' : 'yt-dlp';
   const ytDlpPath = path.join(BIN_DIR, ytDlpName);
-  
+
   if (!fs.existsSync(ytDlpPath)) {
     console.log(`⬇️  Downloading yt-dlp...`);
-    await downloadFile(URLS.yt_dlp[OS], ytDlpPath);
+    await downloadFileWithRetry(URLS.yt_dlp[OS], ytDlpPath);
     if (OS !== 'win32') {
       execSync(`chmod +x "${ytDlpPath}"`);
     }
@@ -113,16 +154,15 @@ async function setup() {
 
   if (!fs.existsSync(ffmpegPath)) {
     console.log(`⬇️  Downloading FFmpeg...`);
-    
+
     if (OS === 'win32') {
       const zipPath = path.join(BIN_DIR, 'ffmpeg.zip');
-      console.log(`⬇️  Downloading FFmpeg from ${URLS.ffmpeg.win32}...`);
-      await downloadFile(URLS.ffmpeg.win32, zipPath);
+      await downloadFirstAvailable(URLS.ffmpeg.win32, zipPath);
       console.log(`📦 Extracting FFmpeg...`);
-      
+
       const extractTemp = path.join(BIN_DIR, 'ffmpeg-temp');
       await extractZip(zipPath, extractTemp);
-      
+
       // Find ffmpeg.exe recursively
       const findFfmpeg = (dir) => {
         const files = fs.readdirSync(dir);
@@ -150,10 +190,10 @@ async function setup() {
       // Cleanup
       fs.unlinkSync(zipPath);
       fs.rmSync(extractTemp, { recursive: true, force: true });
-      
+
     } else if (OS === 'darwin') {
       const zipPath = path.join(BIN_DIR, 'ffmpeg.zip');
-      await downloadFile(URLS.ffmpeg.darwin, zipPath);
+      await downloadFileWithRetry(URLS.ffmpeg.darwin, zipPath);
       await extractZip(zipPath, BIN_DIR);
       fs.unlinkSync(zipPath);
       execSync(`chmod +x "${ffmpegPath}"`);
@@ -164,7 +204,7 @@ async function setup() {
         const tarPath = path.join(BIN_DIR, path.basename(new URL(url).pathname));
         const extractTemp = path.join(BIN_DIR, `ffmpeg-linux-${Date.now()}`);
         try {
-          await downloadFile(url, tarPath);
+          await downloadFileWithRetry(url, tarPath);
           fs.mkdirSync(extractTemp, { recursive: true });
           await extractTar(tarPath, extractTemp);
           const extractedFfmpegPath = findFileNamed(extractTemp, 'ffmpeg');
