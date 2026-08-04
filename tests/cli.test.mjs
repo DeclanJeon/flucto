@@ -105,6 +105,33 @@ test('CLI parser handles setup and update commands', () => {
   assert.equal(apply.assetPath, '/tmp/Flucto.AppImage');
 });
 
+
+test('CLI parser defaults batch md and channel concurrency to 1 and accepts network flags', () => {
+  const batchMd = parseCliArgs(['batch', './urls.txt', '--format', 'md']);
+  assert.equal(batchMd.command, 'batch');
+  assert.equal(batchMd.format, 'md');
+  assert.equal(batchMd.concurrency, 1);
+
+  const batchMp4 = parseCliArgs(['batch', './urls.txt', '--format', 'mp4']);
+  assert.equal(batchMp4.concurrency, 2);
+
+  const channel = parseCliArgs(['channel', 'to-md', '@x']);
+  assert.equal(channel.concurrency, 1);
+
+  const network = parseCliArgs([
+    'md',
+    'https://example.test/video',
+    '--cookies', '/tmp/cookies.txt',
+    '--cookies-from-browser', 'chrome:Default',
+    '--proxy', 'socks5://127.0.0.1:9050',
+    '--impersonate', 'chrome',
+  ]);
+  assert.equal(network.cookies, '/tmp/cookies.txt');
+  assert.equal(network.cookiesFromBrowser, 'chrome:Default');
+  assert.equal(network.proxy, 'socks5://127.0.0.1:9050');
+  assert.equal(network.impersonate, 'chrome');
+});
+
 test('CLI parser accepts short command and option aliases', () => {
   const download = parseCliArgs(['d', 'https://example.test/video', '-f', 'mp3', '-o', '/tmp/out', '-j']);
   assert.equal(download.command, 'download');

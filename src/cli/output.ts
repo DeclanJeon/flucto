@@ -7,10 +7,10 @@ ${c.dim('Capture media · convert captions to Markdown · agent-friendly automat
 
 ${c.bold('Usage')}
   flucto download <url> [--format mp4|mp3] [--output-dir DIR] [--json]
-  flucto batch <file> [--format mp4|mp3|md] [--concurrency N] [--output-dir DIR] [--json]
-  flucto transcript <url> [--language en|ko|ja|zh|auto] [--stdout] [--json]
-  flucto md <url> [--language en|ko|ja|zh|auto] [--stdout] [--json]
-  flucto channel to-md <channel-url|@handle> [--limit N] [--out DIR] [--language en|ko|auto] [--json]
+  flucto batch <file> [--format mp4|mp3|md] [--concurrency N] [--cookies PATH] [--proxy URL] [--output-dir DIR] [--json]
+  flucto transcript <url> [--language en|ko|ja|zh|auto] [--cookies PATH] [--cookies-from-browser BROWSER] [--proxy URL] [--stdout] [--json]
+  flucto md <url> [--language en|ko|ja|zh|auto] [--cookies PATH] [--cookies-from-browser BROWSER] [--proxy URL] [--stdout] [--json]
+  flucto channel to-md <channel-url|@handle> [--limit N] [--concurrency N] [--cookies PATH] [--proxy URL] [--out DIR] [--language en|ko|auto] [--json]
   flucto channel-to-md <channel-url|@handle> [--limit N] [--out DIR] [--json]
       ${c.dim('(multi-file jobs create a dedicated subfolder under --out / cwd)')}
   flucto info <url> [--json]
@@ -59,6 +59,11 @@ ${c.bold('Global options')}
   --force                Re-download managed setup binaries
   --check-only           Check setup state without downloading
   --asset PATH           Update asset path for update apply
+  --cookies PATH         Netscape cookies file for yt-dlp (or FLUCTO_COOKIES / YOUTUBE_COOKIES_PATH)
+  --cookies-from-browser BROWSER[:PROFILE]
+                         Extract cookies from a local browser via yt-dlp
+  --proxy URL            Proxy for caption/media requests (or FLUCTO_PROXY / HTTPS_PROXY)
+  --impersonate TARGET   Optional yt-dlp impersonation target (e.g. chrome)
 
 ${c.dim('Tip: set NO_COLOR=1 to disable ANSI colors.')}
 `;

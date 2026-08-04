@@ -7,6 +7,7 @@ import { extractTranscript } from '../transcript/captionExtractor.js';
 import { formatTranscriptMarkdown, sanitizeMarkdownFilename } from '../transcript/markdownFormatter.js';
 import type { TranscriptMetadata, TranscriptSegment } from '../transcript/transcriptTypes.js';
 import { toTranscriptError } from '../transcript/transcriptError.js';
+import type { CaptionNetworkOptions } from '../net/captionNetwork.js';
 
 export interface MarkdownResult {
   success: boolean;
@@ -20,6 +21,7 @@ export interface MarkdownConvertOptions {
   language?: string;
   stdout?: boolean;
   outputDir?: string;
+  network?: CaptionNetworkOptions;
 }
 
 const countWords = (text: string): number => {
@@ -152,7 +154,11 @@ export class MarkdownPipeline {
 
       // 3. Fall back to yt-dlp caption extraction
       if (!segments) {
-        const extraction = await extractTranscript(url, options?.language, this.binaries);
+        const extraction = await extractTranscript(url, {
+          language: options?.language,
+          binaries: this.binaries,
+          network: options?.network,
+        });
         segments = extraction.segments;
         language = extraction.metadata.language;
       }

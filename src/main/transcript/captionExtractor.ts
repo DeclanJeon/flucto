@@ -2,6 +2,15 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { execa } from '../spawn.js';
+import {
+  backoffDelayMs,
+  getCaptionNetworkArgs,
+  globalCaptionScheduler,
+  parseRetryAfterMs,
+  resolveCaptionNetworkOptions,
+  sleepMs,
+  type CaptionNetworkOptions,
+} from '../net/captionNetwork.js';
 import { getCommonYtDlpArgs, getRefererForUrl, runYtDlpJson, type YtDlpMetadata } from '../media/ytDlp.js';
 import { CircuitBreaker } from './circuitBreaker.js';
 import { TranscriptCache } from './transcriptCache.js';
@@ -95,20 +104,43 @@ export const listCaptionLanguagesFromInfo = (info: YtDlpMetadata): CaptionLangua
 };
 
 export const resolveCaptionLanguage = (info: YtDlpMetadata, requestedLanguage?: string | null): string | null => {
+  const candidates = resolveCaptionLanguageCandidates(info, requestedLanguage);
+  return candidates[0] ?? null;
+};
+
+export const resolveCaptionLanguageCandidates = (
+  info: YtDlpMetadata,
+  requestedLanguage?: string | null,
+): string[] => {
   const manual = captionMap(info, 'subtitles');
   const automatic = captionMap(info, 'automatic_captions');
   const requested = requestedLanguage?.trim() === 'auto' ? null : requestedLanguage?.trim() || null;
   const base = requested?.split('-')[0] ?? null;
+  const ordered: string[] = [];
+  const seen = new Set<string>();
 
-  if (requested && manual[requested]) return requested;
-  if (requested && automatic[requested]) return requested;
-  if (base && manual[base]) return base;
-  if (base && automatic[base]) return base;
+  const push = (code: string | null | undefined) => {
+    if (!code || seen.has(code)) return;
+    if (!manual[code] && !automatic[code]) return;
+    seen.add(code);
+    ordered.push(code);
+  };
 
-  const manualLanguage = Object.keys(manual)[0];
-  if (manualLanguage) return manualLanguage;
-  const automaticLanguage = Object.keys(automatic)[0];
-  return automaticLanguage || null;
+  push(requested);
+  push(base);
+  if (requested) {
+    push(`${base}-orig`);
+    push(`${requested}-orig`);
+  }
+
+  for (const code of Object.keys(manual)) push(code);
+  // Prefer original ASR track before translated auto captions when possible.
+  for (const code of Object.keys(automatic)) {
+    if (code.endsWith('-orig')) push(code);
+  }
+  for (const code of Object.keys(automatic)) push(code);
+
+  return ordered;
 };
 
 export const parseJson3Captions = (payload: string): TranscriptSegment[] => {
@@ -238,16 +270,130 @@ const buildMetadata = (info: YtDlpMetadata, url: string, language: string): Tran
   };
 };
 
-const fetchCaptionInfo = async (url: string, binaries?: { ytDlpPath?: string }): Promise<YtDlpMetadata> => {
-  return runYtDlpJson(url, ['--skip-download', '--no-playlist'], binaries?.ytDlpPath ?? 'yt-dlp');
+const fetchCaptionInfo = async (
+  url: string,
+  binaries?: { ytDlpPath?: string },
+  network: CaptionNetworkOptions = {},
+): Promise<YtDlpMetadata> => {
+  const networkArgs = getCaptionNetworkArgs(network);
+  return runYtDlpJson(url, ['--skip-download', '--no-playlist', ...networkArgs], binaries?.ytDlpPath ?? 'yt-dlp');
 };
 
-export const listCaptionLanguages = async (url: string, binaries?: { ytDlpPath?: string }): Promise<CaptionLanguage[]> => {
-  const info = await fetchCaptionInfo(url, binaries);
+export const listCaptionLanguages = async (
+  url: string,
+  binaries?: { ytDlpPath?: string },
+  network: CaptionNetworkOptions = {},
+): Promise<CaptionLanguage[]> => {
+  const info = await fetchCaptionInfo(url, binaries, network);
   return listCaptionLanguagesFromInfo(info);
 };
 
-export const extractTranscript = async (url: string, requestedLanguage?: string | null, binaries?: { ytDlpPath?: string }): Promise<TranscriptExtractionResult> => {
+const listCaptionFiles = (tmpDir: string): string[] => {
+  return fs.readdirSync(tmpDir)
+    .map((file) => path.join(tmpDir, file))
+    .filter((file) => ['.json3', '.srv3', '.xml', '.vtt'].includes(path.extname(file).toLowerCase()))
+    .sort((a, b) => {
+      const score = (file: string): number => {
+        const ext = path.extname(file).toLowerCase();
+        if (ext === '.json3') return 0;
+        if (ext === '.srv3' || ext === '.xml') return 1;
+        return 2;
+      };
+      return score(a) - score(b);
+    });
+};
+
+const clearDirectory = (dir: string): void => {
+  for (const entry of fs.readdirSync(dir)) {
+    fs.rmSync(path.join(dir, entry), { recursive: true, force: true });
+  }
+};
+
+const downloadCaptionLanguage = async (
+  url: string,
+  language: string,
+  tmpDir: string,
+  ytDlpPath: string,
+  network: CaptionNetworkOptions,
+): Promise<{ segments: TranscriptSegment[]; output: string; failed: boolean }> => {
+  clearDirectory(tmpDir);
+  const referer = getRefererForUrl(url);
+  const downloadResult = await execa(
+    ytDlpPath,
+    [
+      url,
+      '--skip-download',
+      '--write-subs',
+      '--write-auto-subs',
+      '--sub-langs',
+      language,
+      '--sub-format',
+      'json3/srv3/vtt/best',
+      '--output',
+      path.join(tmpDir, '%(id)s.%(ext)s'),
+      '--no-warnings',
+      '--no-playlist',
+      ...(referer ? ['--add-header', `referer:${referer}`] : []),
+      ...getCommonYtDlpArgs(url),
+      ...getCaptionNetworkArgs(network),
+    ],
+    { reject: false },
+  );
+
+  const files = listCaptionFiles(tmpDir);
+  for (const file of files) {
+    const segments = parseCaptionFile(file);
+    if (segments.length > 0) {
+      return { segments, output: '', failed: false };
+    }
+  }
+
+  const output = [downloadResult.stderr, downloadResult.stdout]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join('\n');
+
+  return {
+    segments: [],
+    output,
+    failed: downloadResult.failed || files.length === 0,
+  };
+};
+
+export interface ExtractTranscriptOptions {
+  language?: string | null;
+  binaries?: { ytDlpPath?: string };
+  network?: CaptionNetworkOptions;
+}
+
+export const extractTranscript = async (
+  url: string,
+  requestedLanguage?: string | null | ExtractTranscriptOptions,
+  binaries?: { ytDlpPath?: string },
+): Promise<TranscriptExtractionResult> => {
+  const options: ExtractTranscriptOptions = requestedLanguage && typeof requestedLanguage === 'object'
+    ? requestedLanguage
+    : {
+      language: typeof requestedLanguage === 'string' || requestedLanguage === null ? requestedLanguage : undefined,
+      binaries,
+    };
+
+  const language = options.language ?? null;
+  const ytBinaries = options.binaries ?? binaries;
+  const network = resolveCaptionNetworkOptions(options.network ?? {});
+
+  return globalCaptionScheduler.run(
+    () => extractTranscriptNow(url, language, ytBinaries, network),
+    network.minIntervalMs,
+  );
+};
+
+const extractTranscriptNow = async (
+  url: string,
+  requestedLanguage: string | null,
+  binaries: { ytDlpPath?: string } | undefined,
+  network: CaptionNetworkOptions,
+): Promise<TranscriptExtractionResult> => {
   let parsedUrl: URL;
   try {
     parsedUrl = new URL(url);
@@ -263,7 +409,13 @@ export const extractTranscript = async (url: string, requestedLanguage?: string 
     throw new TranscriptError('SERVICE_UNAVAILABLE', 'Caption extraction is temporarily unavailable.');
   }
 
-  const cacheKey = `${url}|${requestedLanguage ?? 'auto'}`;
+  const networkKey = [
+    network.cookiesPath ?? '',
+    network.cookiesFromBrowser ?? '',
+    network.proxy ?? '',
+    network.impersonate ?? '',
+  ].join('|');
+  const cacheKey = `${url}|${requestedLanguage ?? 'auto'}|${networkKey}`;
   const cached = transcriptCache.get(cacheKey);
   if (cached) {
     return cached;
@@ -271,83 +423,79 @@ export const extractTranscript = async (url: string, requestedLanguage?: string 
 
   let tmpDir: string | null = null;
   try {
-    const info = await fetchCaptionInfo(url, binaries);
+    const maxRetries = Math.max(0, network.maxRetries ?? 3);
+    let info: YtDlpMetadata | null = null;
+    let lastError: unknown = null;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+      try {
+        info = await fetchCaptionInfo(url, binaries, network);
+        lastError = null;
+        break;
+      } catch (error: unknown) {
+        lastError = error;
+        const transcriptError = toTranscriptError(error);
+        if (transcriptError.code !== 'RATE_LIMITED' || attempt >= maxRetries) {
+          throw transcriptError;
+        }
+        await sleepMs(backoffDelayMs(attempt, parseRetryAfterMs(transcriptError.detail ?? transcriptError.message)));
+      }
+    }
+
+    if (!info) {
+      throw toTranscriptError(lastError ?? new Error('Caption metadata fetch failed.'));
+    }
+
     const availableLanguages = listCaptionLanguagesFromInfo(info);
-    const resolvedLanguage = resolveCaptionLanguage(info, requestedLanguage);
-    if (!resolvedLanguage) {
+    const languageCandidates = resolveCaptionLanguageCandidates(info, requestedLanguage);
+    if (languageCandidates.length === 0) {
       throw new TranscriptError('TRANSCRIPT_UNAVAILABLE', 'No captions are available for this media.');
     }
 
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flucto-transcript-'));
     const ytDlpPath = binaries?.ytDlpPath ?? 'yt-dlp';
-    const referer = getRefererForUrl(url);
-    const downloadResult = await execa(
-      ytDlpPath,
-      [
-        url,
-        '--skip-download',
-        '--write-subs',
-        '--write-auto-subs',
-        '--sub-langs',
-        resolvedLanguage,
-        '--sub-format',
-        'json3/srv3/vtt/best',
-        '--output',
-        path.join(tmpDir, '%(id)s.%(ext)s'),
-        '--no-warnings',
-        '--no-playlist',
-        ...(referer ? ['--add-header', `referer:${referer}`] : []),
-        ...getCommonYtDlpArgs(url),
-      ],
-      { reject: false },
-    );
+    let lastDownloadError: TranscriptError | null = null;
 
-    const files = fs.readdirSync(tmpDir)
-      .map((file) => path.join(tmpDir as string, file))
-      .filter((file) => ['.json3', '.srv3', '.xml', '.vtt'].includes(path.extname(file).toLowerCase()))
-      .sort((a, b) => {
-        const score = (file: string): number => {
-          const ext = path.extname(file).toLowerCase();
-          if (ext === '.json3') return 0;
-          if (ext === '.srv3' || ext === '.xml') return 1;
-          return 2;
-        };
-        return score(a) - score(b);
-      });
+    for (const candidateLanguage of languageCandidates) {
+      for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+        const download = await downloadCaptionLanguage(url, candidateLanguage, tmpDir, ytDlpPath, network);
+        if (download.segments.length > 0) {
+          const extraction = {
+            segments: download.segments,
+            metadata: buildMetadata(info, url, candidateLanguage),
+            availableLanguages,
+          };
+          transcriptCache.set(cacheKey, extraction);
+          breaker.recordSuccess();
+          return extraction;
+        }
 
-    for (const file of files) {
-      const segments = parseCaptionFile(file);
-      if (segments.length > 0) {
-        const extraction = {
-          segments,
-          metadata: buildMetadata(info, url, resolvedLanguage),
-          availableLanguages,
-        };
-        transcriptCache.set(cacheKey, extraction);
-        breaker.recordSuccess();
-        return extraction;
+        if (download.output) {
+          const transcriptError = toTranscriptError(new Error(download.output));
+          lastDownloadError = transcriptError;
+          if (transcriptError.code === 'RATE_LIMITED' && attempt < maxRetries) {
+            await sleepMs(backoffDelayMs(attempt, parseRetryAfterMs(download.output)));
+            continue;
+          }
+          // Try next language on rate-limit / empty caption download.
+          break;
+        }
+
+        if (download.failed) {
+          lastDownloadError = new TranscriptError('UPSTREAM_ERROR', 'Caption download failed.');
+          break;
+        }
+
+        lastDownloadError = new TranscriptError(
+          'TRANSCRIPT_UNAVAILABLE',
+          'Caption files were empty after download.',
+        );
+        break;
       }
     }
 
-    const ytDlpOutput = [downloadResult.stderr, downloadResult.stdout]
-      .map((part) => part.trim())
-      .filter(Boolean)
-      .join('\n');
-
-    if (ytDlpOutput) {
-      throw new Error(ytDlpOutput);
-    }
-
-    if (downloadResult.failed) {
-      throw new TranscriptError('UPSTREAM_ERROR', 'Caption download failed.');
-    }
-
-    throw new TranscriptError(
-      'TRANSCRIPT_UNAVAILABLE',
-      files.length > 0
-        ? 'Caption files were empty after download.'
-        : 'Caption files were not generated or were empty.',
-    );
+    if (lastDownloadError) throw lastDownloadError;
+    throw new TranscriptError('TRANSCRIPT_UNAVAILABLE', 'Caption files were not generated or were empty.');
   } catch (error: unknown) {
     const transcriptError = toTranscriptError(error);
     if (!['TRANSCRIPT_UNAVAILABLE', 'INVALID_URL', 'TRANSCRIPT_DISABLED', 'VIDEO_UNAVAILABLE'].includes(transcriptError.code)) {

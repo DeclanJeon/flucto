@@ -40,6 +40,10 @@ export interface CliOptions {
   checkOnly: boolean;
   updateAction: CliUpdateAction;
   assetPath?: string;
+  cookies?: string;
+  cookiesFromBrowser?: string;
+  proxy?: string;
+  impersonate?: string;
 }
 
 const videoQualities = new Set(['4k', '1440p', '1080p', '720p', '480p', '360p', 'worst']);
@@ -87,9 +91,12 @@ const booleanOption = (value: string | boolean | undefined): boolean => {
   return value === true;
 };
 
-const parseConcurrency = (value: string | boolean | undefined): number => {
+const parseConcurrency = (
+  value: string | boolean | undefined,
+  fallback = 2,
+): number => {
   const raw = stringOption(value);
-  if (!raw) return 2;
+  if (!raw) return fallback;
   const parsed = Number.parseInt(raw, 10);
   if (!Number.isInteger(parsed) || parsed < 1 || parsed > 16) {
     throw new CliUsageError('--concurrency must be an integer from 1 to 16.');
@@ -155,6 +162,10 @@ export const parseCliArgs = (argv: string[]): CliOptions => {
       'no-metadata': { type: 'boolean' },
       stdout: { type: 'boolean', short: 's' },
       concurrency: { type: 'string', short: 'c' },
+      cookies: { type: 'string' },
+      'cookies-from-browser': { type: 'string' },
+      proxy: { type: 'string' },
+      impersonate: { type: 'string' },
       limit: { type: 'string' },
       force: { type: 'boolean' },
       'check-only': { type: 'boolean' },
@@ -197,30 +208,41 @@ const baseOptions = (
   command: CliCommand,
   positional: string[],
   values: Record<string, string | boolean | undefined>,
-): CliOptions => ({
-  command,
-  positional,
-  json: booleanOption(values.json),
-  progressJson: booleanOption(values['progress-json']),
-  format: parseFormat(values.format, command === 'batch' ? 'mp4' : 'mp4'),
-  quality: parseVideoQuality(values.quality),
-  audioQuality: parseAudioQuality(values['audio-quality']),
-  outputDir: stringOption(values['output-dir']) ?? stringOption(values.out) ?? process.env.FLUCTO_OUTPUT_DIR,
-  binDir: stringOption(values['bin-dir']),
-  ytDlpPath: stringOption(values['yt-dlp']),
-  ffmpegPath: stringOption(values.ffmpeg),
-  language: stringOption(values.language) ?? 'en',
-  timestamps: booleanOption(values.timestamps) ? true : booleanOption(values['no-timestamps']) ? false : undefined,
-  metadata: booleanOption(values.metadata) ? true : booleanOption(values['no-metadata']) ? false : undefined,
-  stdout: booleanOption(values.stdout),
-  concurrency: parseConcurrency(values.concurrency),
-  limit: parseLimit(values.limit, 100),
-  force: booleanOption(values.force),
-  checkOnly: booleanOption(values['check-only']),
-  updateAction: parseUpdateAction(command, positional),
-  assetPath: stringOption(values.asset),
-});
+): CliOptions => {
+  const format = parseFormat(values.format, command === 'batch' ? 'mp4' : 'mp4');
+  const concurrencyFallback = (
+    command === 'channel-to-md'
+    || (command === 'batch' && format === 'md')
+  ) ? 1 : 2;
 
+  return {
+    command,
+    positional,
+    json: booleanOption(values.json),
+    progressJson: booleanOption(values['progress-json']),
+    format,
+    quality: parseVideoQuality(values.quality),
+    audioQuality: parseAudioQuality(values['audio-quality']),
+    outputDir: stringOption(values['output-dir']) ?? stringOption(values.out) ?? process.env.FLUCTO_OUTPUT_DIR,
+    binDir: stringOption(values['bin-dir']),
+    ytDlpPath: stringOption(values['yt-dlp']),
+    ffmpegPath: stringOption(values.ffmpeg),
+    language: stringOption(values.language) ?? 'en',
+    timestamps: booleanOption(values.timestamps) ? true : booleanOption(values['no-timestamps']) ? false : undefined,
+    metadata: booleanOption(values.metadata) ? true : booleanOption(values['no-metadata']) ? false : undefined,
+    stdout: booleanOption(values.stdout),
+    concurrency: parseConcurrency(values.concurrency, concurrencyFallback),
+    limit: parseLimit(values.limit, 100),
+    force: booleanOption(values.force),
+    checkOnly: booleanOption(values['check-only']),
+    updateAction: parseUpdateAction(command, positional),
+    assetPath: stringOption(values.asset),
+    cookies: stringOption(values.cookies),
+    cookiesFromBrowser: stringOption(values['cookies-from-browser']),
+    proxy: stringOption(values.proxy),
+    impersonate: stringOption(values.impersonate),
+  };
+};
 const parseUpdateAction = (command: CliCommand, positional: string[]): CliUpdateAction => {
   if (command !== 'update') return 'check';
   const action = positional[0] ?? 'check';

@@ -1,3 +1,9 @@
+import {
+  getCaptionNetworkArgs,
+  resolveCaptionNetworkOptions,
+  backoffDelayMs,
+  parseRetryAfterMs,
+} from '../dist-electron/main/net/captionNetwork.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
@@ -13,6 +19,7 @@ import {
   parseVttCaptions,
   parseXmlCaptions,
   resolveCaptionLanguage,
+  resolveCaptionLanguageCandidates,
 } from '../dist-electron/main/transcript/captionExtractor.js';
 import {
   TranscriptError,
@@ -251,4 +258,41 @@ test('toTranscriptError classifies rate limits, disabled captions, and subtitle 
   );
   assert.equal(subtitleFail.code, 'UPSTREAM_ERROR');
   assert.equal(subtitleFail.message, 'Caption download failed.');
+});
+
+
+test('caption language candidates prefer requested then original ASR then remaining tracks', () => {
+  const info = {
+    subtitles: {
+      en: [{ name: 'English' }],
+    },
+    automatic_captions: {
+      ko: [{ name: 'Korean auto' }],
+      'ko-orig': [{ name: 'Korean original' }],
+      en: [{ name: 'English auto' }],
+      ja: [{ name: 'Japanese auto' }],
+    },
+  };
+
+  assert.deepEqual(resolveCaptionLanguageCandidates(info, 'en'), ['en', 'ko-orig', 'ko', 'ja']);
+  assert.equal(resolveCaptionLanguage(info, 'en'), 'en');
+  assert.deepEqual(resolveCaptionLanguageCandidates(info, 'de'), ['en', 'ko-orig', 'ko', 'ja']);
+});
+
+
+test('caption network options map cookies browser proxy and impersonate args', () => {
+  const resolved = resolveCaptionNetworkOptions({
+    cookiesPath: '/tmp/c.txt',
+    cookiesFromBrowser: 'chrome',
+    proxy: 'http://127.0.0.1:8080',
+    impersonate: 'chrome',
+  }, {});
+  assert.deepEqual(getCaptionNetworkArgs(resolved), [
+    '--cookies', '/tmp/c.txt',
+    '--cookies-from-browser', 'chrome',
+    '--proxy', 'http://127.0.0.1:8080',
+    '--impersonate', 'chrome',
+  ]);
+  assert.equal(parseRetryAfterMs('Retry-After: 12'), 12000);
+  assert.ok(backoffDelayMs(0) >= 2000);
 });

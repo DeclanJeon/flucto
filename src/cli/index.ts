@@ -33,6 +33,7 @@ import { sanitizeMarkdownFilename } from '../main/transcript/markdownFormatter.j
 import { getManagedBinDir, setupUtilities } from '../main/services/binaryInstaller.js';
 import { applyCliUpdate, checkForCliUpdate, downloadCliUpdate } from '../main/services/cliUpdater.js';
 import { execa } from '../main/spawn.js';
+import { resolveCaptionNetworkOptions } from '../main/net/captionNetwork.js';
 import type { TranscriptMarkdownResponse, TranscriptRequest } from '../shared/types.js';
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
@@ -68,6 +69,13 @@ const resolveBinaries = (options: CliOptions) => resolveCliBinaries({
   binDir: setupBinDir(options),
   ytDlpPath: options.ytDlpPath,
   ffmpegPath: options.ffmpegPath,
+});
+
+const resolveNetwork = (options: CliOptions) => resolveCaptionNetworkOptions({
+  cookiesPath: options.cookies,
+  cookiesFromBrowser: options.cookiesFromBrowser,
+  proxy: options.proxy,
+  impersonate: options.impersonate,
 });
 
 const binaryVersion = async (file: string, args: string[]): Promise<string | null> => {
@@ -215,6 +223,7 @@ const runTranscript = async (options: CliOptions): Promise<number> => {
     {
       binaries,
       outputDir: outputDir(options),
+      network: resolveNetwork(options),
       onProgress: options.stdout ? undefined : (progress) => renderTranscriptProgress(progress, options.progressJson),
     },
   );
@@ -243,6 +252,7 @@ const runMd = async (options: CliOptions): Promise<number> => {
     language: options.language ?? undefined,
     stdout: options.stdout,
     outputDir: outputDir(options),
+    network: resolveNetwork(options),
   });
 
   if (options.stdout && result.markdown) {
@@ -281,6 +291,7 @@ const runBatch = async (options: CliOptions): Promise<number> => {
       ? await convertTranscriptToMarkdown(transcriptRequest(url, options), {
         binaries: resolveBinaries(options),
         outputDir: jobDir,
+        network: resolveNetwork(options),
         onProgress: options.progressJson
           ? (progress) => renderTranscriptProgress(progress, true)
           : undefined,
@@ -360,7 +371,7 @@ const runFormats = async (options: CliOptions): Promise<number> => {
 };
 
 const runLanguages = async (options: CliOptions): Promise<number> => {
-  const result = await listTranscriptLanguages(options.positional[0], resolveBinaries(options));
+  const result = await listTranscriptLanguages(options.positional[0], resolveBinaries(options), resolveNetwork(options));
   if (options.json) {
     writeJson(result);
   } else {
@@ -453,6 +464,7 @@ const runChannelToMd = async (options: CliOptions): Promise<number> => {
       {
         binaries,
         outputDir: outDir,
+        network: resolveNetwork(options),
         onProgress: options.json || options.stdout
           ? undefined
           : (progress) => {

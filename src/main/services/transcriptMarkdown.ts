@@ -5,6 +5,7 @@ import type { TranscriptMarkdownResponse, TranscriptProgress, TranscriptRequest,
 import { extractTranscript, listCaptionLanguages } from '../transcript/captionExtractor.js';
 import { formatTranscriptMarkdown, sanitizeMarkdownFilename } from '../transcript/markdownFormatter.js';
 import { toTranscriptError } from '../transcript/transcriptError.js';
+import type { CaptionNetworkOptions } from '../net/captionNetwork.js';
 import type { BinaryResolver } from './binaryResolver.js';
 import { getTranscriptSettingsDefaults } from './settingsDefaults.js';
 import { runWithConcurrency } from './batch.js';
@@ -13,6 +14,7 @@ export interface TranscriptMarkdownDeps {
   binaries?: Partial<BinaryResolver>;
   defaults?: TranscriptSettings;
   outputDir: string;
+  network?: CaptionNetworkOptions;
   onProgress?: (progress: TranscriptProgress) => void;
   writeClipboard?: (markdown: string) => void;
   appendHistory?: (entry: {
@@ -98,7 +100,11 @@ export const convertTranscriptToMarkdown = async (
       progress: 10,
     });
 
-    const extraction = await extractTranscript(request.url, settings.language, deps.binaries);
+    const extraction = await extractTranscript(request.url, {
+      language: settings.language,
+      binaries: deps.binaries,
+      network: deps.network,
+    });
 
     deps.onProgress?.({
       requestId,
@@ -196,6 +202,10 @@ export const convertMultipleTranscriptsToMarkdown = async (
   return runWithConcurrency(requests, concurrency, (request) => convertTranscriptToMarkdown(request, deps));
 };
 
-export const listTranscriptLanguages = async (url: string, binaries?: Partial<BinaryResolver>) => {
-  return listCaptionLanguages(url, binaries);
+export const listTranscriptLanguages = async (
+  url: string,
+  binaries?: Partial<BinaryResolver>,
+  network?: CaptionNetworkOptions,
+) => {
+  return listCaptionLanguages(url, binaries, network);
 };
