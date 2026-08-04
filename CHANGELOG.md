@@ -1,3 +1,10 @@
+# [1.14.0](https://github.com/DeclanJeon/flucto/compare/v1.13.2...v1.14.0) (2026-08-04)
+
+
+### Features
+
+* **cli:** harden caption MD extraction against YouTube rate limits ([defb6ef](https://github.com/DeclanJeon/flucto/commit/defb6ef0cb423768f9657fe03f90833e20c4e353))
+
 ## [1.13.2](https://github.com/DeclanJeon/flucto/compare/v1.13.1...v1.13.2) (2026-08-04)
 
 
