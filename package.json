@@ -1,7 +1,7 @@
 {
   "name": "flucto",
   "productName": "Flucto",
-  "version": "1.16.0",
+  "version": "1.16.1",
   "description": "Flucto - Creator-first media downloader for YouTube, Instagram, X, Reddit, and Bilibili.",
   "keywords": [
     "electron",

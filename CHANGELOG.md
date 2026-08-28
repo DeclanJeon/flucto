@@ -1,3 +1,10 @@
+## [1.16.1](https://github.com/DeclanJeon/flucto/compare/v1.16.0...v1.16.1) (2026-08-28)
+
+
+### Bug Fixes
+
+* **ci:** set publishConfig access public for first npm publish with provenance ([2cc9478](https://github.com/DeclanJeon/flucto/commit/2cc9478b13d3844a0b8410724cc4544d424cfb7a))
+
 # [1.16.0](https://github.com/DeclanJeon/flucto/compare/v1.15.0...v1.16.0) (2026-08-28)
 
 
