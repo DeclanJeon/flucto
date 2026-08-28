@@ -1,4 +1,4 @@
-import type { DownloadQualityPreferences, TranscriptSettings, UpdateSettings } from '../../shared/types.js';
+import type { DownloadQualityPreferences, TranscriptNetworkSettings, TranscriptSettings, UpdateSettings } from '../../shared/types.js';
 
 export const defaultUpdateSettings: UpdateSettings = {
   autoUpdate: true,
@@ -18,6 +18,14 @@ export const defaultTranscriptSettings: TranscriptSettings = {
   paragraphGapSeconds: 3,
   saveMarkdownFile: true,
   copyMarkdownToClipboard: false,
+  network: null,
+};
+
+export const defaultTranscriptNetworkSettings: TranscriptNetworkSettings = {
+  cookiesPath: null,
+  cookiesFromBrowser: null,
+  proxy: null,
+  impersonate: null,
 };
 
 export const getUpdateSettingsDefaults = (): UpdateSettings => ({
@@ -59,6 +67,17 @@ export const isUpdateSettings = (value: unknown): value is UpdateSettings => {
   );
 };
 
+export const isTranscriptNetworkSettings = (value: unknown): value is TranscriptNetworkSettings => {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    (candidate.cookiesPath === null || typeof candidate.cookiesPath === 'string') &&
+    (candidate.cookiesFromBrowser === null || typeof candidate.cookiesFromBrowser === 'string') &&
+    (candidate.proxy === null || typeof candidate.proxy === 'string') &&
+    (candidate.impersonate === null || typeof candidate.impersonate === 'string')
+  );
+};
+
 export const isTranscriptSettings = (value: unknown): value is TranscriptSettings => {
   if (!value || typeof value !== 'object') return false;
   const candidate = value as Record<string, unknown>;
@@ -70,6 +89,7 @@ export const isTranscriptSettings = (value: unknown): value is TranscriptSetting
     Number.isFinite(candidate.paragraphGapSeconds) &&
     candidate.paragraphGapSeconds >= 0 &&
     typeof candidate.saveMarkdownFile === 'boolean' &&
-    typeof candidate.copyMarkdownToClipboard === 'boolean'
+    typeof candidate.copyMarkdownToClipboard === 'boolean' &&
+    (candidate.network === undefined || candidate.network === null || isTranscriptNetworkSettings(candidate.network))
   );
 };

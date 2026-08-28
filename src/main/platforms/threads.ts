@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import type { VideoInfo, DownloadProgress, DownloadResponse } from '../../shared/types.js';
+import type { VideoInfo, DownloadResponse } from '../../shared/types.js';
 import type { PlatformAdapter, DownloadOptions, ProgressCallback } from './types.js';
 import { PlatformError } from './errors.js';
 
@@ -161,7 +161,6 @@ export function createThreadsAdapter(): PlatformAdapter {
           const reader = res.body?.getReader();
           if (!reader) throw new Error('Response body is not readable');
 
-          // eslint-disable-next-line no-constant-condition
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;

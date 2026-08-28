@@ -1,4 +1,4 @@
-import type { PlatformAdapter, ExtractionStrategy, YtDlpPlatformConfig, QualityLevel } from './types.js';
+import type { PlatformAdapter, ExtractionStrategy, YtDlpPlatformConfig } from './types.js';
 
 export function createYtDlpAdapter(config: YtDlpPlatformConfig): PlatformAdapter {
   return {
@@ -10,7 +10,7 @@ export function createYtDlpAdapter(config: YtDlpPlatformConfig): PlatformAdapter
 
     getStrategy: (): ExtractionStrategy => 'yt-dlp',
 
-    getYtDlpArgs: (url: string, _quality?: QualityLevel) => {
+    getYtDlpArgs: (url: string) => {
       const baseArgs = typeof config.extraArgs === 'function'
         ? config.extraArgs(url, { retryCount: 0 })
         : (config.extraArgs ?? []);

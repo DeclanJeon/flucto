@@ -41,8 +41,12 @@ const api: IElectronAPI = {
     ipcRenderer.on('download-progress', (_event: IpcRendererEvent, progress: DownloadProgress) => callback(progress));
   },
   getTranscriptLanguages: (url: string) => ipcRenderer.invoke('get-transcript-languages', url),
+  getGitHubStarState: () => ipcRenderer.invoke('get-github-star-state'),
+  starFluctoRepo: () => ipcRenderer.invoke('star-flucto-repo'),
+  saveGitHubToken: (token: string) => ipcRenderer.invoke('save-github-token', token),
   getTranscriptSettings: () => ipcRenderer.invoke('get-transcript-settings'),
   setTranscriptSettings: (settings: TranscriptSettings) => ipcRenderer.invoke('set-transcript-settings', settings),
+  pickCookiesFile: () => ipcRenderer.invoke('pick-cookies-file'),
   convertTranscriptToMarkdown: (request: TranscriptRequest) => ipcRenderer.invoke('convert-transcript-to-markdown', request),
   convertMultipleTranscriptsToMarkdown: (requests: TranscriptRequest[]) => ipcRenderer.invoke('convert-multiple-transcripts-to-markdown', requests),
   onTranscriptProgress: (callback: TranscriptProgressListener) => {

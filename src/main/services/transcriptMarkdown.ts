@@ -1,14 +1,15 @@
-import fs from 'fs';
-import path from 'path';
 import { randomUUID } from 'crypto';
-import type { TranscriptMarkdownResponse, TranscriptProgress, TranscriptRequest, TranscriptSettings } from '../../shared/types.js';
+import type { TranscriptBatchSummary, TranscriptMarkdownResponse, TranscriptProgress, TranscriptRequest, TranscriptSettings } from '../../shared/types.js';
 import { extractTranscript, listCaptionLanguages } from '../transcript/captionExtractor.js';
-import { formatTranscriptMarkdown, sanitizeMarkdownFilename } from '../transcript/markdownFormatter.js';
+import { formatTranscriptMarkdown } from '../transcript/markdownFormatter.js';
 import { toTranscriptError } from '../transcript/transcriptError.js';
 import type { CaptionNetworkOptions } from '../net/captionNetwork.js';
 import type { BinaryResolver } from './binaryResolver.js';
 import { getTranscriptSettingsDefaults } from './settingsDefaults.js';
+import { saveMarkdownFile } from './markdownFile.js';
 import { runWithConcurrency } from './batch.js';
+
+export { saveMarkdownFile };
 
 export interface TranscriptMarkdownDeps {
   binaries?: Partial<BinaryResolver>;
@@ -52,6 +53,7 @@ export const normalizeTranscriptSettings = (
   const paragraphGapSeconds = typeof settings?.paragraphGapSeconds === 'number'
     ? settings.paragraphGapSeconds
     : defaults.paragraphGapSeconds;
+  const network = settings?.network === undefined ? defaults.network : settings.network;
   return {
     language,
     includeTimestamps: typeof settings?.includeTimestamps === 'boolean' ? settings.includeTimestamps : defaults.includeTimestamps,
@@ -61,25 +63,15 @@ export const normalizeTranscriptSettings = (
     copyMarkdownToClipboard: typeof settings?.copyMarkdownToClipboard === 'boolean'
       ? settings.copyMarkdownToClipboard
       : defaults.copyMarkdownToClipboard,
-  };
-};
-
-export const saveMarkdownFile = (outputDir: string, title: string, markdown: string): string => {
-  fs.mkdirSync(outputDir, { recursive: true });
-  const parsed = path.parse(sanitizeMarkdownFilename(title));
-  for (let attempt = 0; attempt < 1000; attempt += 1) {
-    const suffix = attempt === 0 ? '' : `-${attempt + 1}`;
-    const filePath = path.join(outputDir, `${parsed.name}${suffix}${parsed.ext}`);
-    try {
-      fs.writeFileSync(filePath, markdown, { encoding: 'utf8', flag: 'wx' });
-      return filePath;
-    } catch (error: unknown) {
-      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
-        throw error;
+    network: network && typeof network === 'object'
+      ? {
+        cookiesPath: network.cookiesPath?.trim() || null,
+        cookiesFromBrowser: network.cookiesFromBrowser?.trim() || null,
+        proxy: network.proxy?.trim() || null,
+        impersonate: network.impersonate?.trim() || null,
       }
-    }
-  }
-  throw new Error('Could not allocate a unique Markdown filename.');
+      : null,
+  };
 };
 
 export const convertTranscriptToMarkdown = async (
@@ -98,6 +90,16 @@ export const convertTranscriptToMarkdown = async (
       title: fallbackTitle,
       status: 'analyzing',
       progress: 10,
+    });
+
+    // Label the long yt-dlp caption phase explicitly; without this the UI sits
+    // at 10% until formatting starts.
+    deps.onProgress?.({
+      requestId,
+      url: request.url,
+      title: fallbackTitle,
+      status: 'extracting',
+      progress: 40,
     });
 
     const extraction = await extractTranscript(request.url, {
@@ -198,8 +200,22 @@ export const convertMultipleTranscriptsToMarkdown = async (
   requests: TranscriptRequest[],
   deps: TranscriptMarkdownDeps,
   concurrency = 2,
-): Promise<TranscriptMarkdownResponse[]> => {
-  return runWithConcurrency(requests, concurrency, (request) => convertTranscriptToMarkdown(request, deps));
+): Promise<TranscriptBatchSummary> => {
+  // Mark queued items up front so the UI can distinguish waiting from running.
+  for (const request of requests) {
+    request.requestId = ensureRequestId(request);
+    deps.onProgress?.({
+      requestId: request.requestId,
+      url: request.url,
+      title: request.title || request.url,
+      status: 'pending',
+      progress: 5,
+    });
+  }
+
+  const responses = await runWithConcurrency(requests, concurrency, (request) => convertTranscriptToMarkdown(request, deps));
+  const succeeded = responses.filter((response) => response.success).length;
+  return { total: responses.length, succeeded, failed: responses.length - succeeded };
 };
 
 export const listTranscriptLanguages = async (

@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { compareVersions, fetchLatestRelease, type GitHubReleaseAsset, type GitHubReleaseInfo } from './githubRelease.js';
 import { detectInstallMode, selectReleaseAsset, type InstallMode } from './platformAssets.js';
+import { execa } from '../spawn.js';
 
 export interface CliUpdateCheckResult {
   currentVersion: string;
@@ -34,6 +35,10 @@ export interface CliUpdateOptions {
   assetPath?: string;
   env?: NodeJS.ProcessEnv;
   release?: GitHubReleaseInfo;
+  /** Overrides install-mode detection (tests, wrappers). */
+  installMode?: InstallMode;
+  /** Overrides the `npm install -g flucto@latest` call for npm-mode applies. */
+  execNpmInstall?: () => Promise<{ failed: boolean; stderr?: string; stdout?: string }>;
 }
 
 export interface ChecksumManifest {
@@ -94,6 +99,69 @@ export const checkForCliUpdate = async (options: CliUpdateOptions): Promise<CliU
   return toCheckResult(options.currentVersion, release, selectReleaseAsset(release.assets));
 };
 
+const applyNpmUpdate = async (options: CliUpdateOptions, installMode: InstallMode): Promise<CliUpdateApplyResult> => {
+  const next = 'Update applied. Restart your shell and run `flucto version` to confirm.';
+  const runInstall = options.execNpmInstall
+    ?? (async () => {
+      const result = await execa('npm', ['install', '-g', 'flucto@latest'], { reject: false });
+      return { failed: result.failed, stderr: result.stderr, stdout: result.stdout };
+    });
+  try {
+    const result = await runInstall();
+    if (result.failed) {
+      const reason = result.stderr?.trim() || result.stdout?.trim() || 'npm exited with a failure status.';
+      return {
+        applied: false,
+        installMode,
+        reason,
+        next: 'Run `npm install -g flucto@latest` manually.',
+      };
+    }
+    return { applied: true, installMode, next };
+  } catch (error: unknown) {
+    return {
+      applied: false,
+      installMode,
+      reason: error instanceof Error ? error.message : String(error),
+      next: 'Run `npm install -g flucto@latest` manually.',
+    };
+  }
+};
+
+export const applyCliUpdate = async (options: CliUpdateOptions): Promise<CliUpdateApplyResult> => {
+  const installMode = options.installMode ?? detectInstallMode();
+
+  if (installMode === 'npm') {
+    return applyNpmUpdate(options, installMode);
+  }
+
+  if (installMode === 'source') {
+    return {
+      applied: false,
+      installMode,
+      reason: 'Source installs are updated with git, not release assets.',
+      next: 'Run `git pull && npm install && npm run build:electron` to update.',
+    };
+  }
+
+  const assetPath = options.assetPath ? path.resolve(options.assetPath) : null;
+  if (!assetPath) {
+    return { applied: false, installMode, reason: 'No asset path was provided.', next: 'Run `flucto update download` first, then pass --asset PATH.' };
+  }
+  try {
+    await fs.promises.access(assetPath, fs.constants.R_OK);
+  } catch {
+    return { applied: false, installMode, reason: `Asset is not readable: ${assetPath}`, next: 'Download the update asset again.' };
+  }
+
+  return {
+    applied: false,
+    installMode,
+    reason: `Automatic apply is not supported for ${installMode} installs yet.`,
+    next: `Install or run the downloaded asset manually: ${assetPath}`,
+  };
+};
+
 export const downloadCliUpdate = async (options: CliUpdateOptions): Promise<CliUpdateDownloadResult> => {
   const release = await releaseFor(options);
   const asset = selectReleaseAsset(release.assets);
@@ -128,25 +196,5 @@ export const downloadCliUpdate = async (options: CliUpdateOptions): Promise<CliU
     path: destination,
     checksumVerified,
     next: 'Run `flucto update apply --asset PATH` if your install mode supports automatic apply; otherwise install the asset manually.',
-  };
-};
-
-export const applyCliUpdate = async (options: CliUpdateOptions): Promise<CliUpdateApplyResult> => {
-  const installMode = detectInstallMode();
-  const assetPath = options.assetPath ? path.resolve(options.assetPath) : null;
-  if (!assetPath) {
-    return { applied: false, installMode, reason: 'No asset path was provided.', next: 'Run `flucto update download` first, then pass --asset PATH.' };
-  }
-  try {
-    await fs.promises.access(assetPath, fs.constants.R_OK);
-  } catch {
-    return { applied: false, installMode, reason: `Asset is not readable: ${assetPath}`, next: 'Download the update asset again.' };
-  }
-
-  return {
-    applied: false,
-    installMode,
-    reason: `Automatic apply is not supported for ${installMode} installs yet.`,
-    next: `Install or run the downloaded asset manually: ${assetPath}`,
   };
 };

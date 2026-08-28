@@ -14,6 +14,7 @@ import {
   sanitizeMarkdownFilename,
 } from '../dist-electron/main/transcript/markdownFormatter.js';
 import {
+  limitCaptionLanguageCandidates,
   listCaptionLanguagesFromInfo,
   parseJson3Captions,
   parseVttCaptions,
@@ -21,6 +22,7 @@ import {
   resolveCaptionLanguage,
   resolveCaptionLanguageCandidates,
 } from '../dist-electron/main/transcript/captionExtractor.js';
+import { normalizeTranscriptSettings } from '../dist-electron/main/services/transcriptMarkdown.js';
 import {
   TranscriptError,
   toTranscriptError,
@@ -73,16 +75,25 @@ test('formatter emits hour timestamps for long transcripts', () => {
   assert.match(markdown, /^## \[1:01:01\]/);
 });
 
-test('formatter includes metadata only when requested', () => {
+test('formatter includes metadata only when requested, localizing labels by caption language', () => {
   const withMetadata = formatTranscriptMarkdown(
     [{ text: 'Caption text', start: 0, duration: 1 }],
     metadata,
     { includeTimestamps: false, includeMetadata: true, paragraphGapSeconds: 5 },
   );
   assert.match(withMetadata, /^# Transcript Test Video\n/);
-  assert.match(withMetadata, /> \*\*채널:\*\* Flucto QA  /);
+  assert.match(withMetadata, /> \*\*Channel:\*\* Flucto QA  /);
   assert.match(withMetadata, /> \*\*URL:\*\* \[https:\/\/example\.test\/watch\?v=video-1\]\(https:\/\/example\.test\/watch\?v=video-1\)  /);
+  assert.match(withMetadata, /> \*\*Extracted:\*\* \d{4}-\d{2}-\d{2} /);
   assert.match(withMetadata, /\n---\n\nCaption text\n$/);
+
+  const koreanMetadata = formatTranscriptMarkdown(
+    [{ text: 'Caption text', start: 0, duration: 1 }],
+    { ...metadata, language: 'ko' },
+    { includeTimestamps: false, includeMetadata: true, paragraphGapSeconds: 5 },
+  );
+  assert.match(koreanMetadata, /> \*\*채널:\*\* Flucto QA  /);
+  assert.match(koreanMetadata, /> \*\*추출일:\*\* /);
 
   const withoutMetadata = formatTranscriptMarkdown(
     [{ text: 'Caption text', start: 0, duration: 1 }],
@@ -295,4 +306,31 @@ test('caption network options map cookies browser proxy and impersonate args', (
   ]);
   assert.equal(parseRetryAfterMs('Retry-After: 12'), 12000);
   assert.ok(backoffDelayMs(0) >= 2000);
+});
+
+test('caption language fallback fan-out is capped', () => {
+  const candidates = ['en', 'ko-orig', 'ko', 'ja', 'zh', 'de'];
+  assert.equal(limitCaptionLanguageCandidates(candidates).length, 3);
+  assert.deepEqual(limitCaptionLanguageCandidates(candidates), ['en', 'ko-orig', 'ko']);
+  assert.deepEqual(limitCaptionLanguageCandidates(['en']), ['en']);
+  assert.deepEqual(limitCaptionLanguageCandidates([]), []);
+});
+
+test('transcript settings normalization preserves and trims network overrides', () => {
+  const settings = normalizeTranscriptSettings({
+    language: 'en',
+    network: {
+      cookiesPath: '  /tmp/c.txt  ',
+      cookiesFromBrowser: ' chrome ',
+      proxy: '  ',
+      impersonate: undefined,
+    },
+  });
+  assert.equal(settings.network.cookiesPath, '/tmp/c.txt');
+  assert.equal(settings.network.cookiesFromBrowser, 'chrome');
+  assert.equal(settings.network.proxy, null);
+  assert.equal(settings.network.impersonate, null);
+
+  const defaultNetwork = normalizeTranscriptSettings({ language: 'en' });
+  assert.equal(defaultNetwork.network, null);
 });

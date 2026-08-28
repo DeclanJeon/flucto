@@ -24,6 +24,7 @@ import { DownloadSettings } from './DownloadSettings';
 import { DownloadHistory } from './DownloadHistory';
 import { TranscriptProgress } from './TranscriptProgress';
 import { TranscriptSettings } from './TranscriptSettings';
+import { GitHubStarButton } from './GitHubStarButton';
 import { useDownloadMonitor } from '../hooks/useDownloadMonitor';
 import type { AppUpdateEvent, DownloadSettings as DownloadSettingsType, FormatOption, MediaOutputMode, TranscriptProgress as TranscriptProgressType, TranscriptSettings as TranscriptSettingsType, VideoInfo } from '../../../shared/types';
 
@@ -376,7 +377,7 @@ export const MainDownloader: React.FC = () => {
       const downloadUrls = videos.map((v) => v.originalUrl || `https://www.youtube.com/watch?v=${v.id}`);
       const downloadTitles = videos.map((v) => v.title || (v.originalUrl || v.id));
       if (outputMode === 'md') {
-        await window.api.convertMultipleTranscriptsToMarkdown(
+        const summary = await window.api.convertMultipleTranscriptsToMarkdown(
           videos.map((video) => ({
             url: video.originalUrl || `https://www.youtube.com/watch?v=${video.id}`,
             requestId: typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
@@ -386,7 +387,11 @@ export const MainDownloader: React.FC = () => {
             settings: transcriptSettings,
           })),
         );
-        setAppliedSummary('Markdown conversion finished. See status panel for per-item results.');
+        setAppliedSummary(
+          summary.failed > 0
+            ? `Markdown conversion finished: ${summary.succeeded}/${summary.total} ok · ${summary.failed} failed. See status panel for details.`
+            : `Markdown conversion finished: ${summary.succeeded}/${summary.total} ok. See status panel for per-item results.`,
+        );
       } else {
         const summary = await estimateAppliedSummary(downloadUrls[0], videos[0]?.duration);
         setAppliedSummary(summary);
@@ -413,12 +418,24 @@ export const MainDownloader: React.FC = () => {
 
   const handleDownloadSettingsChange = async (settings: DownloadSettingsType) => {
     setDownloadSettings(settings);
-    await window.api.setDownloadSettings(settings);
+    try {
+      await window.api.setDownloadSettings(settings);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      setStatusMessage(`❌ Failed to save download settings: ${message}`);
+      setTimeout(() => setStatusMessage(null), 4000);
+    }
   };
 
   const handleTranscriptSettingsChange = async (settings: TranscriptSettingsType) => {
     setTranscriptSettings(settings);
-    await window.api.setTranscriptSettings(settings);
+    try {
+      await window.api.setTranscriptSettings(settings);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      setStatusMessage(`❌ Failed to save transcript settings: ${message}`);
+      setTimeout(() => setStatusMessage(null), 4000);
+    }
   };
 
   const handleIndividualDownload = async (video: VideoInfo) => {
@@ -427,27 +444,33 @@ export const MainDownloader: React.FC = () => {
       ? crypto.randomUUID()
       : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-    if (outputMode === 'md') {
-      const response = await window.api.convertTranscriptToMarkdown({
-        url: targetUrl,
-        requestId,
-        title: video.title,
-        settings: transcriptSettings,
-      });
-      setAppliedSummary(response.success ? `Markdown saved: ${response.filePath ?? 'clipboard only'}` : `Markdown failed: ${response.message}`);
-      return;
-    }
+    try {
+      if (outputMode === 'md') {
+        const response = await window.api.convertTranscriptToMarkdown({
+          url: targetUrl,
+          requestId,
+          title: video.title,
+          settings: transcriptSettings,
+        });
+        setAppliedSummary(response.success ? `Markdown saved: ${response.filePath ?? 'clipboard only'}` : `Markdown failed: ${response.message}`);
+        return;
+      }
 
-    await window.api.downloadSingle({
-      url: targetUrl,
-      format: outputMode,
-      requestId,
-      quality: downloadSettings.qualityPreferences,
-      formatOverrides: downloadSettings.formatOverrides,
-      title: video.title,
-    });
-    const summary = await estimateAppliedSummary(targetUrl, video.duration);
-    setAppliedSummary(summary);
+      await window.api.downloadSingle({
+        url: targetUrl,
+        format: outputMode,
+        requestId,
+        quality: downloadSettings.qualityPreferences,
+        formatOverrides: downloadSettings.formatOverrides,
+        title: video.title,
+      });
+      const summary = await estimateAppliedSummary(targetUrl, video.duration);
+      setAppliedSummary(summary);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      setStatusMessage(`❌ Download failed: ${message}`);
+      setTimeout(() => setStatusMessage(null), 4000);
+    }
   };
 
   const handleCheckAppUpdates = async () => {
@@ -546,6 +569,7 @@ export const MainDownloader: React.FC = () => {
           >
             <History size={20} />
           </button>
+          <GitHubStarButton owner="DeclanJeon" repo="flucto" />
           <button
             type="button"
             onClick={() => setShowSettings((prev) => !prev)}
@@ -734,6 +758,9 @@ export const MainDownloader: React.FC = () => {
               <TranscriptSettings
                 settings={transcriptSettings}
                 onSettingsChange={handleTranscriptSettingsChange}
+                previewUrl={videos[0]
+                  ? (videos[0].originalUrl || `https://www.youtube.com/watch?v=${videos[0].id}`)
+                  : (url || undefined)}
               />
             )}
           </AnimatePresence>

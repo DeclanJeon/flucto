@@ -66,20 +66,24 @@ const groupSegmentsByGap = (segments: TranscriptSegment[], paragraphGapSeconds: 
 };
 
 const formatMetadata = (metadata: TranscriptMetadata): string => {
+  const korean = metadata.language?.trim().toLowerCase().startsWith('ko') ?? false;
+  const labels = korean
+    ? { channel: '채널', duration: '길이', extractedAt: '추출일' }
+    : { channel: 'Channel', duration: 'Duration', extractedAt: 'Extracted' };
   const lines = [
     `# ${metadata.title}`,
     '',
-    `> **채널:** ${metadata.channel}  `,
+    `> **${labels.channel}:** ${metadata.channel}  `,
   ];
 
   if (metadata.duration && metadata.duration !== 'N/A') {
-    lines.push(`> **길이:** ${metadata.duration}  `);
+    lines.push(`> **${labels.duration}:** ${metadata.duration}  `);
   }
 
   const extractedAt = new Date().toISOString().slice(0, 16).replace('T', ' ');
   lines.push(
     `> **URL:** [${metadata.url}](${metadata.url})  `,
-    `> **추출일:** ${extractedAt}  `,
+    `> **${labels.extractedAt}:** ${extractedAt}  `,
     '',
     '---',
     '',

@@ -21,6 +21,8 @@ export {
 type FluctoSettingsStore = {
   updateSettings: UpdateSettings;
   lastAppUpdateCheckAt: number;
+  /** safeStorage-encrypted GitHub token (or `plain:`-prefixed fallback) used to star the repo. */
+  githubTokenCipher: string;
   downloadSettings: {
     downloadsDirectory: string | null;
     qualityPreferences: DownloadQualityPreferences;
@@ -38,6 +40,7 @@ export const settingsStore = new Store<FluctoSettingsStore>({
   defaults: {
     updateSettings: getUpdateSettingsDefaults(),
     lastAppUpdateCheckAt: 0,
+    githubTokenCipher: '',
     downloadSettings: getDownloadSettingsDefaults(),
     transcriptSettings: getTranscriptSettingsDefaults(),
   },

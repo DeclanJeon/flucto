@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain } from 'electron';
+import { BrowserWindow, ipcMain, safeStorage } from 'electron';
 import { execa } from './spawn.js';
 import { logger } from './logger.js';
 import {
@@ -10,10 +10,71 @@ import {
 } from './updater.js';
 import { getBinaryPath } from './utils.js';
 import { getStoredUpdateSettings, isUpdateSettings, settingsStore } from './store.js';
-import type { AppUpdateEvent, NetworkStatusEvent } from '../shared/types.js';
+import { fetchRepoStarCount, isRepoStarred, starRepo } from './services/githubStar.js';
+import type { AppUpdateEvent, GitHubStarResult, GitHubStarState, NetworkStatusEvent } from '../shared/types.js';
 
 const NETWORK_STATUS_CHANNEL = 'network-status-change';
 const APP_UPDATE_CHANNEL = 'app-update-event';
+const FLUCTO_REPO = { owner: 'DeclanJeon', repo: 'flucto' } as const;
+const PLAIN_TOKEN_PREFIX = 'plain:';
+
+// Token storage: safeStorage (OS keychain) when available, otherwise a
+// `plain:`-prefixed plaintext fallback in the local settings file.
+const decodeGitHubToken = (): string | null => {
+  const stored = settingsStore.get('githubTokenCipher');
+  if (!stored) return null;
+  if (stored.startsWith(PLAIN_TOKEN_PREFIX)) return stored.slice(PLAIN_TOKEN_PREFIX.length);
+  try {
+    if (!safeStorage.isEncryptionAvailable()) return null;
+    return safeStorage.decryptString(Buffer.from(stored, 'base64'));
+  } catch {
+    return null;
+  }
+};
+
+const encodeGitHubToken = (token: string): string => {
+  try {
+    if (safeStorage.isEncryptionAvailable()) {
+      return safeStorage.encryptString(token).toString('base64');
+    }
+  } catch {
+    // Fall through to the plaintext marker.
+  }
+  return `${PLAIN_TOKEN_PREFIX}${token}`;
+};
+
+ipcMain.handle('get-github-star-state', async (): Promise<GitHubStarState> => {
+  const token = decodeGitHubToken();
+  const starCount = await fetchRepoStarCount(FLUCTO_REPO);
+  const starred = token ? await isRepoStarred(FLUCTO_REPO, token) : null;
+  return { hasToken: Boolean(token), starred, starCount };
+});
+
+ipcMain.handle('save-github-token', (_event, token: unknown): void => {
+  const trimmed = typeof token === 'string' ? token.trim() : '';
+  if (!trimmed) {
+    settingsStore.set('githubTokenCipher', '');
+    return;
+  }
+  settingsStore.set('githubTokenCipher', encodeGitHubToken(trimmed));
+  logger.info('GitHub token saved for repo starring.');
+});
+
+ipcMain.handle('star-flucto-repo', async (): Promise<GitHubStarResult> => {
+  const token = decodeGitHubToken();
+  if (!token) {
+    return { starred: false, message: 'No GitHub token is configured. Add one for one-click starring.' };
+  }
+  try {
+    await starRepo(FLUCTO_REPO, token);
+    const starCount = await fetchRepoStarCount(FLUCTO_REPO);
+    return { starred: true, message: 'Starred Flucto on GitHub. Thank you!', starCount };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    logger.warn('GitHub starring failed:', { error: message });
+    return { starred: false, message };
+  }
+});
 
 let networkStatus: NetworkStatusEvent = {
   online: true,

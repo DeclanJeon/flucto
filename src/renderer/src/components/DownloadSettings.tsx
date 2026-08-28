@@ -25,10 +25,13 @@ export const DownloadSettings: React.FC<DownloadSettingsProps> = ({
 }) => {
   const [localSettings, setLocalSettings] = useState(settings);
   const [availableFormats, setAvailableFormats] = useState<FormatOption[]>([]);
-
-  useEffect(() => {
+  const [syncedSettings, setSyncedSettings] = useState(settings);
+  // Sync incoming prop changes during render (React-recommended alternative to
+  // setState-in-effect, which triggers cascading renders).
+  if (syncedSettings !== settings) {
+    setSyncedSettings(settings);
     setLocalSettings(settings);
-  }, [settings]);
+  }
 
   useEffect(() => {
     const loadFormats = async () => {

@@ -146,7 +146,6 @@ export const downloadThreadsVideo = async (
       const reader = res.body?.getReader();
       if (!reader) throw new Error('Response body is not readable');
 
-      // eslint-disable-next-line no-constant-condition
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;

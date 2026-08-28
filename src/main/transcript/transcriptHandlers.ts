@@ -1,10 +1,11 @@
-import { clipboard, ipcMain } from 'electron';
+import { clipboard, dialog, ipcMain } from 'electron';
 import { config } from '../config.js';
 import { appendHistoryEntry } from '../historyStore.js';
 import { logger } from '../logger.js';
 import { getStoredDownloadSettings, getStoredTranscriptSettings, settingsStore } from '../store.js';
 import { getBinaryPath } from '../utils.js';
-import type { TranscriptProgress, TranscriptRequest, TranscriptSettings } from '../../shared/types.js';
+import type { TranscriptBatchSummary, TranscriptProgress, TranscriptRequest, TranscriptSettings } from '../../shared/types.js';
+import { resolveCaptionNetworkOptions, type CaptionNetworkOptions } from '../net/captionNetwork.js';
 import {
   convertMultipleTranscriptsToMarkdown,
   convertTranscriptToMarkdown,
@@ -30,9 +31,24 @@ const getTranscriptBinaries = () => ({
   ffmpegPath: getBinaryPath('ffmpeg'),
 });
 
+// UI values take precedence; unset fields fall back to FLUCTO_* env vars
+// via resolveCaptionNetworkOptions.
+const getTranscriptNetwork = (): CaptionNetworkOptions =>
+  resolveCaptionNetworkOptions(getStoredTranscriptSettings().network ?? {});
+
+const transcriptConversionDeps = (sender: Electron.WebContents) => ({
+  defaults: getStoredTranscriptSettings(),
+  binaries: getTranscriptBinaries(),
+  outputDir: getTranscriptOutputDir(),
+  network: getTranscriptNetwork(),
+  onProgress: (progress: TranscriptProgress) => emitTranscriptProgress(sender, progress),
+  writeClipboard: (markdown: string) => clipboard.writeText(markdown),
+  appendHistory: appendHistoryEntry,
+});
+
 ipcMain.handle('get-transcript-languages', async (_event, url: string) => {
   try {
-    return await listTranscriptLanguages(url, getTranscriptBinaries());
+    return await listTranscriptLanguages(url, getTranscriptBinaries(), getTranscriptNetwork());
   } catch (error: unknown) {
     const transcriptError = error instanceof TranscriptError ? error : toTranscriptError(error);
     throw new Error(transcriptError.message);
@@ -47,15 +63,18 @@ ipcMain.handle('set-transcript-settings', (_event, settings: TranscriptSettings)
   settingsStore.set('transcriptSettings', normalizeTranscriptSettings(settings, getStoredTranscriptSettings()));
 });
 
-ipcMain.handle('convert-transcript-to-markdown', async (event, request: TranscriptRequest) => {
-  const response = await convertTranscriptToMarkdown(request, {
-    defaults: getStoredTranscriptSettings(),
-    binaries: getTranscriptBinaries(),
-    outputDir: getTranscriptOutputDir(),
-    onProgress: (progress) => emitTranscriptProgress(event.sender, progress),
-    writeClipboard: (markdown) => clipboard.writeText(markdown),
-    appendHistory: appendHistoryEntry,
+ipcMain.handle('pick-cookies-file', async () => {
+  const result = await dialog.showOpenDialog({
+    title: 'Select cookies.txt',
+    properties: ['openFile'],
+    filters: [{ name: 'Cookies file', extensions: ['txt'] }],
   });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  return result.filePaths[0];
+});
+
+ipcMain.handle('convert-transcript-to-markdown', async (event, request: TranscriptRequest) => {
+  const response = await convertTranscriptToMarkdown(request, transcriptConversionDeps(event.sender));
 
   if (!response.success) {
     logger.error('Transcript conversion failed', {
@@ -68,17 +87,10 @@ ipcMain.handle('convert-transcript-to-markdown', async (event, request: Transcri
   return response;
 });
 
-ipcMain.handle('convert-multiple-transcripts-to-markdown', async (event, requests: TranscriptRequest[]) => {
-  await convertMultipleTranscriptsToMarkdown(
+ipcMain.handle('convert-multiple-transcripts-to-markdown', async (event, requests: TranscriptRequest[]): Promise<TranscriptBatchSummary> => {
+  return convertMultipleTranscriptsToMarkdown(
     requests,
-    {
-      defaults: getStoredTranscriptSettings(),
-      binaries: getTranscriptBinaries(),
-      outputDir: getTranscriptOutputDir(),
-      onProgress: (progress) => emitTranscriptProgress(event.sender, progress),
-      writeClipboard: (markdown) => clipboard.writeText(markdown),
-      appendHistory: appendHistoryEntry,
-    },
+    transcriptConversionDeps(event.sender),
     TRANSCRIPT_BATCH_CONCURRENCY,
   );
 });

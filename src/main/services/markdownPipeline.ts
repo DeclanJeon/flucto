@@ -1,13 +1,12 @@
-import fs from 'fs';
-import path from 'path';
 import type { VideoInfo } from '../../shared/types.js';
 import type { BinaryResolver } from './binaryResolver.js';
 import type { MediaOrchestrator } from './orchestrator.js';
 import { extractTranscript } from '../transcript/captionExtractor.js';
-import { formatTranscriptMarkdown, sanitizeMarkdownFilename } from '../transcript/markdownFormatter.js';
+import { formatTranscriptMarkdown } from '../transcript/markdownFormatter.js';
 import type { TranscriptMetadata, TranscriptSegment } from '../transcript/transcriptTypes.js';
 import { toTranscriptError } from '../transcript/transcriptError.js';
 import type { CaptionNetworkOptions } from '../net/captionNetwork.js';
+import { saveMarkdownFile } from './markdownFile.js';
 
 export interface MarkdownResult {
   success: boolean;
@@ -41,7 +40,7 @@ const formatDuration = (seconds: number): string => {
 
 const escapeYamlString = (value: string): string => {
   if (!value) return '""';
-  if (/[:{}\[\],&*?|>!%@`]/.test(value) || value.includes('\n')) {
+  if (/[:{}[\],&*?|>!%@`]/.test(value) || value.includes('\n')) {
     return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
   }
   return `"${value}"`;
@@ -101,24 +100,6 @@ const buildMarkdown = (
   return parts.join('\n');
 };
 
-const saveMarkdown = (outputDir: string, title: string, markdown: string): string => {
-  fs.mkdirSync(outputDir, { recursive: true });
-  const parsed = path.parse(sanitizeMarkdownFilename(title));
-  for (let attempt = 0; attempt < 1000; attempt += 1) {
-    const suffix = attempt === 0 ? '' : `-${attempt + 1}`;
-    const filePath = path.join(outputDir, `${parsed.name}${suffix}${parsed.ext}`);
-    try {
-      fs.writeFileSync(filePath, markdown, { encoding: 'utf8', flag: 'wx' });
-      return filePath;
-    } catch (error: unknown) {
-      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
-        throw error;
-      }
-    }
-  }
-  throw new Error('Could not allocate a unique Markdown filename.');
-};
-
 export class MarkdownPipeline {
   constructor(
     private readonly orchestrator: MediaOrchestrator,
@@ -171,7 +152,7 @@ export class MarkdownPipeline {
       let filePath: string | undefined;
       if (!options?.stdout) {
         const outDir = options?.outputDir ?? process.cwd();
-        filePath = saveMarkdown(outDir, info.title, markdown);
+        filePath = saveMarkdownFile(outDir, info.title, markdown);
       }
 
       // 6. Return result

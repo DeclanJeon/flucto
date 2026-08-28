@@ -28,6 +28,17 @@ export interface CaptionLanguage {
   isAuto: boolean;
 }
 
+/**
+ * Optional yt-dlp network overrides for caption extraction.
+ * `null` fields fall back to FLUCTO_* environment variables.
+ */
+export interface TranscriptNetworkSettings {
+  cookiesPath: string | null;
+  cookiesFromBrowser: string | null;
+  proxy: string | null;
+  impersonate: string | null;
+}
+
 export interface TranscriptSettings {
   language: string | null;
   includeTimestamps: boolean;
@@ -35,6 +46,7 @@ export interface TranscriptSettings {
   paragraphGapSeconds: number;
   saveMarkdownFile: boolean;
   copyMarkdownToClipboard: boolean;
+  network?: TranscriptNetworkSettings | null;
 }
 
 export interface TranscriptRequest {
@@ -55,6 +67,25 @@ export interface TranscriptMarkdownResponse {
   segmentCount?: number;
   wordCount?: number;
   errorCode?: TranscriptErrorCode;
+}
+
+export interface TranscriptBatchSummary {
+  total: number;
+  succeeded: number;
+  failed: number;
+}
+
+export interface GitHubStarState {
+  /** Whether the configured GitHub token has already starred the repo (null = unknown). */
+  starred: boolean | null;
+  hasToken: boolean;
+  starCount: number | null;
+}
+
+export interface GitHubStarResult {
+  starred: boolean;
+  message: string;
+  starCount?: number | null;
 }
 
 export interface TranscriptProgress {
@@ -245,10 +276,14 @@ export interface IElectronAPI {
   openDownloadsFolder: () => Promise<void>;
   onDownloadProgress: (callback: (progress: DownloadProgress) => void) => void;
   getTranscriptLanguages: (url: string) => Promise<CaptionLanguage[]>;
+  getGitHubStarState: () => Promise<GitHubStarState>;
+  starFluctoRepo: () => Promise<GitHubStarResult>;
+  saveGitHubToken: (token: string) => Promise<void>;
   getTranscriptSettings: () => Promise<TranscriptSettings>;
   setTranscriptSettings: (settings: TranscriptSettings) => Promise<void>;
+  pickCookiesFile: () => Promise<string | null>;
   convertTranscriptToMarkdown: (request: TranscriptRequest) => Promise<TranscriptMarkdownResponse>;
-  convertMultipleTranscriptsToMarkdown: (requests: TranscriptRequest[]) => Promise<void>;
+  convertMultipleTranscriptsToMarkdown: (requests: TranscriptRequest[]) => Promise<TranscriptBatchSummary>;
   onTranscriptProgress: (callback: (progress: TranscriptProgress) => void) => void;
   offTranscriptProgress?: (callback: (progress: TranscriptProgress) => void) => void;
   readBatchFile: () => Promise<string[] | null>;
