@@ -14,6 +14,9 @@
     "flucto"
   ],
   "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
   "main": "./dist-electron/main/index.js",
   "files": [
     "dist-electron/",
