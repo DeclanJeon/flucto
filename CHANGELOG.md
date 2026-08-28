@@ -1,3 +1,15 @@
+# [1.16.0](https://github.com/DeclanJeon/flucto/compare/v1.15.0...v1.16.0) (2026-08-28)
+
+
+### Bug Fixes
+
+* **ci:** pass NPM_TOKEN to the prepare dry-run semantic-release step ([f60ce33](https://github.com/DeclanJeon/flucto/commit/f60ce3358e0d56a52912ca0e2de6782cbc5da54c))
+
+
+### Features
+
+* **ci:** enable npm publishing with provenance ([da5e53a](https://github.com/DeclanJeon/flucto/commit/da5e53ae65e7ac99c10f3cf3498cc45616d2fec3))
+
 # [1.15.0](https://github.com/DeclanJeon/flucto/compare/v1.14.0...v1.15.0) (2026-08-28)
 
 
