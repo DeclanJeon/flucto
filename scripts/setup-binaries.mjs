@@ -8,8 +8,7 @@ const OS = platform(); // 'win32', 'darwin', 'linux'
 const FORCE = process.argv.includes('--force') || process.env.FLUCTO_FORCE_BINARIES === '1';
 const SKIP =
   process.env.FLUCTO_SKIP_BINARIES === '1'
-  || process.env.FLUCTO_SKIP_BINARIES === 'true'
-  || process.env.CI === 'true';
+  || process.env.FLUCTO_SKIP_BINARIES === 'true';
 const DOWNLOAD_TIMEOUT_MS = 120000;
 
 // URL Configuration
