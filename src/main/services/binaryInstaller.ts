@@ -14,6 +14,8 @@ export interface UtilitySetupOptions {
   ffmpegPath?: string;
   force?: boolean;
   checkOnly?: boolean;
+  /** Restrict provisioning to a subset of utilities (e.g. yt-dlp only for transcript workflows). */
+  only?: UtilityName[];
   env?: NodeJS.ProcessEnv;
   cwd?: string;
   onStatus?: (message: string) => void;
@@ -66,7 +68,7 @@ const executableExtension = process.platform === 'win32' ? '.exe' : '';
 
 const currentPlatform = (): NodeJS.Platform => process.platform;
 
-const executableName = (name: UtilityName): string => `${name}${executableExtension}`;
+export const executableName = (name: UtilityName): string => `${name}${executableExtension}`;
 
 export const getManagedBinDir = (env: NodeJS.ProcessEnv = process.env): string => {
   if (env.FLUCTO_BIN_DIR?.trim()) return path.resolve(env.FLUCTO_BIN_DIR.trim());
@@ -79,7 +81,7 @@ export const getManagedBinDir = (env: NodeJS.ProcessEnv = process.env): string =
   return path.join(env.XDG_DATA_HOME || path.join(os.homedir(), '.local', 'share'), 'flucto', 'bin');
 };
 
-const utilitySpecs = (): UtilitySpec[] => {
+export const utilitySpecs = (): UtilitySpec[] => {
   const platform = currentPlatform();
   const ytDlpUrl = platform === 'win32'
     ? 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe'
@@ -135,7 +137,7 @@ const normalizeYtDlpVersion = (value: string | null | undefined): string | null 
   return value.trim().replace(/^yt-dlp\s+/i, '').replace(/^v/i, '') || null;
 };
 
-const fetchLatestYtDlpVersion = async (): Promise<string | null> => {
+export const fetchLatestYtDlpVersion = async (): Promise<string | null> => {
   try {
     const response = await fetch('https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest', {
       headers: {
@@ -151,7 +153,7 @@ const fetchLatestYtDlpVersion = async (): Promise<string | null> => {
   }
 };
 
-const versionFor = async (filePath: string, args: string[]): Promise<string | null> => {
+export const versionFor = async (filePath: string, args: string[]): Promise<string | null> => {
   if (!isExecutable(filePath)) return null;
   const result = await execa(filePath, args, { reject: false });
   if (result.failed) return null;
@@ -221,7 +223,7 @@ const provisionUtilityFromUrl = async (spec: UtilitySpec, url: string, targetPat
   }
 };
 
-const provisionUtility = async (spec: UtilitySpec, targetPath: string, onStatus?: (message: string) => void): Promise<void> => {
+export const provisionUtility = async (spec: UtilitySpec, targetPath: string, onStatus?: (message: string) => void): Promise<void> => {
   const errors: string[] = [];
   for (const url of spec.downloadUrls) {
     try {
@@ -244,7 +246,11 @@ export const setupUtilities = async (options: UtilitySetupOptions = {}): Promise
 
   if (!options.checkOnly) await fs.promises.mkdir(binDir, { recursive: true });
 
-  for (const spec of utilitySpecs()) {
+  const specs = options.only?.length
+    ? utilitySpecs().filter((spec) => options.only?.includes(spec.name))
+    : utilitySpecs();
+
+  for (const spec of specs) {
     const explicitPath = spec.name === 'yt-dlp' ? options.ytDlpPath ?? env.FLUCTO_YT_DLP_PATH : options.ffmpegPath ?? env.FLUCTO_FFMPEG_PATH;
     const targetPath = explicitPath ? path.resolve(explicitPath) : managedTargetPath(binDir, spec.name);
     const present = isExecutable(targetPath);

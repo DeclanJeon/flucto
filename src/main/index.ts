@@ -13,7 +13,8 @@ import { appendHistoryEntry, clearHistory, getHistoryEntries } from './historySt
 import { getCommonYtDlpArgs, getRefererForUrl, parseLastJsonObjectFromStdout } from './media/ytDlp.js';
 import { createPlatformRegistry } from './platforms/index.js';
 import { runMediaDownload } from './services/mediaDownload.js';
-import { setupUtilities } from './services/binaryInstaller.js';
+import { setupUtilities, versionFor } from './services/binaryInstaller.js';
+import { checkAndRefreshBinaries } from './services/binaryRefresh.js';
 import type { BinaryResolver } from './services/binaryResolver.js';
 import './handlers.js';
 import './transcript/transcriptHandlers.js';
@@ -213,6 +214,22 @@ app.whenReady().then(async () => {
   createWindow();
 
   await initializeAutoUpdater();
+
+  // Packaged binaries are frozen at release time; refresh yt-dlp in the managed dir
+  // without blocking startup. Failures are logged and retried on the next launch.
+  void (async () => {
+    const result = await checkAndRefreshBinaries({
+      currentVersion: await versionFor(getBinaryPath('yt-dlp'), ['--version']),
+      onStatus: (message) => logger.info(`[binary-refresh] ${message}`),
+    });
+    if (result.error) {
+      logger.warn('Binary refresh skipped:', { error: result.error });
+    } else if (result.refreshed) {
+      logger.info('yt-dlp refreshed successfully:', { version: result.version });
+    }
+  })().catch((error: unknown) => {
+    logger.warn('Binary refresh crashed:', { error: getErrorMessage(error) });
+  });
 
   logger.info("Electron application is ready and healthy.");
 

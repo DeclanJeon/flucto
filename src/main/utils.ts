@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { logger } from './logger.js';
 import { getManagedBinDir } from './services/binaryInstaller.js';
+import { isManagedBinaryPreferred } from './services/binaryRefresh.js';
 
 const isExecutable = (candidate: string): boolean => {
   const accessMode = process.platform === 'win32' ? fs.constants.F_OK : fs.constants.F_OK | fs.constants.X_OK;
@@ -14,10 +15,24 @@ const isExecutable = (candidate: string): boolean => {
   }
 };
 
+/**
+ * A refreshed yt-dlp lives in the managed bin dir and is preferred over the frozen
+ * packaged copy. The marker file only exists once a managed refresh succeeded.
+ */
+const managedRefreshedPath = (binaryName: string): string | null => {
+  if (binaryName !== 'yt-dlp') return null;
+  if (!isManagedBinaryPreferred(binaryName)) return null;
+  const candidate = path.join(getManagedBinDir(), `${binaryName}${process.platform === 'win32' ? '.exe' : ''}`);
+  return isExecutable(candidate) ? candidate : null;
+};
+
 export const getBinaryPath = (binaryName: string): string => {
   const isProd = app.isPackaged;
   const platform = process.platform === 'win32' ? '.exe' : '';
   const binaryWithExt = `${binaryName}${platform}`;
+
+  const refreshed = managedRefreshedPath(binaryName);
+  if (refreshed) return refreshed;
 
   const candidates = isProd
     ? [

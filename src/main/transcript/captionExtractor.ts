@@ -20,6 +20,15 @@ import type { CaptionLanguage, TranscriptExtractionResult, TranscriptMetadata, T
 const transcriptCache = new TranscriptCache<TranscriptExtractionResult>();
 const circuitBreakers = new Map<string, CircuitBreaker>();
 
+/**
+ * Fallback fan-out cap: probing every manual + automatic track (YouTube auto-translations
+ * alone can number in the dozens) multiplies yt-dlp invocations and deepens rate limiting.
+ */
+export const MAX_LANGUAGE_CANDIDATES = 3;
+
+export const limitCaptionLanguageCandidates = (candidates: string[]): string[] =>
+  candidates.slice(0, MAX_LANGUAGE_CANDIDATES);
+
 const objectRecord = (value: unknown): Record<string, unknown> | null => {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
 };
@@ -455,8 +464,11 @@ const extractTranscriptNow = async (
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flucto-transcript-'));
     const ytDlpPath = binaries?.ytDlpPath ?? 'yt-dlp';
     let lastDownloadError: TranscriptError | null = null;
+    const attemptedLanguages: string[] = [];
+    let rateLimited = false;
 
-    for (const candidateLanguage of languageCandidates) {
+    for (const candidateLanguage of limitCaptionLanguageCandidates(languageCandidates)) {
+      attemptedLanguages.push(candidateLanguage);
       for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
         const download = await downloadCaptionLanguage(url, candidateLanguage, tmpDir, ytDlpPath, network);
         if (download.segments.length > 0) {
@@ -477,6 +489,11 @@ const extractTranscriptNow = async (
             await sleepMs(backoffDelayMs(attempt, parseRetryAfterMs(download.output)));
             continue;
           }
+          if (transcriptError.code === 'RATE_LIMITED') {
+            // Retrying other languages under rate limiting only invites more 429s.
+            rateLimited = true;
+            break;
+          }
           // Try next language on rate-limit / empty caption download.
           break;
         }
@@ -492,9 +509,18 @@ const extractTranscriptNow = async (
         );
         break;
       }
+      if (rateLimited) break;
     }
 
-    if (lastDownloadError) throw lastDownloadError;
+    if (lastDownloadError) {
+      if (lastDownloadError.code === 'TRANSCRIPT_UNAVAILABLE' && attemptedLanguages.length > 0) {
+        throw new TranscriptError(
+          lastDownloadError.code,
+          `${lastDownloadError.message} (attempted caption languages: ${attemptedLanguages.join(', ')})`,
+        );
+      }
+      throw lastDownloadError;
+    }
     throw new TranscriptError('TRANSCRIPT_UNAVAILABLE', 'Caption files were not generated or were empty.');
   } catch (error: unknown) {
     const transcriptError = toTranscriptError(error);
