@@ -1,3 +1,19 @@
+# [1.15.0](https://github.com/DeclanJeon/flucto/compare/v1.14.0...v1.15.0) (2026-08-28)
+
+
+### Bug Fixes
+
+* **ci:** drop invalid tarballDir:false option from npm plugin config ([81be7cb](https://github.com/DeclanJeon/flucto/commit/81be7cbd041e603fbcce51650e28bf4bd5c19c33))
+* **ci:** only skip binary setup via FLUCTO_SKIP_BINARIES, not CI=true ([904998f](https://github.com/DeclanJeon/flucto/commit/904998f42f43cca0c5fd8025b9cbb3c0c835a713))
+* **ci:** wrap npm plugin options in tuple form so npmPublish:false is honored ([8950c03](https://github.com/DeclanJeon/flucto/commit/8950c03de71d628be39fc3ee22cfbf4c575f4124))
+
+
+### Features
+
+* **cli:** make the CLI standalone-installable from npm ([47b282a](https://github.com/DeclanJeon/flucto/commit/47b282a10c605674adf9ecb6f76f182d09c40c79))
+* **desktop:** caption network settings, click-to-star button, and batch summary ([6098377](https://github.com/DeclanJeon/flucto/commit/6098377efdf4fbd26199178154a13f991b95a150))
+* **main:** auto-refresh yt-dlp in packaged apps and cap caption fallback fan-out ([d8dda66](https://github.com/DeclanJeon/flucto/commit/d8dda660e35de8524bdf26156297c58f480cb91d))
+
 # [1.14.0](https://github.com/DeclanJeon/flucto/compare/v1.13.2...v1.14.0) (2026-08-04)
 
 
