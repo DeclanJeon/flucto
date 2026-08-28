@@ -38,6 +38,7 @@ export interface CliOptions {
   limit: number;
   force: boolean;
   checkOnly: boolean;
+  ytDlpOnly: boolean;
   updateAction: CliUpdateAction;
   assetPath?: string;
   cookies?: string;
@@ -169,6 +170,7 @@ export const parseCliArgs = (argv: string[]): CliOptions => {
       limit: { type: 'string' },
       force: { type: 'boolean' },
       'check-only': { type: 'boolean' },
+      'yt-dlp-only': { type: 'boolean' },
       asset: { type: 'string' },
     },
   });
@@ -235,6 +237,7 @@ const baseOptions = (
     limit: parseLimit(values.limit, 100),
     force: booleanOption(values.force),
     checkOnly: booleanOption(values['check-only']),
+    ytDlpOnly: booleanOption(values['yt-dlp-only']),
     updateAction: parseUpdateAction(command, positional),
     assetPath: stringOption(values.asset),
     cookies: stringOption(values.cookies),

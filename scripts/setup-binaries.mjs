@@ -1,13 +1,17 @@
 import fs from 'fs';
 import path from 'path';
-import axios from 'axios';
 import { platform } from 'os';
 import { execSync } from 'child_process';
 
 const BIN_DIR = path.join(process.cwd(), 'bin');
 const OS = platform(); // 'win32', 'darwin', 'linux'
 const FORCE = process.argv.includes('--force') || process.env.FLUCTO_FORCE_BINARIES === '1';
-const YTDLP_VERSION = 'latest'; // 'latest' for auto-update, or specify version like '2025.11.12'
+const SKIP =
+  process.env.FLUCTO_SKIP_BINARIES === '1'
+  || process.env.FLUCTO_SKIP_BINARIES === 'true'
+  || process.env.CI === 'true';
+const DOWNLOAD_TIMEOUT_MS = 120000;
+
 // URL Configuration
 const URLS = {
   yt_dlp: {
@@ -30,37 +34,17 @@ const URLS = {
 };
 
 async function downloadFile(url, destPath) {
-  const writer = fs.createWriteStream(destPath);
-  try {
-    const response = await axios({
-      url,
-      method: 'GET',
-      responseType: 'stream',
-      timeout: 120000,
-      maxRedirects: 5,
-      headers: {
-        'User-Agent': `Flucto binary setup (${OS})`,
-        Accept: 'application/octet-stream,*/*',
-      },
-      validateStatus: (status) => status >= 200 && status < 300,
-    });
-
-    response.data.pipe(writer);
-
-    await new Promise((resolve, reject) => {
-      writer.on('finish', resolve);
-      writer.on('error', reject);
-      response.data.on('error', reject);
-    });
-  } catch (error) {
-    writer.destroy();
-    try {
-      fs.rmSync(destPath, { force: true });
-    } catch {
-      // Best-effort cleanup only.
-    }
-    throw new Error(`Failed to download ${url}: ${error instanceof Error ? error.message : String(error)}`);
+  const response = await fetch(url, {
+    headers: {
+      'User-Agent': `Flucto binary setup (${OS})`,
+      Accept: 'application/octet-stream,*/*',
+    },
+    signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to download ${url}: HTTP ${response.status}`);
   }
+  await fs.promises.writeFile(destPath, Buffer.from(await response.arrayBuffer()));
 }
 
 async function downloadFileWithRetry(url, destPath, { attempts = 3, delayMs = 1500 } = {}) {
@@ -120,8 +104,8 @@ function findFileNamed(directory, filename) {
     const candidate = path.join(directory, entry.name);
     if (entry.isFile() && entry.name === filename) return candidate;
     if (entry.isDirectory()) {
-      const nested = findFileNamed(candidate, filename);
-      if (nested) return nested;
+      const found = findFileNamed(candidate, filename);
+      if (found) return found;
     }
   }
   return null;
@@ -129,15 +113,16 @@ function findFileNamed(directory, filename) {
 
 async function fetchLatestYtDlpVersion() {
   try {
-    const response = await axios.get('https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest', {
-      timeout: 30000,
+    const response = await fetch('https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest', {
       headers: {
         'User-Agent': `Flucto binary setup (${OS})`,
         Accept: 'application/vnd.github+json',
       },
-      validateStatus: (status) => status >= 200 && status < 300,
+      signal: AbortSignal.timeout(30000),
     });
-    const tag = typeof response.data?.tag_name === 'string' ? response.data.tag_name.trim() : '';
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const payload = await response.json();
+    const tag = typeof payload?.tag_name === 'string' ? payload.tag_name.trim() : '';
     return tag.replace(/^yt-dlp\s+/i, '').replace(/^v/i, '') || null;
   } catch (error) {
     console.warn(`⚠️  Could not resolve latest yt-dlp version: ${error instanceof Error ? error.message : String(error)}`);
@@ -211,22 +196,7 @@ async function setup() {
       await extractZip(zipPath, extractTemp);
 
       // Find ffmpeg.exe recursively
-      const findFfmpeg = (dir) => {
-        const files = fs.readdirSync(dir);
-        for (const file of files) {
-          const fullPath = path.join(dir, file);
-          const stat = fs.statSync(fullPath);
-          if (stat.isDirectory()) {
-            const found = findFfmpeg(fullPath);
-            if (found) return found;
-          } else if (file === 'ffmpeg.exe') {
-            return fullPath;
-          }
-        }
-        return null;
-      };
-
-      const ffmpegSrc = findFfmpeg(extractTemp);
+      const ffmpegSrc = findFileNamed(extractTemp, 'ffmpeg.exe');
       if (ffmpegSrc) {
         fs.copyFileSync(ffmpegSrc, ffmpegPath);
         console.log(`✅ FFmpeg extracted to ${ffmpegPath}`);
@@ -282,7 +252,15 @@ async function setup() {
   console.log('🔧 If FFmpeg extraction failed, please manually copy the binary to the bin directory.');
 }
 
-setup().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+if (SKIP) {
+  console.log('⏭️  [Flucto] Skipping binary setup (FLUCTO_SKIP_BINARIES/CI detected).');
+  console.log('   Run `flucto setup` (or `npm run postinstall`) later to provision yt-dlp/ffmpeg.');
+} else {
+  // Never hard-fail the npm install on download problems: degrade to a warning and
+  // let `flucto setup` (or the CLI's first-run provisioning) handle it later.
+  setup().catch((err) => {
+    console.error(err);
+    console.warn('\n⚠️  [Flucto] Binary setup failed, but the install will continue.');
+    console.warn('   Run `flucto setup` later to provision yt-dlp/ffmpeg.');
+  });
+}

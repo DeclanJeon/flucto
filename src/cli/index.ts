@@ -32,6 +32,7 @@ import { createPlatformRegistry } from '../main/platforms/createRegistry.js';
 import { sanitizeMarkdownFilename } from '../main/transcript/markdownFormatter.js';
 import { getManagedBinDir, setupUtilities } from '../main/services/binaryInstaller.js';
 import { applyCliUpdate, checkForCliUpdate, downloadCliUpdate } from '../main/services/cliUpdater.js';
+import { detectInstallMode } from '../main/services/platformAssets.js';
 import { execa } from '../main/spawn.js';
 import { resolveCaptionNetworkOptions } from '../main/net/captionNetwork.js';
 import type { TranscriptMarkdownResponse, TranscriptRequest } from '../shared/types.js';
@@ -84,6 +85,30 @@ const binaryVersion = async (file: string, args: string[]): Promise<string | nul
   return (result.stdout || result.stderr).split(/\r?\n/).find((line) => line.trim())?.trim() ?? null;
 };
 
+/**
+ * First-run provisioning: npm installs ship without yt-dlp/ffmpeg, so binary-dependent
+ * commands provision on demand instead of failing with an opaque ENOENT.
+ */
+const ensureBinaries = async (options: CliOptions): Promise<void> => {
+  if (options.checkOnly) return;
+  const health = checkBinaryHealth(resolveBinaries(options));
+  if (health.valid) return;
+  if (!options.json) {
+    writeStatus(`Missing binaries: ${health.missing.join(', ')} — provisioning...`);
+  }
+  const result = await setupUtilities({
+    binDir: setupBinDir(options),
+    ytDlpPath: options.ytDlpPath,
+    ffmpegPath: options.ffmpegPath,
+    onStatus: options.json ? undefined : writeStatus,
+  });
+  if (!result.valid) {
+    throw new Error(
+      `Required binaries could not be provisioned (${result.missing.join(', ') || 'unknown'}). Run \`flucto setup\` and check the error output above.`,
+    );
+  }
+};
+
 const runDoctor = async (options: CliOptions): Promise<number> => {
   const binaries = resolveBinaries(options);
   const health = checkBinaryHealth(binaries);
@@ -120,6 +145,7 @@ const runSetup = async (options: CliOptions): Promise<number> => {
     ffmpegPath: options.ffmpegPath,
     force: options.force,
     checkOnly: options.checkOnly,
+    only: options.ytDlpOnly ? ['yt-dlp'] : undefined,
     onStatus: options.json ? undefined : writeStatus,
   });
 
@@ -158,8 +184,9 @@ const runUpdate = async (options: CliOptions): Promise<number> => {
     if (options.json) {
       writeJson(result);
     } else if (result.updateAvailable) {
-      writeHuman(`Flucto ${result.latestVersion} is available: ${result.releaseUrl}`);
+      writeHuman(`Flucto ${result.latestVersion} is available (${detectInstallMode()} install): ${result.releaseUrl}`);
       if (result.recommendedAsset) writeHuman(`Recommended asset: ${result.recommendedAsset}`);
+      if (detectInstallMode() === 'npm') writeHuman('Apply with: `flucto update apply`');
     } else {
       writeHuman(`Flucto is up to date (${result.currentVersion}).`);
     }
@@ -286,7 +313,7 @@ const runBatch = async (options: CliOptions): Promise<number> => {
   }
 
   let completed = 0;
-  const results = await runWithConcurrency(urls, options.concurrency, async (url, index) => {
+  const results = await runWithConcurrency(urls, options.concurrency, async (url) => {
     const result = options.format === 'md'
       ? await convertTranscriptToMarkdown(transcriptRequest(url, options), {
         binaries: resolveBinaries(options),
@@ -553,6 +580,11 @@ const runChannelToMd = async (options: CliOptions): Promise<number> => {
 };
 
 const dispatch = async (options: CliOptions): Promise<number> => {
+  const binaryDependentCommands = new Set(['download', 'batch', 'transcript', 'md', 'channel-to-md', 'info', 'formats', 'languages']);
+  if (binaryDependentCommands.has(options.command)) {
+    await ensureBinaries(options);
+  }
+
   switch (options.command) {
     case 'help':
       writeHuman(helpText);

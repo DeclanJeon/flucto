@@ -17,7 +17,7 @@ ${c.bold('Usage')}
   flucto formats <url> [--json]
   flucto languages <url> [--json]
   flucto doctor [--json]
-  flucto setup [--force] [--check-only] [--bin-dir DIR] [--json]
+  flucto setup [--force] [--check-only] [--yt-dlp-only] [--bin-dir DIR] [--json]
   flucto update check [--json]
   flucto update download [--output-dir DIR] [--json]
   flucto update apply --asset PATH [--json]
@@ -58,6 +58,7 @@ ${c.bold('Global options')}
   --ffmpeg PATH          Explicit ffmpeg binary path
   --force                Re-download managed setup binaries
   --check-only           Check setup state without downloading
+  --yt-dlp-only          Setup yt-dlp only (skip ffmpeg; enough for transcripts)
   --asset PATH           Update asset path for update apply
   --cookies PATH         Netscape cookies file for yt-dlp (or FLUCTO_COOKIES / YOUTUBE_COOKIES_PATH)
   --cookies-from-browser BROWSER[:PROFILE]
@@ -150,6 +151,7 @@ export const renderSummaryBox = (lines: string[]): void => {
   writeStatus('');
   writeStatus(`${c.dim('  ┌' + '─'.repeat(48) + '┐')}`);
   for (const line of lines) {
+    // eslint-disable-next-line no-control-regex -- strips ANSI color escape codes by design
     const plain = line.replace(/\x1b\[[0-9;]*m/g, '');
     const pad = Math.max(0, 46 - plain.length);
     writeStatus(`${c.dim('  │')} ${line}${' '.repeat(pad)} ${c.dim('│')}`);

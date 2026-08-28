@@ -328,7 +328,42 @@ test('checksum helpers verify files and update apply stays conservative', async 
   assert.equal(manifest.entries.get('Flucto.AppImage'), hash);
   assert.equal(await verifySha256(asset, hash), true);
 
-  const apply = await applyCliUpdate({ currentVersion: '1.9.1', assetPath: asset });
+  const apply = await applyCliUpdate({ currentVersion: '1.9.1', assetPath: asset, installMode: 'portable' });
   assert.equal(apply.applied, false);
   assert.match(apply.next, /manually/);
+});
+
+test('update apply installs via npm in npm installs and fails without network side effects', async () => {
+  const applied = await applyCliUpdate({
+    currentVersion: '1.9.1',
+    installMode: 'npm',
+    execNpmInstall: async () => ({ failed: false, stdout: 'added 1 package', stderr: '' }),
+  });
+  assert.equal(applied.applied, true);
+  assert.match(applied.next, /flucto version/);
+
+  const failed = await applyCliUpdate({
+    currentVersion: '1.9.1',
+    installMode: 'npm',
+    execNpmInstall: async () => ({ failed: true, stdout: '', stderr: 'npm ERR! network unreachable' }),
+  });
+  assert.equal(failed.applied, false);
+  assert.match(failed.reason, /network unreachable/);
+  assert.match(failed.next, /npm install -g flucto@latest/);
+
+  const thrown = await applyCliUpdate({
+    currentVersion: '1.9.1',
+    installMode: 'npm',
+    execNpmInstall: async () => {
+      throw new Error('spawn npm ENOENT');
+    },
+  });
+  assert.equal(thrown.applied, false);
+  assert.match(thrown.reason, /ENOENT/);
+});
+
+test('update apply in source installs points at git instead of release assets', async () => {
+  const result = await applyCliUpdate({ currentVersion: '1.9.1', installMode: 'source' });
+  assert.equal(result.applied, false);
+  assert.match(result.next, /git pull/);
 });
