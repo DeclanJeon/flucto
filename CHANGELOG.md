@@ -1,3 +1,10 @@
+## [1.16.2](https://github.com/DeclanJeon/flucto/compare/v1.16.1...v1.16.2) (2026-08-29)
+
+
+### Bug Fixes
+
+* **release:** publish npm package skipped by failed 1.16.x runs ([2a9ca7f](https://github.com/DeclanJeon/flucto/commit/2a9ca7f980fddc3b7aa457b3b539c8fef69f9630))
+
 ## [1.16.1](https://github.com/DeclanJeon/flucto/compare/v1.16.0...v1.16.1) (2026-08-28)
 
 
