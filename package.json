@@ -63,7 +63,6 @@
     "clean": "rimraf dist dist-electron release",
     "rebuild": "npm run clean && npm run build",
     "supabase:smoke": "node scripts/supabase-smoke-check.mjs",
-    "postinstall": "node scripts/setup-binaries.mjs",
     "lint": "eslint .",
     "cli": "node dist-electron/cli/index.js",
     "test": "npm run build:electron && node --import ./tests/electron-stub-loader.mjs --test tests/*.test.mjs",

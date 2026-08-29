@@ -79,7 +79,7 @@ jobs:
         run: npm install --ignore-scripts
 
       - name: Setup Binaries
-        run: npm run postinstall
+        run: node scripts/setup-binaries.mjs
 
       - name: Update Version
         shell: bash
