@@ -1,3 +1,10 @@
+## [1.16.4](https://github.com/DeclanJeon/flucto/compare/v1.16.3...v1.16.4) (2026-08-29)
+
+
+### Bug Fixes
+
+* **cli:** drop postinstall so npm installs never fail on a missing script ([f78efee](https://github.com/DeclanJeon/flucto/commit/f78efee4d2e56368dd25f5de53be24ec366a35c0))
+
 ## [1.16.3](https://github.com/DeclanJeon/flucto/compare/v1.16.2...v1.16.3) (2026-08-29)
 
 
