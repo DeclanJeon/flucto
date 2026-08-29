@@ -1,3 +1,10 @@
+## [1.16.3](https://github.com/DeclanJeon/flucto/compare/v1.16.2...v1.16.3) (2026-08-29)
+
+
+### Bug Fixes
+
+* **ci:** add repository metadata required for npm provenance verification ([e21b3cc](https://github.com/DeclanJeon/flucto/commit/e21b3cc8f6fc710d1325e8cc7bf2ed3c34a9de6b))
+
 ## [1.16.2](https://github.com/DeclanJeon/flucto/compare/v1.16.1...v1.16.2) (2026-08-29)
 
 
