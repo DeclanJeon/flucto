@@ -17,6 +17,14 @@
   "publishConfig": {
     "access": "public"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DeclanJeon/flucto.git"
+  },
+  "bugs": {
+    "url": "https://github.com/DeclanJeon/flucto/issues"
+  },
+  "homepage": "https://flucto.ponslink.com",
   "main": "./dist-electron/main/index.js",
   "files": [
     "dist-electron/",
