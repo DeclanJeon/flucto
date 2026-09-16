@@ -37,6 +37,8 @@ export interface OrchestratorTranscriptOptions {
   outputDir: string;
   settings: TranscriptSettings;
   onProgress?: (progress: { requestId: string; url: string; title?: string; status: string; progress: number; filePath?: string; error?: string }) => void;
+  /** Self-healing hook: force-refresh yt-dlp after a rate-limited extraction, returning the fresh binary path. */
+  refreshYtDlp?: () => Promise<string | null>;
 }
 
 // ---------------------------------------------------------------------------
@@ -292,6 +294,7 @@ export class MediaOrchestrator {
       onProgress: options.onProgress
         ? (p) => options.onProgress!(p)
         : undefined,
+      refreshYtDlp: options.refreshYtDlp,
     });
   }
 }

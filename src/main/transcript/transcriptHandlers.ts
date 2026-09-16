@@ -12,6 +12,7 @@ import {
   listTranscriptLanguages,
   normalizeTranscriptSettings,
 } from '../services/transcriptMarkdown.js';
+import { checkAndRefreshBinaries } from '../services/binaryRefresh.js';
 import { TranscriptError, toTranscriptError } from './transcriptError.js';
 
 const TRANSCRIPT_PROGRESS_CHANNEL = 'transcript-progress';
@@ -36,6 +37,22 @@ const getTranscriptBinaries = () => ({
 const getTranscriptNetwork = (): CaptionNetworkOptions =>
   resolveCaptionNetworkOptions(getStoredTranscriptSettings().network ?? {});
 
+// A rate-limited caption run usually means the effective yt-dlp is stale. Force a
+// managed refresh (bypassing the daily throttle) and hand back the fresh path so
+// the conversion can retry once.
+const refreshTranscriptYtDlp = async (): Promise<string | null> => {
+  try {
+    const result = await checkAndRefreshBinaries({ force: true });
+    if (!result.refreshed) return null;
+    const path = getBinaryPath('yt-dlp');
+    logger.info('yt-dlp refreshed after rate-limited caption extraction', { path });
+    return path;
+  } catch (error: unknown) {
+    logger.warn('yt-dlp refresh after rate limit failed', { error: String(error) });
+    return null;
+  }
+};
+
 const transcriptConversionDeps = (sender: Electron.WebContents) => ({
   defaults: getStoredTranscriptSettings(),
   binaries: getTranscriptBinaries(),
@@ -44,6 +61,7 @@ const transcriptConversionDeps = (sender: Electron.WebContents) => ({
   onProgress: (progress: TranscriptProgress) => emitTranscriptProgress(sender, progress),
   writeClipboard: (markdown: string) => clipboard.writeText(markdown),
   appendHistory: appendHistoryEntry,
+  refreshYtDlp: refreshTranscriptYtDlp,
 });
 
 ipcMain.handle('get-transcript-languages', async (_event, url: string) => {

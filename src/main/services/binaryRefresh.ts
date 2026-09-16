@@ -22,6 +22,8 @@ export interface BinaryRefreshOptions {
   /** Version of the currently-effective yt-dlp (e.g. the packaged copy), used when the managed copy is absent. */
   currentVersion?: string | null;
   checkIntervalMs?: number;
+  /** Bypass the check-interval throttle — used by self-healing retries after a caption failure. */
+  force?: boolean;
   now?: () => number;
   onStatus?: (message: string) => void;
   fetchLatestVersion?: () => Promise<string | null>;
@@ -89,7 +91,7 @@ export const checkAndRefreshBinaries = async (
 
     const marker = readManagedMarker(binDir);
     const lastCheckedAt = marker?.lastCheckedAt ? Date.parse(marker.lastCheckedAt) : 0;
-    if (Number.isFinite(lastCheckedAt) && lastCheckedAt > 0 && now() - lastCheckedAt < checkIntervalMs) {
+    if (!options.force && Number.isFinite(lastCheckedAt) && lastCheckedAt > 0 && now() - lastCheckedAt < checkIntervalMs) {
       const version = marker?.ytDlpVersion ?? (await versionFor(ytDlpPath, spec.versionArgs));
       return { refreshed: false, skipped: true, version };
     }

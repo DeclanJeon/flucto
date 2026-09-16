@@ -31,6 +31,7 @@ import { MediaOrchestrator } from '../main/services/orchestrator.js';
 import { createPlatformRegistry } from '../main/platforms/createRegistry.js';
 import { sanitizeMarkdownFilename } from '../main/transcript/markdownFormatter.js';
 import { getManagedBinDir, setupUtilities } from '../main/services/binaryInstaller.js';
+import { checkAndRefreshBinaries } from '../main/services/binaryRefresh.js';
 import { applyCliUpdate, checkForCliUpdate, downloadCliUpdate } from '../main/services/cliUpdater.js';
 import { detectInstallMode } from '../main/services/platformAssets.js';
 import { execa } from '../main/spawn.js';
@@ -78,6 +79,21 @@ const resolveNetwork = (options: CliOptions) => resolveCaptionNetworkOptions({
   proxy: options.proxy,
   impersonate: options.impersonate,
 });
+
+/**
+ * Self-healing for rate-limited caption runs: force-download the latest yt-dlp into
+ * the managed bin dir and return its path so the conversion can retry once.
+ */
+const refreshYtDlp = (options: CliOptions) => async (): Promise<string | null> => {
+  const binDir = setupBinDir(options);
+  const result = await checkAndRefreshBinaries({
+    binDir,
+    force: true,
+    onStatus: options.json ? undefined : writeStatus,
+  });
+  if (!result.refreshed) return null;
+  return path.join(binDir, process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp');
+};
 
 const binaryVersion = async (file: string, args: string[]): Promise<string | null> => {
   const result = await execa(file, args, { reject: false });
@@ -252,6 +268,7 @@ const runTranscript = async (options: CliOptions): Promise<number> => {
       outputDir: outputDir(options),
       network: resolveNetwork(options),
       onProgress: options.stdout ? undefined : (progress) => renderTranscriptProgress(progress, options.progressJson),
+      refreshYtDlp: refreshYtDlp(options),
     },
   );
 
@@ -280,6 +297,7 @@ const runMd = async (options: CliOptions): Promise<number> => {
     stdout: options.stdout,
     outputDir: outputDir(options),
     network: resolveNetwork(options),
+    refreshYtDlp: refreshYtDlp(options),
   });
 
   if (options.stdout && result.markdown) {
@@ -322,6 +340,7 @@ const runBatch = async (options: CliOptions): Promise<number> => {
         onProgress: options.progressJson
           ? (progress) => renderTranscriptProgress(progress, true)
           : undefined,
+        refreshYtDlp: refreshYtDlp(options),
       })
       : await runMediaDownload(
         {
@@ -497,6 +516,7 @@ const runChannelToMd = async (options: CliOptions): Promise<number> => {
           : (progress) => {
             if (options.progressJson) renderTranscriptProgress(progress, true);
           },
+        refreshYtDlp: refreshYtDlp(options),
       },
     );
 

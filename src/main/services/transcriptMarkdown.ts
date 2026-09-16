@@ -28,6 +28,14 @@ export interface TranscriptMarkdownDeps {
     errorMessage?: string;
     format: 'md';
   }) => void;
+  /**
+   * Self-healing hook: called once when caption extraction is rate-limited, which is
+   * the signature of a stale yt-dlp. Should force-refresh the managed binary and
+   * return its path, or null when no newer binary is available.
+   */
+  refreshYtDlp?: () => Promise<string | null>;
+  /** Test seam: defaults to the real caption extractor. */
+  extract?: typeof extractTranscript;
   now?: () => number;
 }
 
@@ -102,11 +110,28 @@ export const convertTranscriptToMarkdown = async (
       progress: 40,
     });
 
-    const extraction = await extractTranscript(request.url, {
-      language: settings.language,
-      binaries: deps.binaries,
-      network: deps.network,
-    });
+    const extract = deps.extract ?? extractTranscript;
+    let extraction;
+    try {
+      extraction = await extract(request.url, {
+        language: settings.language,
+        binaries: deps.binaries,
+        network: deps.network,
+      });
+    } catch (error: unknown) {
+      // A 429 from YouTube usually means the yt-dlp in use is too old. Refresh it
+      // once into the managed bin dir and retry with the fresh binary.
+      const transcriptError = toTranscriptError(error);
+      const refreshedPath = transcriptError.code === 'RATE_LIMITED' && deps.refreshYtDlp
+        ? await deps.refreshYtDlp()
+        : null;
+      if (!refreshedPath) throw transcriptError;
+      extraction = await extract(request.url, {
+        language: settings.language,
+        binaries: { ...deps.binaries, ytDlpPath: refreshedPath },
+        network: deps.network,
+      });
+    }
 
     deps.onProgress?.({
       requestId,

@@ -68,6 +68,36 @@ test('refresh is throttled within the check interval and skips the version probe
   assert.equal(fetchCalls, 0);
 });
 
+test('force bypasses the check-interval throttle and refreshes a stale copy', async (t) => {
+  const binDir = makeBinDir(t);
+  const now = 1_700_000_000_000;
+  writeMarker(binDir, {
+    managed: ['yt-dlp'],
+    ytDlpVersion: '2026.08.01',
+    lastCheckedAt: new Date(now - 3600_000).toISOString(),
+    updatedAt: new Date(now - 3600_000).toISOString(),
+  });
+  writeExecutable(binDir, '2026.08.01');
+
+  let fetchCalls = 0;
+  const result = await refresh({
+    binDir,
+    force: true,
+    checkIntervalMs: 24 * 60 * 60 * 1000,
+    now: () => now,
+    fetchLatestVersion: async () => {
+      fetchCalls += 1;
+      return '2026.08.20';
+    },
+    provisionYtDlp: fakeProvision('2026.08.20'),
+  });
+
+  assert.equal(fetchCalls, 1);
+  assert.equal(result.refreshed, true);
+  assert.equal(result.version, '2026.08.20');
+  assert.equal(readMarker(binDir).ytDlpVersion, '2026.08.20');
+});
+
 test('a stale managed copy is re-downloaded and the marker records the new version', async (t) => {
   const binDir = makeBinDir(t);
   const now = 1_700_000_000_000;

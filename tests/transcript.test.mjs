@@ -5,6 +5,9 @@ import {
   parseRetryAfterMs,
 } from '../dist-electron/main/net/captionNetwork.js';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 
 import {
@@ -22,7 +25,7 @@ import {
   resolveCaptionLanguage,
   resolveCaptionLanguageCandidates,
 } from '../dist-electron/main/transcript/captionExtractor.js';
-import { normalizeTranscriptSettings } from '../dist-electron/main/services/transcriptMarkdown.js';
+import { convertTranscriptToMarkdown, normalizeTranscriptSettings } from '../dist-electron/main/services/transcriptMarkdown.js';
 import {
   TranscriptError,
   toTranscriptError,
@@ -333,4 +336,58 @@ test('transcript settings normalization preserves and trims network overrides', 
 
   const defaultNetwork = normalizeTranscriptSettings({ language: 'en' });
   assert.equal(defaultNetwork.network, null);
+});
+
+test('markdown conversion refreshes yt-dlp and retries once after a rate-limited extraction', async (t) => {
+  const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flucto-md-'));
+  t.after(() => fs.rmSync(outDir, { recursive: true, force: true }));
+
+  const calls = [];
+  const extract = async (url, options) => {
+    calls.push(options?.binaries?.ytDlpPath ?? null);
+    if (calls.length === 1) {
+      throw new TranscriptError('RATE_LIMITED', 'Caption extraction was rate-limited.');
+    }
+    return {
+      segments: [{ text: 'hello world', start: 0, duration: 1 }],
+      metadata,
+      availableLanguages: [],
+    };
+  };
+
+  let refreshCalls = 0;
+  const response = await convertTranscriptToMarkdown(
+    { url: 'https://example.test/watch?v=video-1', settings: { language: 'en' } },
+    {
+      outputDir: outDir,
+      binaries: { ytDlpPath: '/old/yt-dlp' },
+      extract,
+      refreshYtDlp: async () => {
+        refreshCalls += 1;
+        return '/managed/yt-dlp';
+      },
+    },
+  );
+
+  assert.equal(response.success, true);
+  assert.equal(refreshCalls, 1);
+  assert.deepEqual(calls, ['/old/yt-dlp', '/managed/yt-dlp']);
+});
+
+test('markdown conversion surfaces the rate-limit error when no refresh is available', async () => {
+  const extract = async () => {
+    throw new TranscriptError('RATE_LIMITED', 'Caption extraction was rate-limited.');
+  };
+
+  const response = await convertTranscriptToMarkdown(
+    { url: 'https://example.test/watch?v=video-1', settings: { language: 'en' } },
+    {
+      outputDir: os.tmpdir(),
+      extract,
+      refreshYtDlp: async () => null,
+    },
+  );
+
+  assert.equal(response.success, false);
+  assert.equal(response.errorCode, 'RATE_LIMITED');
 });

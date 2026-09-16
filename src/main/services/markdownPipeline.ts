@@ -21,6 +21,8 @@ export interface MarkdownConvertOptions {
   stdout?: boolean;
   outputDir?: string;
   network?: CaptionNetworkOptions;
+  /** Self-healing hook: force-refresh yt-dlp after a rate-limited extraction, returning the fresh binary path. */
+  refreshYtDlp?: () => Promise<string | null>;
 }
 
 const countWords = (text: string): number => {
@@ -135,13 +137,29 @@ export class MarkdownPipeline {
 
       // 3. Fall back to yt-dlp caption extraction
       if (!segments) {
-        const extraction = await extractTranscript(url, {
-          language: options?.language,
-          binaries: this.binaries,
-          network: options?.network,
-        });
-        segments = extraction.segments;
-        language = extraction.metadata.language;
+        try {
+          const extraction = await extractTranscript(url, {
+            language: options?.language,
+            binaries: this.binaries,
+            network: options?.network,
+          });
+          segments = extraction.segments;
+          language = extraction.metadata.language;
+        } catch (error: unknown) {
+          // A 429 usually means the yt-dlp in use is stale — refresh once and retry.
+          const transcriptError = toTranscriptError(error);
+          const refreshedPath = transcriptError.code === 'RATE_LIMITED' && options?.refreshYtDlp
+            ? await options.refreshYtDlp()
+            : null;
+          if (!refreshedPath) throw transcriptError;
+          const extraction = await extractTranscript(url, {
+            language: options?.language,
+            binaries: { ...this.binaries, ytDlpPath: refreshedPath },
+            network: options?.network,
+          });
+          segments = extraction.segments;
+          language = extraction.metadata.language;
+        }
       }
 
       // 4. Format to markdown
