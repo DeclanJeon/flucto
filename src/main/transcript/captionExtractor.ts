@@ -465,7 +465,6 @@ const extractTranscriptNow = async (
     const ytDlpPath = binaries?.ytDlpPath ?? 'yt-dlp';
     let lastDownloadError: TranscriptError | null = null;
     const attemptedLanguages: string[] = [];
-    let rateLimited = false;
 
     for (const candidateLanguage of limitCaptionLanguageCandidates(languageCandidates)) {
       attemptedLanguages.push(candidateLanguage);
@@ -490,11 +489,12 @@ const extractTranscriptNow = async (
             continue;
           }
           if (transcriptError.code === 'RATE_LIMITED') {
-            // Retrying other languages under rate limiting only invites more 429s.
-            rateLimited = true;
+            // A 429 here throttles this caption track, not the whole session —
+            // YouTube rate-limits auto-translated tracks (e.g. 'en') while the
+            // original ASR track still downloads. Move on to the next language.
             break;
           }
-          // Try next language on rate-limit / empty caption download.
+          // Try next language on empty caption download.
           break;
         }
 
@@ -509,7 +509,6 @@ const extractTranscriptNow = async (
         );
         break;
       }
-      if (rateLimited) break;
     }
 
     if (lastDownloadError) {
