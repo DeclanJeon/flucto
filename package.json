@@ -108,6 +108,7 @@
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.4",
     "vite": "npm:rolldown-vite@7.2.5",
+    "vite-ssg": "^28.3.0",
     "wait-on": "^9.0.3"
   },
   "overrides": {
