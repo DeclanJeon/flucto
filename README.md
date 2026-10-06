@@ -274,7 +274,7 @@ flucto update apply --asset ~/Downloads/Flucto-1.9.2-x86_64.AppImage --json
 
 ## Recent Updates
 
-### v1.17.0
+### v1.17.0 source changes
 
 - Integrated keyword search across all 12 registered sites, with individual-site selection and one total result cap.
 - Native YouTube, Reddit, and video-bearing Threads search paths; anonymous public video indexes for login-gated sites and Vimeo. Source errors and search restrictions remain visible instead of becoming false zero-hit results.
