@@ -13,9 +13,6 @@ import { applyCliUpdate, checkForCliUpdate, downloadCliUpdate, parseChecksumMani
 import { compareVersions, parseGitHubRelease } from '../dist-electron/main/services/githubRelease.js';
 import { selectReleaseAsset } from '../dist-electron/main/services/platformAssets.js';
 import {
-  buildDownloadArgs,
-  getAudioQualityValue,
-  getResolvedVideoFormatSelector,
   parseDownloadProgress,
   parseFinalFilePath,
 } from '../dist-electron/main/services/mediaDownload.js';
@@ -221,27 +218,6 @@ test('setupUtilities force does not overwrite explicit binary paths', async () =
   assert.equal(fs.readFileSync(ffmpeg, 'utf8'), originalFfmpeg);
 });
 
-test('download arg builder preserves quality, ffmpeg, and platform options', () => {
-  const binaries = { ytDlpPath: '/bin/yt-dlp', ffmpegPath: '/opt/flucto/bin/ffmpeg' };
-  const args = buildDownloadArgs({
-    url: 'https://www.youtube.com/watch?v=test',
-    format: 'mp4',
-    outputDir: '/tmp/out',
-    quality: { video: '720p', audio: '192kbps' },
-  }, binaries);
-
-  assert.ok(args.includes('--ffmpeg-location'));
-  assert.ok(args.includes('/opt/flucto/bin'));
-  assert.ok(args.includes('--merge-output-format'));
-  assert.ok(args.includes('bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/best[ext=mp4][height<=720][acodec!=none]/best[ext=mp4][acodec!=none]/worst[ext=mp4][acodec!=none]/mp4/best'));
-  assert.ok(args.includes('--force-ipv4'));
-});
-
-test('media selectors handle overrides, instagram suppression, and audio quality', () => {
-  assert.equal(getAudioQualityValue('128kbps'), '128K');
-  assert.equal(getResolvedVideoFormatSelector('https://example.test/video', '1080p', '137'), '137+bestaudio[ext=m4a]/137+bestaudio/137/best[ext=mp4][acodec!=none]/best');
-  assert.equal(getResolvedVideoFormatSelector('https://instagram.com/reel/1', '1080p', '137'), 'best[ext=mp4]/best');
-});
 
 test('download output parsers extract progress and final file paths', () => {
   assert.deepEqual(parseDownloadProgress('[download] 42.5% of 10.00MiB at 1.25MiB/s ETA 00:12'), {

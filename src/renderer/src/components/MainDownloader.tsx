@@ -26,6 +26,7 @@ import { TranscriptProgress } from './TranscriptProgress';
 import { TranscriptSettings } from './TranscriptSettings';
 import { GitHubStarButton } from './GitHubStarButton';
 import { useDownloadMonitor } from '../hooks/useDownloadMonitor';
+import { VideoSearch } from './VideoSearch';
 import type { AppUpdateEvent, DownloadSettings as DownloadSettingsType, FormatOption, MediaOutputMode, TranscriptProgress as TranscriptProgressType, TranscriptSettings as TranscriptSettingsType, VideoInfo } from '../../../shared/types';
 
 // [수정] 범용 URL 클리너 (YouTube ID 추출 로직 제거 및 범용화)
@@ -617,7 +618,7 @@ export const MainDownloader: React.FC = () => {
             </span>
           </h1>
           <p className="text-gray-500 text-sm mt-2">
-            High-Signal fetch + deterministic output for YouTube, X, Reddit, Bilibili, and Instagram.
+            Download by URL, or search across 12 sites including YouTube, Threads, X, and Instagram.
           </p>
           <p className="text-gray-400 text-xs md:text-sm max-w-2xl mx-auto">
             Flucto keeps each request auditable and visible: batch queueing, resilient format checks,
@@ -691,7 +692,7 @@ export const MainDownloader: React.FC = () => {
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleAddVideo()}
-                  placeholder="Paste URL (YouTube, Reddit, Bilibili, X, Instagram)"
+                  placeholder="Paste a video URL from any supported platform"
                   className="w-full bg-[#1c1c1e] text-lg text-white placeholder-gray-500 px-6 py-4 rounded-full border border-white/10 focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/20 outline-none transition-all shadow-2xl disabled:opacity-50"
                   disabled={isLoading || isDownloading}
                 />
@@ -741,6 +742,15 @@ export const MainDownloader: React.FC = () => {
              </div>
           </div>
         </motion.div>
+
+        <VideoSearch
+          disabled={isLoading || isDownloading}
+          queuedUrls={new Set(videos.map((video) => video.originalUrl ?? ''))}
+          onAdd={(video) => {
+            setVideos((previous) => previous.some((item) => item.originalUrl === video.originalUrl)
+              ? previous : [...previous, video]);
+          }}
+        />
 
         <div className="w-full max-w-2xl mt-6 space-y-4">
           <AnimatePresence>

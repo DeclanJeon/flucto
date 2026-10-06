@@ -8,6 +8,10 @@ import { createThreadsAdapter } from './threads.js';
 import { createTikTokAdapter } from './tiktok.js';
 import { createVimeoAdapter } from './vimeo.js';
 import { createGenericAdapter } from './generic.js';
+import { createDailymotionAdapter } from './dailymotion.js';
+import { createNicovideoAdapter } from './nicovideo.js';
+import { createOkAdapter } from './ok.js';
+import { createVkvideoAdapter } from './vkvideo.js';
 
 export function createPlatformRegistry(): PlatformRegistry {
   const registry = new PlatformRegistry();
@@ -16,6 +20,10 @@ export function createPlatformRegistry(): PlatformRegistry {
   registry.register(createInstagramAdapter());
   registry.register(createRedditAdapter());
   registry.register(createBilibiliAdapter());
+  registry.register(createDailymotionAdapter());
+  registry.register(createNicovideoAdapter());
+  registry.register(createOkAdapter());
+  registry.register(createVkvideoAdapter());
   registry.register(createThreadsAdapter());
   registry.register(createTikTokAdapter());
   registry.register(createVimeoAdapter());

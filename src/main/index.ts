@@ -12,10 +12,12 @@ import { settingsStore, getStoredDownloadSettings } from './store.js';
 import { appendHistoryEntry, clearHistory, getHistoryEntries } from './historyStore.js';
 import { getCommonYtDlpArgs, getRefererForUrl, parseLastJsonObjectFromStdout } from './media/ytDlp.js';
 import { createPlatformRegistry } from './platforms/index.js';
-import { runMediaDownload } from './services/mediaDownload.js';
+import { runMediaDownload, getAudioQualityValue, getResolvedVideoFormatSelector, isInstagramUrl } from './services/mediaDownload.js';
 import { setupUtilities, versionFor } from './services/binaryInstaller.js';
 import { checkAndRefreshBinaries } from './services/binaryRefresh.js';
 import type { BinaryResolver } from './services/binaryResolver.js';
+import { searchVideos } from './services/videoSearch.js';
+import type { VideoSearchRequest } from '../shared/types.js';
 import './handlers.js';
 import './transcript/transcriptHandlers.js';
 const registry = createPlatformRegistry();
@@ -54,71 +56,6 @@ const sleep = (ms: number): Promise<void> => {
   return promise;
 };
 
-const getVideoFormatSelector = (preset: DownloadQualityPreferences['video']): string => {
-  const constrainedSelector = (height: number): string => {
-    return `bestvideo[ext=mp4][height<=${height}]+bestaudio[ext=m4a]/best[ext=mp4][height<=${height}][acodec!=none]/best[ext=mp4][acodec!=none]/worst[ext=mp4][acodec!=none]/mp4/best`;
-  };
-
-  switch (preset) {
-    case '4k':
-      return constrainedSelector(2160);
-    case '1440p':
-      return constrainedSelector(1440);
-    case '1080p':
-      return constrainedSelector(1080);
-    case '720p':
-      return constrainedSelector(720);
-    case '480p':
-      return constrainedSelector(480);
-    case '360p':
-      return constrainedSelector(360);
-    case 'worst':
-      return 'worst[ext=mp4]/mp4/worst';
-    default:
-      return constrainedSelector(1080);
-  }
-};
-
-const getAudioQualityValue = (preset: DownloadQualityPreferences['audio']): string => {
-  switch (preset) {
-    case '320kbps':
-      return '320K';
-    case '256kbps':
-      return '256K';
-    case '192kbps':
-      return '192K';
-    case '128kbps':
-      return '128K';
-    case '64kbps':
-      return '64K';
-    case 'worst':
-      return '64K';
-    default:
-      return '320K';
-  }
-};
-
-const isInstagramUrl = (url: string): boolean => {
-  return url.includes("instagram.com");
-};
-
-const getOverrideVideoFormatSelector = (formatId: string): string => {
-  return `${formatId}+bestaudio[ext=m4a]/${formatId}+bestaudio/${formatId}/best[ext=mp4][acodec!=none]/best`;
-};
-
-const getResolvedVideoFormatSelector = (
-  url: string,
-  preset: DownloadQualityPreferences['video'],
-  overrideFormatId?: string | null,
-): string => {
-  if (isInstagramUrl(url)) {
-    return "best[ext=mp4]/best";
-  }
-
-  return overrideFormatId
-    ? getOverrideVideoFormatSelector(overrideFormatId)
-    : getVideoFormatSelector(preset);
-};
 
 const showDesktopNotification = (title: string, body: string): void => {
   try {
@@ -367,6 +304,8 @@ ipcMain.handle("get-playlist-info", async (_event, url: string) => {
     throw new Error(`Failed to fetch playlist info: ${errorMessage}`);
   }
 });
+
+ipcMain.handle('search-videos', async (_event, request: VideoSearchRequest) => searchVideos(request));
 
 // 2. Get Video Info Handler [수정됨: SNS 지원 및 에러 방지 강화]
 ipcMain.handle("get-video-info", async (_event, url: string) => {

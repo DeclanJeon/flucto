@@ -1,5 +1,6 @@
 import { parseArgs } from 'util';
-import type { AudioQualityPreset, MediaOutputMode, VideoQualityPreset } from '../shared/types.js';
+import type { AudioQualityPreset, MediaOutputMode, VideoQualityPreset, VideoSearchScope } from '../shared/types.js';
+import { VIDEO_SEARCH_PLATFORM_IDS } from '../shared/videoSearchPlatforms.js';
 
 export type CliCommand =
   | 'download'
@@ -8,6 +9,7 @@ export type CliCommand =
   | 'md'
   | 'channel-to-md'
   | 'info'
+  | 'search'
   | 'formats'
   | 'languages'
   | 'doctor'
@@ -41,6 +43,7 @@ export interface CliOptions {
   ytDlpOnly: boolean;
   updateAction: CliUpdateAction;
   assetPath?: string;
+  platform?: VideoSearchScope;
   cookies?: string;
   cookiesFromBrowser?: string;
   proxy?: string;
@@ -63,6 +66,7 @@ const commandAliases: Record<string, CliCommand | 'channel'> = {
   channel: 'channel',
   info: 'info',
   i: 'info',
+  search: 'search',
   formats: 'formats',
   f: 'formats',
   languages: 'languages',
@@ -138,6 +142,17 @@ const parseAudioQuality = (value: string | boolean | undefined): AudioQualityPre
   }
   return raw as AudioQualityPreset;
 };
+const searchScopes = new Set<string>([...VIDEO_SEARCH_PLATFORM_IDS, 'all']);
+
+const parseSearchScope = (value: string | boolean | undefined): VideoSearchScope | undefined => {
+  const raw = stringOption(value);
+  if (!raw) return undefined;
+  if (!searchScopes.has(raw)) {
+    throw new CliUsageError(`--platform must be one of: all, ${VIDEO_SEARCH_PLATFORM_IDS.join(', ')}.`);
+  }
+  return raw as VideoSearchScope;
+};
+
 
 export const parseCliArgs = (argv: string[]): CliOptions => {
   const parsed = parseArgs({
@@ -172,6 +187,7 @@ export const parseCliArgs = (argv: string[]): CliOptions => {
       'check-only': { type: 'boolean' },
       'yt-dlp-only': { type: 'boolean' },
       asset: { type: 'string' },
+      platform: { type: 'string' },
     },
   });
 
@@ -234,12 +250,13 @@ const baseOptions = (
     metadata: booleanOption(values.metadata) ? true : booleanOption(values['no-metadata']) ? false : undefined,
     stdout: booleanOption(values.stdout),
     concurrency: parseConcurrency(values.concurrency, concurrencyFallback),
-    limit: parseLimit(values.limit, 100),
+    limit: parseLimit(values.limit, command === 'search' ? 20 : 100),
     force: booleanOption(values.force),
     checkOnly: booleanOption(values['check-only']),
     ytDlpOnly: booleanOption(values['yt-dlp-only']),
     updateAction: parseUpdateAction(command, positional),
     assetPath: stringOption(values.asset),
+    platform: parseSearchScope(values.platform),
     cookies: stringOption(values.cookies),
     cookiesFromBrowser: stringOption(values['cookies-from-browser']),
     proxy: stringOption(values.proxy),
@@ -254,6 +271,12 @@ const parseUpdateAction = (command: CliCommand, positional: string[]): CliUpdate
 };
 
 const validateCommand = (options: CliOptions): void => {
+  if (options.command === 'search') {
+    if (options.positional.length !== 1 || !options.positional[0].trim()) {
+      throw new CliUsageError('search requires exactly one quoted keyword.');
+    }
+    if (options.limit > 50) throw new CliUsageError('Search --limit must be from 1 to 50.');
+  }
   if (['download', 'transcript', 'md', 'info', 'formats', 'languages'].includes(options.command) && options.positional.length !== 1) {
     throw new CliUsageError(`${options.command} requires exactly one URL.`);
   }

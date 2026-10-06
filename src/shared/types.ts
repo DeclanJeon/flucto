@@ -151,6 +151,49 @@ export interface VideoInfo {
   originalUrl?: string; // Store original URL with parameters
 }
 
+export type VideoSearchPlatform =
+  | 'youtube' | 'twitter' | 'instagram' | 'reddit' | 'threads' | 'tiktok' | 'vimeo'
+  | 'bilibili' | 'dailymotion' | 'nicovideo' | 'ok' | 'vkvideo';
+export type VideoSearchScope = VideoSearchPlatform | 'all';
+export type VideoSearchMethod = 'native' | 'web-index';
+
+export interface VideoSearchRequest {
+  platform?: VideoSearchScope;
+  query: string;
+  /** Total number of returned results, including integrated searches. */
+  limit?: number;
+}
+
+export interface VideoSearchProviderResult {
+  videos: VideoInfo[];
+  method: VideoSearchMethod;
+  searchUrl: string;
+  nativeError?: string;
+}
+
+export interface VideoSearchSource {
+  platform: VideoSearchPlatform;
+  method: VideoSearchMethod;
+  searchUrl: string;
+  count: number;
+  error?: string;
+  nativeError?: string;
+}
+
+export interface VideoSearchVideo extends VideoInfo {
+  platform: VideoSearchPlatform;
+  searchMethod: VideoSearchMethod;
+}
+
+export interface VideoSearchResponse {
+  platform: VideoSearchScope;
+  query: string;
+  videos: VideoSearchVideo[];
+  sources: VideoSearchSource[];
+  searchUrl?: string;
+  error?: string;
+}
+
 /**
  * Download progress update
  */
@@ -272,6 +315,7 @@ export interface IElectronAPI {
   downloadSingle: (data: SingleDownloadRequest) => Promise<void>;
   getVideoInfo: (url: string) => Promise<VideoInfo>;
   getPlaylistInfo: (url: string) => Promise<VideoInfo[]>;
+  searchVideos: (request: VideoSearchRequest) => Promise<VideoSearchResponse>;
   getAvailableFormats: (url: string) => Promise<FormatOption[]>;
   openDownloadsFolder: () => Promise<void>;
   onDownloadProgress: (callback: (progress: DownloadProgress) => void) => void;

@@ -84,10 +84,10 @@ export const getManagedBinDir = (env: NodeJS.ProcessEnv = process.env): string =
 export const utilitySpecs = (): UtilitySpec[] => {
   const platform = currentPlatform();
   const ytDlpUrl = platform === 'win32'
-    ? 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe'
+    ? 'https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp.exe'
     : platform === 'darwin'
-      ? 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos'
-      : 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp';
+      ? 'https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp_macos'
+      : `https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/${process.arch === 'arm64' ? 'yt-dlp_linux_aarch64' : 'yt-dlp_linux'}`;
 
   const ffmpegUrls = platform === 'win32'
     ? [
@@ -139,7 +139,7 @@ const normalizeYtDlpVersion = (value: string | null | undefined): string | null 
 
 export const fetchLatestYtDlpVersion = async (): Promise<string | null> => {
   try {
-    const response = await fetch('https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest', {
+    const response = await fetch('https://api.github.com/repos/yt-dlp/yt-dlp-nightly-builds/releases/latest', {
       headers: {
         'user-agent': `Flucto/${YT_DLP_VERSION}`,
         accept: 'application/vnd.github+json',

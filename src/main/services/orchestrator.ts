@@ -8,6 +8,7 @@ import { getCommonYtDlpArgs, getRefererForUrl, runYtDlpJson } from '../media/ytD
 import type { BinaryResolver } from './binaryResolver.js';
 import { convertTranscriptToMarkdown } from './transcriptMarkdown.js';
 import { defaultQualityPreferences, getTranscriptSettingsDefaults } from './settingsDefaults.js';
+import { getResolvedVideoFormatSelector } from './mediaDownload.js';
 
 // ---------------------------------------------------------------------------
 // Orchestrator deps (injected, following mediaDownload pattern)
@@ -84,10 +85,7 @@ const buildYtDlpDownloadArgs = (
       '--audio-quality', quality.audio,
     );
   } else {
-    const formatOverride = options.formatOverrides?.videoFormatId;
-    const formatSelector = formatOverride
-      ? `${formatOverride}+bestaudio[ext=m4a]/${formatOverride}+bestaudio/${formatOverride}/best[ext=mp4][acodec!=none]/best`
-      : `bestvideo[ext=mp4][height<=1080]+bestaudio[ext=m4a]/bestvideo+bestaudio/best[ext=mp4][acodec!=none]/best`;
+    const formatSelector = getResolvedVideoFormatSelector(options.url, quality.video, options.formatOverrides?.videoFormatId);
     args.push(
       '--format', formatSelector,
       '--merge-output-format', 'mp4',

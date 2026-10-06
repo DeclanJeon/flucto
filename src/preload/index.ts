@@ -35,6 +35,7 @@ const api: IElectronAPI = {
   downloadSingle: (data) => ipcRenderer.invoke('download-single', data),
   getVideoInfo: (url: string) => ipcRenderer.invoke('get-video-info', url),
   getPlaylistInfo: (url: string) => ipcRenderer.invoke('get-playlist-info', url),
+  searchVideos: (request) => ipcRenderer.invoke('search-videos', request),
   openDownloadsFolder: () => ipcRenderer.invoke('open-downloads-folder'),
   readBatchFile: () => ipcRenderer.invoke('read-batch-file'),
   onDownloadProgress: (callback: (progress: DownloadProgress) => void) => {

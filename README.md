@@ -16,14 +16,14 @@
 </p>
 
 
-> Flucto is an open-source desktop application for creators and curators who want one flowing way to capture media and turn available captions into Markdown notes from YouTube, X, Reddit, Bilibili, Instagram, Threads, TikTok, and Vimeo.
+> Flucto is an open-source desktop application for creators and curators who want one flowing way to capture media and turn available captions into Markdown notes from YouTube, X, Reddit, Bilibili, Dailymotion, Niconico, OK.ru, VK Video, Instagram, Threads, TikTok, and Vimeo.
 
 - ✨ **Stunning UI**: Apple-inspired dark mode with glassmorphism & smooth animations
-- 🌍 **Universal Support**: Download from YouTube, X, Reddit, Bilibili, Instagram, Threads, TikTok, Vimeo
+- 🌍 **Platform Support**: URL downloads from YouTube, X, Reddit, Bilibili, Dailymotion, Niconico, OK.ru, VK Video, Instagram, Threads, TikTok, and Vimeo
 - 📝 **Caption to Markdown**: Convert available subtitles/captions into clean `.md` files with metadata and timestamps
 - 📦 **Batch Processing**: Import `.txt` lists to download media or convert caption queues automatically
 - ⚡ **Auto-Setup**: Automatically fetches and configures `yt-dlp` and `ffmpeg` binaries
-- 🔒 **Privacy First**: No tracking, local processing, and proxied thumbnail loading
+- 🔒 **Anonymous Search Sessions**: Media processing stays local; keyword searches contact site APIs/public indexes without reusing your logged-in browser profile
 - 🎵 **Format Choice**: Save video (MP4), audio extraction (MP3), or Markdown transcript output
 - 🛡️ **Type Safe**: Built with 100% TypeScript for stability and reliability
 
@@ -38,6 +38,7 @@
 ## Key Features
 
 - **Smart Media Engine:** Flucto parses single video, playlist, and social-media URLs while sharing platform-specific `yt-dlp` headers, referers, and retry behavior across preview, download, and transcript flows.
+- **Integrated Video Search:** Search all 12 registered sites together or select one site, see native/index source attribution and partial failures, then add results to the existing MP4/MP3 download queue. Desktop and CLI share the same service.
 - **Extensible Platform Architecture:** Plugin-based `PlatformAdapter` system — adding a new platform is one file. Supports yt-dlp-based platforms, custom API extraction, and browser-based fallback strategies.
 - **Caption-to-Markdown Conversion:** Uses `yt-dlp` subtitle/caption output when available, parses JSON3, XML/SRV3, and VTT captions, cleans caption markup, groups nearby captions into readable paragraphs, and writes filesystem-safe `.md` files.
 - **Transcript Options:** Default new Markdown conversions to English captions (`en`) while still allowing `Auto` or a concrete caption language, include/exclude timestamps and metadata, choose paragraph gap rules, save Markdown files, and optionally copy generated Markdown to the clipboard.
@@ -71,6 +72,51 @@ Brand assets live in:
 | `MD` | Markdown transcript files from available captions/subtitles | Research notes, summaries, quote extraction, and searchable archives |
 
 Markdown conversion is caption-based. If a platform or video does not expose captions/subtitles through `yt-dlp`, Flucto reports the transcript as unavailable instead of silently falling back to speech-to-text. No Python/FastAPI server, Whisper runtime, or external transcription service is embedded.
+
+## Video Search
+
+In the desktop app, **Search videos** defaults to **All sites (integrated)** and searches all 12 registered sites. Choose an individual site to narrow the search, enter a keyword, and click **Add** beside a result to use the existing download queue. Results show their site and **native** or **index** search method. Expand **Search sources** for per-site counts, actual errors, native-search restrictions, and site/index search links. A failed site does not hide the other sites' results.
+
+```bash
+# Integrated search; omitting --platform defaults to all
+flucto search "nature" --limit 20 --json
+flucto search "nature" --platform all --limit 50
+flucto search "nature" --platform youtube --json
+flucto search "nature" --platform threads --json
+flucto search "nature" --platform instagram --json
+flucto search "nature" --platform bilibili --limit 20 --json
+flucto search "nature" --platform dailymotion --json
+flucto search "初音ミク" --platform nicovideo --json
+flucto search "nature" --platform ok --json
+flucto search "nature" --platform vkvideo --json
+flucto download "<originalUrl from a search result>" --format mp4 --output-dir ./captures
+```
+
+`--limit` is a **total** result cap of 1–50 (default 20), not a per-site output quota. Integrated search interleaves source ranks and removes duplicate original URLs. Search does not provision media binaries. JSON contains `platform`, `query`, annotated `videos` (`platform`, `searchMethod`), and `sources` (`platform`, `method`, `count`, `searchUrl`, optional `error` and `nativeError`). Source counts describe fetched results before the integrated cap, so their sum can exceed the displayed total. Single-site responses also include `searchUrl`. Partial failures and successful empty searches exit 0; an entirely failed search includes top-level `error` and exits 4.
+
+| Site | Search method | Download method / restrictions |
+| --- | --- | --- |
+| YouTube | Public results page and Innertube continuation; public video index fallback | Existing `yt-dlp` adapter; captions/transcripts and authorized download settings remain supported. |
+| X / Twitter | Public video index; native anonymous keyword search requires login | Existing `yt-dlp` adapter; indexed statuses can still require authorized cookies when downloading. |
+| Instagram | Public video index; native anonymous keyword search requires login | Existing `yt-dlp` adapter for reels/video posts; index coverage is not the entire Instagram catalog. |
+| Reddit | Public search JSON filtered to playable-video posts; public video index fallback on blocks | Existing `yt-dlp` adapter; anonymous API requests may receive HTTP 403. Image/text-only posts are excluded from native results. |
+| Bilibili | Public web search API; anonymous Chrome fallback on API failure | `yt-dlp`; supports `bilibili.com` and `b23.tv`. Some quality levels and paid videos require authorized cookies. |
+| Dailymotion | Public [Graph API](https://developers.dailymotion.com/api/) | `yt-dlp`; supports `dailymotion.com` and `dai.ly`. Use a current standalone build with impersonation support. |
+| Niconico | Official [Snapshot Search API v2](https://site.nicovideo.jp/search-api-docs/snapshot) | `yt-dlp`; supports `nicovideo.jp` and `nico.ms`. MP4 audio tracks are merged with the video. Snapshot results are updated daily; uploader names are represented by user/channel IDs. |
+| OK.ru | Anonymous search page rendered in headless Chrome | `yt-dlp`; supports `ok.ru` and `odnoklassniki.ru`. Requires the official nightly extractor fix for [upstream issue #17585](https://github.com/yt-dlp/yt-dlp/issues/17585). Search uses `st.gsq`; the superficially similar `?q=` route does not perform this search. |
+| VK Video | Website's anonymous token exchange and catalog API; anonymous Chrome fallback if unavailable | `yt-dlp`; public video URLs on `vkvideo.ru` and VK aliases. The anonymous API's public web-client configuration can change. |
+| Threads | Anonymous headless search selects posts with actual video elements; public video index fallback | Existing Threads adapter; native visibility is session-dependent. Image/text-only native posts are excluded. |
+| TikTok | Public video index; anonymous native video search is unavailable on the checked route | Existing `yt-dlp` adapter; download availability can depend on cookies, region, or upstream restrictions. |
+| Vimeo | Public video index | Existing `yt-dlp` adapter; private/password-protected or restricted clips need the appropriate authorized download options. |
+
+OK.ru search, Threads native search, public-index searches, and browser fallbacks require **Google Chrome installed locally**, or `FLUCTO_CHROME_PATH` pointing to a compatible Chromium executable. Browser contexts are temporary and anonymous; they do not read your logged-in browser profile. Integrated searches run at most four providers concurrently; public-index/Threads browser work shares a two-page pool and closes the browser when idle.
+
+Public-index queries are sent to **Google video search**, then **DuckDuckGo** and **Bing** when needed—not to an AI provider. Index coverage and relevance differ from native site search; results can be sparse or stale. Human-verification pages, HTTP blocks, and off-site-only responses are not disguised as successful zero-hit searches. A genuinely served empty search remains a valid zero-result response. Search does not solve CAPTCHAs, bypass regional restrictions, or access paid/private media.
+
+For media downloads that require your own authorized session, use `--cookies PATH` or `--cookies-from-browser BROWSER`; media downloads also honor existing `FLUCTO_*` network overrides. Search sessions remain anonymous. A searchable video can still be deleted, private, DRM-protected, or unavailable in your region when downloading.
+
+Flucto now provisions and refreshes the **official yt-dlp nightly channel**, [recommended upstream for regular users](https://github.com/yt-dlp/yt-dlp#update-channels), so OK.ru's metadata fix is available without a local extractor patch. Linux provisioning uses the standalone build with impersonation support. Run `flucto setup --yt-dlp-only --force` to replace an older managed binary. Explicit `--yt-dlp` / `FLUCTO_YT_DLP_PATH` overrides remain user-managed and must also contain the fix.
+
 
 ## CLI Mode
 
@@ -110,6 +156,7 @@ Packaged releases expose both commands through `package.json`'s `bin` entry. Sho
 | `flucto doctor` | `fl doc` | Verify `yt-dlp` and `ffmpeg` discovery | Binary paths and versions |
 | `flucto setup` | `fl s` | Provision missing managed `yt-dlp` and `ffmpeg` binaries | Setup status, paths, versions, and fix guidance |
 | `flucto info <url>` | `fl i <url>` | Read media metadata | id, title, thumbnail, duration, uploader, view count |
+| `flucto search "<keyword>" --platform <site>` | — | Search the five supported video sites | Video metadata and original download URLs |
 | `flucto formats <url>` | `fl f <url>` | List downloadable formats | format id, extension, resolution, note |
 | `flucto download <url>` | `fl d <url>` | Download MP4 video or MP3 audio | Generated media file |
 | `flucto languages <url>` | `fl l <url>` | List available caption languages | language code/name and auto/manual flag |
@@ -227,6 +274,14 @@ flucto update apply --asset ~/Downloads/Flucto-1.9.2-x86_64.AppImage --json
 
 ## Recent Updates
 
+### v1.17.0
+
+- Integrated keyword search across all 12 registered sites, with individual-site selection and one total result cap.
+- Native YouTube, Reddit, and video-bearing Threads search paths; anonymous public video indexes for login-gated sites and Vimeo. Source errors and search restrictions remain visible instead of becoming false zero-hit results.
+- Explicit Dailymotion, Niconico, OK.ru, and VK Video download adapters, plus Bilibili short-link support.
+- Official yt-dlp nightly provisioning for the OK.ru extractor fix, and Niconico MP4 video/audio merging.
+- Browser-backed searches require locally installed Chrome or `FLUCTO_CHROME_PATH`; search does not reuse signed-in profiles or solve CAPTCHAs.
+
 ### v1.12.0
 
 - **Threads Support:** Added Threads (threads.com/threads.net) video download via dedicated `threadsdl.app` API extraction, bypassing yt-dlp.
@@ -235,7 +290,6 @@ flucto update apply --asset ~/Downloads/Flucto-1.9.2-x86_64.AppImage --json
 - **Markdown Pipeline:** Added `MarkdownPipeline` service and `flucto md` CLI command for direct URL-to-Markdown conversion.
 - **Platform Adapters:** YouTube, Twitter/X, Instagram, Reddit, Bilibili, Threads, TikTok, Vimeo — each as a single adapter file.
 
-### Next
 ### v1.9.1
 
 - Fixed CLI MP4 downloads for generic direct media URLs where `yt-dlp` exposes a literal `mp4` format id instead of YouTube-style `bestvideo`/`bestaudio` formats.
@@ -269,6 +323,8 @@ Flucto uses GitHub Actions and semantic-release for automated CI/CD:
 - **Generated Release Notes**: `feat`, `fix`, and breaking-change commits become GitHub Release notes and `CHANGELOG.md` entries
 - **Multi-Platform Builds**: Windows, macOS, and Linux binaries built automatically
 - **Auto-Release**: New GitHub releases created on push to main/master branch
+
+The workflow first predicts the next version from commits, builds Windows/macOS/Linux packages with that version, then publishes through semantic-release. CI updates `package.json`, `package-lock.json`, and `CHANGELOG.md`, creates the version tag, and publishes the npm package and GitHub release assets. A `feat` commit triggers a minor release; do not manually create a competing release tag.
 
 ### Commit Conventions
 

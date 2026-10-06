@@ -36,7 +36,9 @@ import { applyCliUpdate, checkForCliUpdate, downloadCliUpdate } from '../main/se
 import { detectInstallMode } from '../main/services/platformAssets.js';
 import { execa } from '../main/spawn.js';
 import { resolveCaptionNetworkOptions } from '../main/net/captionNetwork.js';
+import { searchVideos } from '../main/services/videoSearch.js';
 import type { TranscriptMarkdownResponse, TranscriptRequest } from '../shared/types.js';
+import { VIDEO_SEARCH_SITES } from '../shared/videoSearchPlatforms.js';
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -225,6 +227,7 @@ const runDownload = async (options: CliOptions): Promise<number> => {
       url: options.positional[0],
       format: options.format === 'mp3' ? 'mp3' : 'mp4',
       outputDir: outputDir(options),
+      network: resolveNetwork(options),
       quality: {
         video: options.quality,
         audio: options.audioQuality,
@@ -618,6 +621,42 @@ const dispatch = async (options: CliOptions): Promise<number> => {
       return runSetup(options);
     case 'update':
       return runUpdate(options);
+    case 'search': {
+      const result = await searchVideos({
+        platform: options.platform ?? 'all',
+        query: options.positional[0],
+        limit: options.limit,
+      });
+      if (options.json) {
+        writeJson(result);
+      } else {
+        const sources = result.sources;
+        for (const video of result.videos) {
+          const siteName = VIDEO_SEARCH_SITES[video.platform].name;
+          const method = video.searchMethod === 'native' ? 'native' : 'index';
+          writeHuman(`[${siteName} · ${method}] ${video.title}\n${video.originalUrl}\n`);
+        }
+        for (const source of sources) {
+          const siteName = VIDEO_SEARCH_SITES[source.platform].name;
+          const method = source.method === 'native' ? 'native' : 'index';
+          if (source.error) {
+            writeError(`${siteName} (${method}): ${source.error} — ${source.searchUrl}`);
+          } else {
+            info(`${siteName} (${method}): ${source.count} result${source.count === 1 ? '' : 's'}${
+              source.nativeError ? ` — native search unavailable: ${source.nativeError}` : ''} — ${source.searchUrl}`);
+          }
+        }
+        if (result.error) {
+          writeError(result.error);
+        } else if (!result.videos.length) {
+          writeHuman('No videos found.');
+        }
+        if (sources.some((source) => source.method === 'web-index')) {
+          info('Public indexes can miss videos or require verification; indexed videos may require a site session or be unavailable for download.');
+        }
+      }
+      return result.error ? 4 : 0;
+    }
     case 'download':
       return runDownload(options);
     case 'batch':

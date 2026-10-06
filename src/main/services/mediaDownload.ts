@@ -6,6 +6,7 @@ import { getCommonYtDlpArgs, getRefererForUrl } from '../media/ytDlp.js';
 import { createPlatformRegistry } from '../platforms/index.js';
 import type { BinaryResolver } from './binaryResolver.js';
 import { defaultQualityPreferences } from './settingsDefaults.js';
+import { getCaptionNetworkArgs, type CaptionNetworkOptions } from '../net/captionNetwork.js';
 
 const registry = createPlatformRegistry();
 
@@ -18,6 +19,7 @@ export interface MediaDownloadOptions {
   requestId?: string;
   title?: string;
   forceOverwrite?: boolean;
+  network?: CaptionNetworkOptions;
 }
 
 export interface MediaDownloadDeps {
@@ -39,7 +41,7 @@ export const isInstagramUrl = (url: string): boolean => url.includes('instagram.
 
 export const getVideoFormatSelector = (preset: DownloadQualityPreferences['video']): string => {
   const constrainedSelector = (height: number): string => {
-    return `bestvideo[ext=mp4][height<=${height}]+bestaudio[ext=m4a]/best[ext=mp4][height<=${height}][acodec!=none]/best[ext=mp4][acodec!=none]/worst[ext=mp4][acodec!=none]/mp4/best`;
+    return `bestvideo[ext=mp4][height<=${height}]+bestaudio[ext=m4a]/bestvideo[ext=mp4][height<=${height}]+bestaudio/best[ext=mp4][height<=${height}][acodec!=none]/bestvideo[ext=mp4]+bestaudio/best[ext=mp4][acodec!=none]/bestvideo+bestaudio/best`;
   };
 
   switch (preset) {
@@ -56,7 +58,7 @@ export const getVideoFormatSelector = (preset: DownloadQualityPreferences['video
     case '360p':
       return constrainedSelector(360);
     case 'worst':
-      return 'worst[ext=mp4]/mp4/worst';
+      return 'worstvideo[ext=mp4]+worstaudio[ext=m4a]/worstvideo[ext=mp4]+worstaudio/worst[ext=mp4][acodec!=none]/worstvideo+worstaudio/worst';
     default:
       return constrainedSelector(1080);
   }
@@ -122,7 +124,8 @@ export const parseFinalFilePath = (output: string): string | null => {
 export const buildDownloadArgs = (options: MediaDownloadOptions, binaries: BinaryResolver): string[] => {
   const quality = options.quality ?? defaultQualityPreferences;
   const outputTemplate = path.join(options.outputDir, '%(title)s.%(ext)s');
-  const referer = getRefererForUrl(options.url) ?? '';
+  const adapter = registry.resolve(options.url);
+  const referer = adapter?.getReferer?.(options.url) ?? getRefererForUrl(options.url) ?? '';
   const args = [
     options.url,
     '--output', outputTemplate,
@@ -134,7 +137,8 @@ export const buildDownloadArgs = (options: MediaDownloadOptions, binaries: Binar
     options.forceOverwrite === false ? '--no-overwrites' : '--force-overwrites',
     ...(referer ? ['--add-header', `referer:${referer}`] : []),
     '--ffmpeg-location', path.dirname(binaries.ffmpegPath),
-    ...getCommonYtDlpArgs(options.url),
+    ...(adapter?.getYtDlpArgs?.(options.url) ?? getCommonYtDlpArgs(options.url)),
+    ...getCaptionNetworkArgs(options.network),
   ];
 
   if (options.format === 'mp3') {

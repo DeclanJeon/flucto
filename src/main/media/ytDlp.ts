@@ -6,6 +6,25 @@ export const isThreadsUrl = (url: string): boolean =>
   url.includes('threads.com') || url.includes('threads.net');
 
 export const getRefererForUrl = (url: string): string | null => {
+  try {
+    const hostname = new URL(url).hostname;
+    const referers: Record<string, string> = {
+      'dailymotion.com': 'https://www.dailymotion.com/',
+      'dai.ly': 'https://www.dailymotion.com/',
+      'nicovideo.jp': 'https://www.nicovideo.jp/',
+      'nico.ms': 'https://www.nicovideo.jp/',
+      'ok.ru': 'https://ok.ru/',
+      'odnoklassniki.ru': 'https://ok.ru/',
+      'vkvideo.ru': 'https://vkvideo.ru/',
+      'vk.com': 'https://vk.com/',
+      'b23.tv': 'https://www.bilibili.com/',
+    };
+    for (const [domain, referer] of Object.entries(referers)) {
+      if (hostname === domain || hostname.endsWith(`.${domain}`)) return referer;
+    }
+  } catch {
+    return null;
+  }
   if (url.includes('x.com') || url.includes('twitter.com')) {
     return 'https://x.com/';
   }
@@ -90,10 +109,6 @@ export const getCommonYtDlpArgs = (url: string): string[] => {
       'Sec-Fetch-Mode: navigate',
       '--add-header',
       'Sec-Fetch-Site: same-origin',
-      '--extractor-args',
-      'bilibili:session_data=',
-      '--extractor-args',
-      'bilibili:quality=116',
     );
   } else if (url.includes('instagram.com') || url.includes('facebook.com')) {
     args.push(

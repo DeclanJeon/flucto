@@ -14,6 +14,8 @@ ${c.bold('Usage')}
   flucto channel-to-md <channel-url|@handle> [--limit N] [--out DIR] [--json]
       ${c.dim('(multi-file jobs create a dedicated subfolder under --out / cwd)')}
   flucto info <url> [--json]
+  flucto search "<keyword>" [--platform SITE|all] [--limit 20] [--json]
+      ${c.dim('(default --platform all searches every supported site; --limit is the total result cap)')}
   flucto formats <url> [--json]
   flucto languages <url> [--json]
   flucto doctor [--json]
@@ -52,7 +54,12 @@ ${c.bold('Global options')}
   --stdout, -s           Write transcript Markdown to stdout
   --output-dir, -o, --out DIR   Base output directory (default: FLUCTO_OUTPUT_DIR or cwd).
                          batch / channel to-md always write into a new subfolder under this base.
-  --limit N              Max videos for channel to-md (default: 100, max: 5000)
+  --platform NAME        Video search site: youtube, twitter, instagram, reddit, threads, tiktok,
+                         vimeo, bilibili, dailymotion, nicovideo, ok, vkvideo, or all (default: all)
+  --limit N              Max total search results across all sources (default: 20, max: 50);
+                         channel videos (default: 100, max: 5000)
+                         Results tagged "index" come from public web indexes and may need a
+                         site session or be unavailable for download.
   --bin-dir DIR          Directory containing yt-dlp and ffmpeg
   --yt-dlp PATH          Explicit yt-dlp binary path
   --ffmpeg PATH          Explicit ffmpeg binary path

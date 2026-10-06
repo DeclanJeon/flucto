@@ -14,9 +14,9 @@ const DOWNLOAD_TIMEOUT_MS = 120000;
 // URL Configuration
 const URLS = {
   yt_dlp: {
-    win32: 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe',
-    darwin: 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos',
-    linux: 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp',
+    win32: 'https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp.exe',
+    darwin: 'https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp_macos',
+    linux: `https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/${process.arch === 'arm64' ? 'yt-dlp_linux_aarch64' : 'yt-dlp_linux'}`,
   },
   ffmpeg: {
     // Prefer GitHub-hosted builds; keep vendor mirrors as fallback.
@@ -112,7 +112,7 @@ function findFileNamed(directory, filename) {
 
 async function fetchLatestYtDlpVersion() {
   try {
-    const response = await fetch('https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest', {
+    const response = await fetch('https://api.github.com/repos/yt-dlp/yt-dlp-nightly-builds/releases/latest', {
       headers: {
         'User-Agent': `Flucto binary setup (${OS})`,
         Accept: 'application/vnd.github+json',
