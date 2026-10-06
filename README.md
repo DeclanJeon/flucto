@@ -322,6 +322,7 @@ Flucto uses GitHub Actions and semantic-release for automated CI/CD:
 - **Automatic Versioning**: Semantic versioning based on Conventional Commit types
 - **Generated Release Notes**: `feat`, `fix`, and breaking-change commits become GitHub Release notes and `CHANGELOG.md` entries
 - **Multi-Platform Builds**: Windows, macOS, and Linux binaries built automatically
+- **Bundled Binaries**: CI verifies packaged yt-dlp and FFmpeg executables. macOS setup uses the same current-release FFmpeg download endpoint as the runtime installer.
 - **Auto-Release**: New GitHub releases created on push to main/master branch
 
 The workflow first predicts the next version from commits, builds Windows/macOS/Linux packages with that version, then publishes through semantic-release. CI updates `package.json`, `package-lock.json`, and `CHANGELOG.md`, creates the version tag, and publishes the npm package and GitHub release assets. A `feat` commit triggers a minor release; do not manually create a competing release tag.

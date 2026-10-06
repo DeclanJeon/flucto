@@ -24,7 +24,7 @@ const URLS = {
       'https://github.com/GyanD/codexffmpeg/releases/download/8.1.2/ffmpeg-8.1.2-essentials_build.zip',
       'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip',
     ],
-    darwin: 'https://evermeet.cx/ffmpeg/ffmpeg-6.0.zip',
+    darwin: 'https://evermeet.cx/ffmpeg/getrelease/zip',
     linux: [
       'https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz',
       'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz',
