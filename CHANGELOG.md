@@ -1,3 +1,18 @@
+# [1.17.0](https://github.com/DeclanJeon/flucto/compare/v1.16.4...v1.17.0) (2026-10-06)
+
+
+### Bug Fixes
+
+* **ci:** stop tracking Windows-incompatible agent metadata ([582aff6](https://github.com/DeclanJeon/flucto/commit/582aff6303e7166e77af8b30da94b15b4923dfc6))
+* **setup:** use current macOS FFmpeg release endpoint ([da0290b](https://github.com/DeclanJeon/flucto/commit/da0290b19aa15b07061f96e9fce91b1214fd9336))
+* **transcript:** self-heal rate-limited caption extraction by force-refreshing yt-dlp ([c37de70](https://github.com/DeclanJeon/flucto/commit/c37de7099cec0fda53dffa470016a67644c51f0d))
+* **transcript:** try next caption language when a track is rate-limited ([d25ee48](https://github.com/DeclanJeon/flucto/commit/d25ee48503c783731b3f1ecae76bccc45552d68a))
+
+
+### Features
+
+* **search:** add integrated 12-site search and new download adapters ([7e1931b](https://github.com/DeclanJeon/flucto/commit/7e1931bb5a1fd77ccfe263de09c95ed0096d4442))
+
 ## [1.16.4](https://github.com/DeclanJeon/flucto/compare/v1.16.3...v1.16.4) (2026-08-29)
 
 
