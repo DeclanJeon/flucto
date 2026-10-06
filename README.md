@@ -326,6 +326,8 @@ Flucto uses GitHub Actions and semantic-release for automated CI/CD:
 
 The workflow first predicts the next version from commits, builds Windows/macOS/Linux packages with that version, then publishes through semantic-release. CI updates `package.json`, `package-lock.json`, and `CHANGELOG.md`, creates the version tag, and publishes the npm package and GitHub release assets. A `feat` commit triggers a minor release; do not manually create a competing release tag.
 
+Local AI-agent metadata under `.commandcode/` is ignored and must not be committed; generated paths can be incompatible with Windows.
+
 ### Commit Conventions
 
 Follow [Conventional Commits](./COMMIT_CONVENTIONS.md) to trigger automatic releases. Keep commit subjects release-note ready because they are copied into GitHub Releases and `CHANGELOG.md`.

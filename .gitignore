@@ -1,6 +1,7 @@
 # ─── AI agent workspace ────────────────────────────────────────────
 .omx/
 .gjc/
+.commandcode/
 
 # ─── Dependencies ──────────────────────────────────────────────────
 node_modules/
