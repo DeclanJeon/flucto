@@ -151,3 +151,16 @@
 - 실제 이름을 반영한 기존 acceptance test가 수정 전 실패하는 것을 확인했다. 수정 후 실제 verify CLI는 fixture 기반 16개 산출물을 검증하고 checksum manifest를 생성했다.
 - Linux 이름 수정 후 lint/typecheck/109개 전체 테스트/build/compiled CLI 버전 확인이 모두 성공했다. 동일 acceptance test는 실패 전/통과 후 회귀 증거를 갖는다.
 - npm 설정 페이지는 계정 로그인이 필요했다. 제출된 로그인은 `username or password was invalid`를 반환했다. 계정 로그인·Trusted Publisher UI 설정을 우회하지 않으며, 현재 설정의 유효성은 실제 OIDC 복구 결과로 확인한다.
+- [PR #2](https://github.com/DeclanJeon/flucto/pull/2)도 branch/PR 3-OS CI 총 6개 job 성공 후 merge했다: `38164dfa598154dde77c08032ef7fc3098dab3cf`. [기본 브랜치 run 37578032904](https://github.com/DeclanJeon/flucto/actions/runs/37578032904)의 checks 및 prepare도 성공했다.
+- [두 번째 복구 run 37578036243](https://github.com/DeclanJeon/flucto/actions/runs/37578036243)은 실제 3-OS 산출물 및 checksum 총 **17개 release files**를 검증했다. 원본 `v1.17.0` checkout의 prepack compile과 151개 파일을 포함한 npm tarball 생성도 성공했다.
+- 실제 `npm publish`는 `ENEEDAUTH`로 거부되었다. npm CLI 11.17.0 및 id-token:write가 적용된 실행에서도 게시 자격을 얻지 못했다. 오류만으로 npm UI의 특정 설정값을 단정하지 않는다.
+- 게시 시도 후 npm latest는 `1.16.4`, `flucto@1.17.0` 조회는 E404, GitHub `v1.17.0` Release는 없음으로 확인했다. 기존 tag commit은 `a65d485743163df199dab7686442260b14dd9a30`으로 유지되었다.
+
+### Current Blocker / Account Owner Action
+
+1. [npm flucto 설정](https://www.npmjs.com/package/flucto/access)에 계정 소유자로 로그인한다. 비밀번호·OTP·토큰을 채팅에 제공하지 않는다.
+2. Settings → Trusted publishing에서 GitHub Actions / Organization or user `DeclanJeon` / Repository `flucto` / Workflow filename **`release.yml`** / Environment name 비움을 확인·저장한다.
+3. Allowed actions에서 **direct `npm publish` 허용**을 명시적으로 선택한다. 신규 설정의 기본 `npm stage publish` 허용만으로는 현재 workflow의 직접 게시를 승인하지 않는다. [공식 설정 안내](https://docs.npmjs.com/trusted-publishers/).
+4. 설정 완료 후 artifacts가 만료되기 전에 같은 source/version으로 workflow_dispatch를 다시 실행한다. `37508545685` / `1.17.0`을 유지하며 태그를 삭제·이동하거나 토큰 fallback을 추가하지 않는다.
+
+코드 통합 및 3-OS CI는 완료되었다. npm 계정 설정과 실제 publication 완료는 외부 인증 선행조건 때문에 아직 미완료다.
