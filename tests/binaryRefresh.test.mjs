@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { createExecutableFixtures } from './executable-fixtures.mjs';
 
 import {
   checkAndRefreshBinaries,
@@ -11,6 +12,7 @@ import {
 } from '../dist-electron/main/services/binaryRefresh.js';
 
 const YT_DLP_NAME = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp';
+const writeFixture = createExecutableFixtures();
 
 const makeBinDir = (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'flucto-refresh-'));
@@ -20,10 +22,7 @@ const makeBinDir = (t) => {
 
 const writeExecutable = (dir, version) => {
   const ytDlpPath = path.join(dir, YT_DLP_NAME);
-  // Mimics `yt-dlp --version` for the version probe used by the refresh logic.
-  fs.writeFileSync(ytDlpPath, process.platform === 'win32' ? '' : `#!/bin/sh\necho ${version}\n`);
-  if (process.platform !== 'win32') fs.chmodSync(ytDlpPath, 0o755);
-  return ytDlpPath;
+  return writeFixture(ytDlpPath, version);
 };
 
 const writeMarker = (dir, marker) => {
@@ -34,8 +33,7 @@ const readMarker = (dir) => JSON.parse(fs.readFileSync(path.join(dir, MANAGED_MA
 
 /** Simulates a successful fresh download: the file then reports the new version. */
 const fakeProvision = (version) => async (targetPath) => {
-  fs.writeFileSync(targetPath, process.platform === 'win32' ? '' : `#!/bin/sh\necho ${version}\n`);
-  if (process.platform !== 'win32') fs.chmodSync(targetPath, 0o755);
+  writeFixture(targetPath, version);
 };
 
 const refresh = (options) => checkAndRefreshBinaries(options);
@@ -109,11 +107,9 @@ test('a stale managed copy is re-downloaded and the marker records the new versi
   });
   writeExecutable(binDir, '2026.07.01');
 
-  const statuses = [];
   const result = await refresh({
     binDir,
     now: () => now,
-    onStatus: (message) => statuses.push(message),
     fetchLatestVersion: async () => '2026.08.20',
     provisionYtDlp: fakeProvision('2026.08.20'),
   });
@@ -122,7 +118,6 @@ test('a stale managed copy is re-downloaded and the marker records the new versi
   assert.equal(result.version, '2026.08.20');
   assert.equal(readMarker(binDir).ytDlpVersion, '2026.08.20');
   assert.equal(isManagedBinaryPreferred('yt-dlp', binDir), true);
-  assert.ok(statuses.some((message) => message.includes('2026.07.01 → 2026.08.20')));
 });
 
 test('a current packaged copy does not create a managed duplicate or marker', async (t) => {

@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import test from 'node:test';
+import test, { after } from 'node:test';
+import { createExecutableFixtures } from './executable-fixtures.mjs';
 
 import { parseCliArgs, CliUsageError } from '../dist-electron/cli/args.js';
 import { createMultiJobOutputDir, slugifyJobLabel } from '../dist-electron/cli/jobOutput.js';
@@ -18,12 +19,30 @@ import {
 } from '../dist-electron/main/services/mediaDownload.js';
 import { normalizeTranscriptSettings, saveMarkdownFile, transcriptWordCount } from '../dist-electron/main/services/transcriptMarkdown.js';
 
-const makeTempDir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'flucto-cli-test-'));
-
-const writeExecutable = (filePath, content = '#!/usr/bin/env sh\necho ok\n') => {
-  fs.writeFileSync(filePath, content, 'utf8');
-  fs.chmodSync(filePath, 0o755);
+const tempDirs = [];
+const makeTempDir = () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'flucto-cli-test-'));
+  tempDirs.push(directory);
+  return directory;
 };
+after(() => {
+  for (const directory of tempDirs) fs.rmSync(directory, { recursive: true, force: true });
+});
+
+const writeExecutable = createExecutableFixtures();
+
+const updateAssets = [
+  { name: 'Flucto-1.10.0-x64-setup.exe', browser_download_url: 'https://example.test/setup.exe', size: 10, content_type: 'application/octet-stream' },
+  { name: 'Flucto-1.10.0-x64.zip', browser_download_url: 'https://example.test/x64.zip', size: 10, content_type: 'application/octet-stream' },
+  { name: 'Flucto-1.10.0-arm64.zip', browser_download_url: 'https://example.test/arm64.zip', size: 10, content_type: 'application/octet-stream' },
+  { name: 'Flucto-1.10.0-x86_64.AppImage', browser_download_url: 'https://example.test/flucto.AppImage', size: 11, content_type: 'application/octet-stream' },
+  { name: 'checksums-sha256.txt', browser_download_url: 'https://example.test/checksums.txt', size: 12, content_type: 'text/plain' },
+];
+const expectedUpdateAsset = {
+  win32: 'Flucto-1.10.0-x64-setup.exe',
+  darwin: process.arch === 'arm64' ? 'Flucto-1.10.0-arm64.zip' : 'Flucto-1.10.0-x64.zip',
+  linux: 'Flucto-1.10.0-x86_64.AppImage',
+}[process.platform];
 
 test('CLI parser handles transcript stdout/json flags and defaults', () => {
   const options = parseCliArgs(['transcript', 'https://example.test/video', '--stdout', '--json', '--language', 'auto', '--no-timestamps']);
@@ -180,13 +199,17 @@ test('setupUtilities check-only validates provided bin dir without downloading',
   const temp = makeTempDir();
   const ytDlp = path.join(temp, process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp');
   const ffmpeg = path.join(temp, process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg');
-  writeExecutable(ytDlp, '#!/usr/bin/env sh\necho 2026.01.01\n');
-  writeExecutable(ffmpeg, '#!/usr/bin/env sh\necho ffmpeg version test\n');
+  writeExecutable(ytDlp, '2026.01.01');
+  writeExecutable(ffmpeg, 'ffmpeg version test');
 
   const result = await setupUtilities({ binDir: temp, checkOnly: true, env: { PATH: '' }, cwd: temp });
   assert.equal(result.valid, true);
   assert.deepEqual(result.missing, []);
   assert.equal(result.utilities.map((utility) => utility.status).join(','), 'present,present');
+  assert.deepEqual(result.utilities.map(({ name, version }) => ({ name, version })), [
+    { name: 'yt-dlp', version: '2026.01.01' },
+    { name: 'ffmpeg', version: 'ffmpeg version test' },
+  ]);
 });
 
 test('setupUtilities check-only reports missing target bin dir even when PATH has binaries', async () => {
@@ -207,10 +230,10 @@ test('setupUtilities force does not overwrite explicit binary paths', async () =
   const temp = makeTempDir();
   const ytDlp = path.join(temp, process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp');
   const ffmpeg = path.join(temp, process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg');
-  const originalYtDlp = '#!/usr/bin/env sh\necho original-yt-dlp\n';
-  const originalFfmpeg = '#!/usr/bin/env sh\necho original-ffmpeg\n';
-  writeExecutable(ytDlp, originalYtDlp);
-  writeExecutable(ffmpeg, originalFfmpeg);
+  writeExecutable(ytDlp, 'original-yt-dlp');
+  writeExecutable(ffmpeg, 'original-ffmpeg');
+  const originalYtDlp = fs.readFileSync(ytDlp, 'utf8');
+  const originalFfmpeg = fs.readFileSync(ffmpeg, 'utf8');
 
   const result = await setupUtilities({ ytDlpPath: ytDlp, ffmpegPath: ffmpeg, force: true, env: { PATH: '' }, cwd: temp });
   assert.equal(result.valid, true);
@@ -252,11 +275,7 @@ test('GitHub release helpers parse versions, choose assets, and report update ch
     tag_name: 'v1.10.0',
     html_url: 'https://github.com/DeclanJeon/flucto/releases/tag/v1.10.0',
     published_at: '2026-07-06T00:00:00Z',
-    assets: [
-      { name: 'Flucto-1.10.0-x64-setup.exe', browser_download_url: 'https://example.test/setup.exe', size: 10, content_type: 'application/octet-stream' },
-      { name: 'Flucto-1.10.0-x86_64.AppImage', browser_download_url: 'https://example.test/flucto.AppImage', size: 11, content_type: 'application/octet-stream' },
-      { name: 'checksums-sha256.txt', browser_download_url: 'https://example.test/checksums.txt', size: 12, content_type: 'text/plain' },
-    ],
+    assets: updateAssets,
   });
 
   assert.equal(compareVersions('1.10.0', '1.9.1'), 1);
@@ -265,7 +284,7 @@ test('GitHub release helpers parse versions, choose assets, and report update ch
 
   const check = await checkForCliUpdate({ currentVersion: '1.9.1', release });
   assert.equal(check.updateAvailable, true);
-  assert.equal(check.recommendedAsset, 'Flucto-1.10.0-x86_64.AppImage');
+  assert.equal(check.recommendedAsset, expectedUpdateAsset);
 });
 
 test('downloadCliUpdate fails when checksum manifest omits selected asset', async () => {
@@ -273,10 +292,7 @@ test('downloadCliUpdate fails when checksum manifest omits selected asset', asyn
     tag_name: 'v1.10.0',
     html_url: 'https://github.com/DeclanJeon/flucto/releases/tag/v1.10.0',
     published_at: '2026-07-06T00:00:00Z',
-    assets: [
-      { name: 'Flucto-1.10.0-x86_64.AppImage', browser_download_url: 'https://example.test/flucto.AppImage', size: 11, content_type: 'application/octet-stream' },
-      { name: 'checksums-sha256.txt', browser_download_url: 'https://example.test/checksums.txt', size: 12, content_type: 'text/plain' },
-    ],
+    assets: updateAssets,
   });
   const previousFetch = globalThis.fetch;
   globalThis.fetch = async (url) => {

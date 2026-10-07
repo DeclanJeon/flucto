@@ -9,62 +9,68 @@ on:
     inputs:
       source_run_id:
         description: Source workflow run id containing prebuilt release artifacts
-        required: false
+        required: true
         type: string
       release_version:
-        description: Release version from the source prepare step
-        required: false
+        description: Release version from the source prepare step (e.g. 1.17.0)
+        required: true
         type: string
-      release_retry:
-        description: Run release-only mode using artifacts from source run
-        required: false
-        type: boolean
-        default: false
 
+# Serialize every release-path run (normal pushes and manual recovery) at the
+# repository level so a normal push cannot race a pinned-version recovery.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: release-${{ github.repository_id }}
   cancel-in-progress: false
 
 permissions:
-  contents: write
-  issues: write
-  pull-requests: write
-  id-token: write # npm trusted publishing (OIDC)
+  contents: read
 
 jobs:
+  checks:
+    if: github.event_name == 'push'
+    uses: ./.github/workflows/ci.yml
+
   prepare:
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
+    needs: checks
+    permissions:
+      # semantic-release verifies push access to the repository even in the
+      # commit-analyzer/release-notes-generator-only dry run.
+      contents: write
     outputs:
-      new_release_published: ${{ steps.semantic.outputs.new_release_published }}
-      new_release_version: ${{ steps.semantic.outputs.new_release_version }}
+      has_release: ${{ steps.prepare.outputs.has_release }}
+      version: ${{ steps.prepare.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
+          cache: 'npm'
 
-      - name: Semantic Release (Dry Run)
-        id: semantic
-        uses: cycjimmy/semantic-release-action@v6
-        with:
-          semantic_version: '25'
-          dry_run: true
+      - name: Install Dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Predict Release Version
+        id: prepare
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/release-tools.mjs prepare
 
   build:
     needs: prepare
-    if: github.event_name == 'push' && needs.prepare.outputs.new_release_published == 'true'
+    if: github.event_name == 'push' && needs.prepare.outputs.has_release == 'true'
     name: Build ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -72,24 +78,20 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
           cache: 'npm'
 
-      - name: Setup pnpm
-        run: |
-          corepack enable
-          corepack prepare pnpm@latest --activate
-
       - name: Install Dependencies
-        run: npm install --ignore-scripts
+        run: npm ci --ignore-scripts
 
       - name: Setup Binaries
         run: node scripts/setup-binaries.mjs
 
       - name: Update Version
         shell: bash
-        run: |
-          npm version ${{ needs.prepare.outputs.new_release_version }} --no-git-tag-version --allow-same-version
+        env:
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: npm version "$RELEASE_VERSION" --no-git-tag-version --allow-same-version
 
       - name: Build
         run: npm run dist -- --publish never
@@ -100,6 +102,7 @@ jobs:
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
           $yt = "release/win-unpacked/resources/bin/yt-dlp.exe"
           $ff = "release/win-unpacked/resources/bin/ffmpeg.exe"
           $appAsar = "release/win-unpacked/resources/app.asar"
@@ -107,26 +110,36 @@ jobs:
           if (!(Test-Path $ff)) { throw "Missing binary: $ff" }
           if (!(Test-Path $appAsar)) { throw "Missing app archive: $appAsar" }
           node -e "const asar=require('@electron/asar'); asar.statFile(process.argv[1], 'node_modules/ajv/dist/2020.js')" $appAsar
+          if ($LASTEXITCODE -ne 0) { throw "asar verification failed (exit $LASTEXITCODE)" }
           & $yt --version | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "yt-dlp --version failed (exit $LASTEXITCODE)" }
           & $ff -version | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "ffmpeg -version failed (exit $LASTEXITCODE)" }
           Write-Host "Windows binaries verified"
 
       - name: Verify macOS bundled binaries
         if: matrix.os == 'macos-latest'
         shell: bash
         run: |
-          app_asar="release/mac/Flucto.app/Contents/Resources/app.asar"
-          test -f "release/mac/Flucto.app/Contents/Resources/bin/yt-dlp"
-          test -f "release/mac/Flucto.app/Contents/Resources/bin/ffmpeg"
-          test -f "$app_asar"
-          node -e "const asar=require('@electron/asar'); asar.statFile(process.argv[1], 'node_modules/ajv/dist/2020.js')" "$app_asar"
-          "release/mac/Flucto.app/Contents/Resources/bin/yt-dlp" --version >/dev/null
-          "release/mac/Flucto.app/Contents/Resources/bin/ffmpeg" -version >/dev/null
+          set -euo pipefail
+          for app_asar in \
+            "release/mac/Flucto.app/Contents/Resources/app.asar" \
+            "release/mac-arm64/Flucto.app/Contents/Resources/app.asar"; do
+            app_dir="$(dirname "$app_asar")"
+            test -f "$app_dir/bin/yt-dlp"
+            test -f "$app_dir/bin/ffmpeg"
+            test -f "$app_asar"
+            node -e "const asar=require('@electron/asar'); asar.statFile(process.argv[1], 'node_modules/ajv/dist/2020.js')" "$app_asar"
+            "$app_dir/bin/yt-dlp" --version >/dev/null
+            "$app_dir/bin/ffmpeg" -version >/dev/null
+          done
+          echo "macOS x64 and arm64 bundles verified"
 
       - name: Verify Linux bundled binaries
         if: matrix.os == 'ubuntu-latest'
         shell: bash
         run: |
+          set -euo pipefail
           app_asar="release/linux-unpacked/resources/app.asar"
           test -f "release/linux-unpacked/resources/bin/yt-dlp"
           test -f "release/linux-unpacked/resources/bin/ffmpeg"
@@ -147,78 +160,146 @@ jobs:
             release/*.deb
             release/latest*.yml
             release/*.blockmap
-          retention-days: 1
+          retention-days: 14
+          if-no-files-found: error
 
   release:
     needs: [prepare, build]
-    if: >-
-      (github.event_name == 'push' && needs.prepare.outputs.new_release_published == 'true') ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.release_retry == 'true' && github.event.inputs.source_run_id != '')
+    if: github.event_name == 'push' && needs.prepare.outputs.has_release == 'true'
     runs-on: ubuntu-latest
-    env:
-      RELEASE_SOURCE_RUN_ID: >-
-        ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.source_run_id != '' && github.event.inputs.source_run_id || github.run_id }}
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      id-token: write # npm trusted publishing (OIDC)
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
           cache: 'npm'
 
+      - name: Install npm 11.17.0 (OIDC-capable)
+        run: npm install --global npm@11.17.0
+
       - name: Install Dependencies
-        run: npm install
+        run: npm ci --ignore-scripts
 
       - name: Download Windows Artifacts
         uses: actions/download-artifact@v4
         with:
           name: artifacts-windows-latest
           path: release
-          run-id: ${{ env.RELEASE_SOURCE_RUN_ID }}
 
       - name: Download macOS Artifacts
         uses: actions/download-artifact@v4
         with:
           name: artifacts-macos-latest
           path: release
-          run-id: ${{ env.RELEASE_SOURCE_RUN_ID }}
 
       - name: Download Linux Artifacts
         uses: actions/download-artifact@v4
         with:
           name: artifacts-ubuntu-latest
           path: release
-          run-id: ${{ env.RELEASE_SOURCE_RUN_ID }}
 
-      - name: Generate Checksums
-        run: |
-          cd release
-          sha256sum * > checksums-sha256.txt
+      - name: Verify Release Artifacts
+        env:
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: node scripts/release-tools.mjs verify "$RELEASE_VERSION" release
+
+      - name: Compile CLI for package bin metadata
+        run: npm run build:electron
 
       - name: Semantic Release
-        uses: cycjimmy/semantic-release-action@v6
-        with:
-          semantic_version: '25'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GIT_CREDENTIALS: ${{ secrets.GITHUB_TOKEN }}
+        run: npx semantic-release
 
-  release_retry:
-    needs: [prepare, release]
-    if: github.event_name == 'push' && needs.prepare.outputs.new_release_published == 'true' && needs.release.result == 'cancelled'
+  recover:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read # cross-run artifact downloads
+      id-token: write # npm trusted publishing (OIDC)
     steps:
-      - name: Retry release as a dedicated rerun
+      - name: Checkout control checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install npm 11.17.0 (OIDC-capable)
+        run: npm install --global npm@11.17.0
+
+      - name: Install Dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Validate source run and tag
+        id: source
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh workflow run release.yml \
-            --ref "${{ github.ref_name }}" \
-            -f source_run_id="${{ github.run_id }}" \
-            -f release_version="${{ needs.prepare.outputs.new_release_version }}" \
-            -f release_retry="true"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+          RELEASE_VERSION: ${{ inputs.release_version }}
+        run: node scripts/release-tools.mjs source "$SOURCE_RUN_ID" "$RELEASE_VERSION"
+
+      - name: Checkout pinned source at tag
+        uses: actions/checkout@v4
+        with:
+          path: recovery-source
+          ref: ${{ steps.source.outputs.tag }}
+          fetch-depth: 0
+
+      - name: Install Source Dependencies
+        working-directory: recovery-source
+        run: npm ci --ignore-scripts
+
+      - name: Download Windows Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: artifacts-windows-latest
+          path: release
+          run-id: ${{ inputs.source_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download macOS Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: artifacts-macos-latest
+          path: release
+          run-id: ${{ inputs.source_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download Linux Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: artifacts-ubuntu-latest
+          path: release
+          run-id: ${{ inputs.source_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Recover release publications
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+          RELEASE_VERSION: ${{ inputs.release_version }}
+          TAG: ${{ steps.source.outputs.tag }}
+        run: >-
+          node scripts/release-tools.mjs recover
+          "$SOURCE_RUN_ID" "$RELEASE_VERSION" release recovery-source

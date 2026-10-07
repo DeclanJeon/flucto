@@ -317,15 +317,18 @@ flucto update apply --asset ~/Downloads/Flucto-1.9.2-x86_64.AppImage --json
 
 ## 📦 CI/CD & Automated Releases
 
-Flucto uses GitHub Actions and semantic-release for automated CI/CD:
+Flucto uses GitHub Actions and semantic-release for automated validation and releases:
 
 - **Automatic Versioning**: Semantic versioning based on Conventional Commit types
 - **Generated Release Notes**: `feat`, `fix`, and breaking-change commits become GitHub Release notes and `CHANGELOG.md` entries
 - **Multi-Platform Builds**: Windows, macOS, and Linux binaries built automatically
 - **Bundled Binaries**: CI verifies packaged yt-dlp and FFmpeg executables. macOS setup uses the same current-release FFmpeg download endpoint as the runtime installer.
-- **Auto-Release**: New GitHub releases created on push to main/master branch
+- **Release Gate**: Every push to main/master runs lint, TypeScript checks, tests, build, and CLI smoke checks on Windows, macOS, and Linux before release preparation
+- **Auto-Release**: Release-worthy commits on main/master create npm packages and GitHub releases; other commits still run validation
 
-The workflow first predicts the next version from commits, builds Windows/macOS/Linux packages with that version, then publishes through semantic-release. CI updates `package.json`, `package-lock.json`, and `CHANGELOG.md`, creates the version tag, and publishes the npm package and GitHub release assets. A `feat` commit triggers a minor release; do not manually create a competing release tag.
+The reusable `ci.yml` workflow also validates pull requests and pushes to development branches. All jobs use Node.js 24 and lockfile-based `npm ci` installs. Run the same checks locally with `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build`.
+
+The release workflow predicts the next version using only commit analysis and release notes generation; this step does not load publishing plugins or require npm authentication. It builds Windows/macOS/Linux packages with that version, validates updater manifests and file hashes, generates SHA256 checksums, and publishes through the repository's locked semantic-release installation. Publication updates `package.json`, `package-lock.json`, and `CHANGELOG.md` and creates the version tag. A `feat` commit triggers a minor release; do not manually create a competing release tag.
 
 npm publishing uses GitHub Actions OIDC trusted publishing, not `NPM_TOKEN`. Register the publisher in the npm package's **Settings → Trusted Publisher** section:
 
@@ -338,9 +341,27 @@ npm publishing uses GitHub Actions OIDC trusted publishing, not `NPM_TOKEN`. Reg
 | Environment name | Leave empty; the release job does not use a GitHub environment |
 | Allowed actions | Allow direct publishing with `npm publish`; stage-only permission is insufficient |
 
-Release jobs use Node.js 22 and semantic-release 25 with an OIDC-capable npm plugin. Keep `id-token: write` enabled; provenance is generated automatically by trusted publishing. No npm token secret is required.
+Publishing jobs use Node.js 24, npm 11.17.0, and semantic-release 25. Keep `id-token: write` enabled on these jobs; provenance is generated automatically by trusted publishing. No npm token secret is required. An OIDC exchange error or npm `403` requires checking the package's actual Trusted Publisher configuration; adding permissions to GitHub alone cannot fix npm-side authorization.
 
 Local AI-agent metadata under `.commandcode/` is ignored and must not be committed; generated paths can be incompatible with Windows.
+
+### Recover a partially published release
+
+semantic-release creates the Git tag before publishing. If publication fails, fixing authentication and rerunning commit analysis may report no new release. Use the workflow's independent manual recovery job for the existing version:
+
+```bash
+# After the workflow changes are pushed and npm Trusted Publisher is configured:
+gh workflow run release.yml --ref master \
+  -f source_run_id=37508545685 \
+  -f release_version=1.17.0
+```
+
+`source_run_id` must identify a completed `release.yml` push run on main/master whose three packaging jobs succeeded. `release_version` must match an existing tag and all downloaded artifacts. Recovery validates that the tag has the same application code and dependency metadata as the build commit, then checks out that tag separately for the npm build. It never creates, deletes, or moves the tag.
+
+Recovery skips npm versions that already exist, completes missing GitHub release assets, and publishes a newly created release only after its uploads finish. Recovering an older version preserves a newer `latest`; an unpublished older npm version uses the `release-VERSION` dist-tag. Authentication/network errors are failures, not evidence that a package or release is absent. Publication failures remain visible; there is no automatic dispatch retry.
+
+New build artifacts are retained for 14 days. The original `37508545685` artifacts were created with the old one-day retention and expire on **2026-10-07 around 18:07–18:09 UTC**; the new workflow cannot extend their lifetime. Recovery requires unexpired artifacts. If they expire, stop and rebuild the original version's packages in a new verified source run rather than substituting artifacts from the current branch. A failure before tag creation is not eligible for this recovery path; use the normal release workflow.
+
 
 ### Commit Conventions
 

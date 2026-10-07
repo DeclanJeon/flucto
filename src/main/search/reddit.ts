@@ -17,8 +17,6 @@ const MAX_PAGES = 4;
 const MAX_LIMIT = 50;
 const USER_AGENT = 'flucto-video-search/1.0 (https://www.reddit.com)';
 
-type JsonObject = Record<string, unknown>;
-
 interface RedditPost {
   id?: string;
   name?: string;
