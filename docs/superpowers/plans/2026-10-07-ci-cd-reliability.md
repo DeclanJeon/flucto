@@ -233,3 +233,18 @@
 - Windows NSIS 패키징 성공. 실제 패키징된 Electron main/preload/renderer에서 설정 toggle 후 reload persistence, single/legacy/batch MP3의 반환·history 경로와 native FFmpeg decode를 확인했다. 네 개 파일 모두 존재하며 decode 종료 0, renderer 오류 0이었다.
 - Publisher는 Git-first atomic push 후 원래 Actions source와 remote branch/tag, version-only diff를 검증한다. 실제 임시 bare Git remote regression에서 stale checkout, 미게시 tag 및 build 이후 source mutation을 차단했다.
 - macOS/Linux native installer 및 새 Release/npm publication은 아래 원격 검증 결과로 기록한다. 이전 v1.17.0은 수정/삭제하지 않는다.
+
+#### Remote native acceptance and integration
+
+- PR #6의 commit `781492c`에 대한 [native package run 37610066881](https://github.com/DeclanJeon/flucto/actions/runs/37610066881)이 전부 성공했다. Windows NSIS, Linux AppImage, Apple Silicon macOS DMG 설치·실행 및 별도 `macos-15-intel`의 동일 universal DMG 설치·실행을 검증했다.
+- Ubuntu에서 한 번 생성한 동일 공통 CLI ZIP을 Windows, Linux, macOS arm64/x64에서 private Node·npm·native binary와 함께 실제 설치했다. Windows는 기본 사용자 PATH 등록을 포함하며 PowerShell 7에서 상속된 module path 아래에서도 Windows PowerShell 자체 Utility/Archive module을 사용한다.
+- 네 native CPU 환경의 main/preload/renderer, 설정 reload persistence, single/legacy/batch MP3 반환·history 파일과 FFmpeg 전체 decode가 모두 성공했다. 네 실제 desktop screenshot을 내려받아 확인했다. AJV dependency의 특정 hoisting 위치를 강요하지 않고 실제 persisted-store consumer 경로를 실행한다.
+- `Verify Release Downloads`가 12개 normalized asset의 checksum/manifest와 4개 primary installer 안내를 검증했다. PR #6은 모든 gate 성공 후 merge commit `5adfa7a8e578a7cdba0d4bf682aeb9e832219abc`로 master에 통합했다. PR #5의 commit도 함께 포함되어 GitHub가 merged 상태로 표시한다.
+
+#### Published 1.18.0 evidence
+
+- [Release run 37611403909](https://github.com/DeclanJeon/flucto/actions/runs/37611403909) 성공: 3-OS checks, 공통 CLI archive, Windows/macOS/Linux native build·설치·media smoke, 별도 native Intel Mac 검증, Git-first atomic push 및 npm/GitHub 게시를 모두 통과했다.
+- [v1.18.0](https://github.com/DeclanJeon/flucto/releases/tag/v1.18.0)이 public/non-prerelease/latest이다. 4개 INSTALL primary asset과 8개 INTERNAL asset, 총 12개가 게시되었다. 공개 checksum의 11개 SHA256이 GitHub 계산 digest와 모두 일치하며 3개 공개 updater YAML의 version/해시도 일치한다.
+- 실제 npm `flucto@1.18.0` 및 `latest=1.18.0`을 확인했다. SLSA attestation의 package SHA512가 npm integrity와 일치하고 source는 원래 merge SHA `5adfa7a8e578a7cdba0d4bf682aeb9e832219abc`, `refs/heads/master`, `.github/workflows/release.yml`, invocation `37611403909/attempts/1`이다. NPM_TOKEN fallback 및 Actions identity override를 사용하지 않았다.
+- 공개 CLI ZIP을 새 Windows 격리 prefix에 설치했다. system Node가 PATH에서 실제로 없음을 먼저 확인하고 private Node SHA256 검증·설치, Restricted PowerShell의 `flucto`/`fl.cmd`, 실제 `update apply` 후 같은 private prefix/binary 경로 및 `.ps1` shim 제거를 확인했다. 업데이트한 공개 CLI의 MP3 반환 파일이 존재하며 FFmpeg 전체 decode 종료 0이다.
+- 이전 v1.17.0 Release ID `405482252` 및 17개 asset의 ID/name/size가 게시 전 snapshot과 완전히 같다. tag SHA `a65d485743163df199dab7686442260b14dd9a30`도 보존되었다. macOS unsigned manual DMG update 제약은 유지한다.

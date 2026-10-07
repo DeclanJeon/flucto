@@ -355,7 +355,7 @@ Flucto uses GitHub Actions, maintained release-it version/changelog tooling and 
 
 The reusable `ci.yml` workflow also validates pull requests and pushes to development branches. All jobs use Node.js 24 and lockfile-based `npm ci` installs. Run the same checks locally with `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build`.
 
-Release prediction is read-only Conventional Commit analysis, without publishing plugins or npm authentication. Native runners build and actually install/start their packages, exercise CLI and desktop MP3 conversion, verify persisted settings and capture screenshots. Publication bumps version/changelog metadata, atomically pushes the release branch and tag, then verifies their remote identity and that application code/dependencies still match the native build source before npm publication. GitHub releases remain drafts until all normalized assets have been uploaded. A `feat` commit triggers a minor release; do not create a competing release tag.
+Release prediction is read-only Conventional Commit analysis, without publishing plugins or npm authentication. Native runners build and actually install/start their packages, exercise CLI and desktop MP3 conversion, verify persisted settings and capture screenshots. The common CLI archive is built once and installed unchanged on every native OS; the same universal DMG must also pass on a separate native Intel Mac runner. Publication bumps version/changelog metadata, atomically pushes the release branch and tag, then verifies their remote identity and that application code/dependencies still match the native build source before npm publication. GitHub releases remain drafts until all normalized assets have been uploaded. A `feat` commit triggers a minor release; do not create a competing release tag.
 
 npm publishing uses GitHub Actions OIDC trusted publishing, not `NPM_TOKEN`. Register the publisher in the npm package's **Settings → Trusted Publisher** section:
 
@@ -460,7 +460,7 @@ For user-facing changes, include concrete behavior in the commit subject or body
 - Use Node.js 24 and `npm ci` when reproducing CI results. `npm audit --omit=dev` checks the CLI/runtime dependency tree; also run the full `npm audit` because desktop packaging and publication depend on development tools.
 - Electron stays on the patched 41.x line (minimum 41.10.6). Electron 42+ requires code signing for native macOS notifications; establish signing before that upgrade rather than silently dropping notifications in unsigned builds.
 - The `concurrently`-scoped `shell-quote` override selects patched 1.11.x because the upstream release still pins 1.9.0. Remove the override when upstream accepts the patched version.
-- The 2026-10-07 lockfile audit reports zero production vulnerabilities and 22 development-tool findings (12 high, 10 moderate). Remaining roots include unpatched `braces`/`sprintf-js` and dependencies bundled inside npm 11.21.0. Do not treat the full audit as passing or run `npm audit fix --force`: its suggested release-plugin downgrades would change the trusted-publishing toolchain.
+- The normalized-installation lockfile's full `npm audit` on 2026-10-07 reports **0 vulnerabilities**, including development tools. Maintained release-it tooling replaces the obsolete publication dependencies; the release runner installs npm 12.2.0 for trusted OIDC publishing. Do not hide future findings or use `npm audit fix --force` to downgrade release plugins.
 
 ## Architecture & Tech Stack
 
