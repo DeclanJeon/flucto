@@ -38,7 +38,7 @@ function Fail([string]$Message) {
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $tarball = Get-ChildItem -Path $scriptDir -Filter '*.tgz' | Select-Object -First 1
-if (-not $tarball) { Fail "No npm package tarball (*.tgz) found next to install.ps1 — this archive is incomplete." }
+if (-not $tarball) { Fail "No npm package tarball (*.tgz) found next to install.ps1 - this archive is incomplete." }
 
 if (-not $InstallDir) {
     $base = $env:LOCALAPPDATA
@@ -58,7 +58,7 @@ if (-not $hostArch) { $hostArch = $env:PROCESSOR_ARCHITECTURE }
 $nodeArch = switch -Regex ($hostArch) {
     'ARM64' { 'arm64'; break }
     'AMD64' { 'x64'; break }
-    default { Fail "Unsupported CPU architecture '$hostArch' — Flucto CLI requires x64 or ARM64." }
+    default { Fail "Unsupported CPU architecture '$hostArch' - Flucto CLI requires x64 or ARM64." }
 }
 
 Write-Info "Installing Flucto CLI into $InstallDir"
@@ -90,7 +90,7 @@ if (Test-Path $nodeExe) {
         Invoke-WebRequest -Uri "$indexUrl$fileName" -OutFile $zipPath -UseBasicParsing
         $actualHash = (Get-FileHash -Path $zipPath -Algorithm SHA256).Hash.ToLower()
         if ($actualHash -ne $expectedHash) {
-            Fail "SHA256 mismatch for $fileName (expected $expectedHash, got $actualHash) — download aborted."
+            Fail "SHA256 mismatch for $fileName (expected $expectedHash, got $actualHash) - download aborted."
         }
         Write-Info "Checksum verified; extracting private runtime into $InstallDir"
         $stage = Join-Path $downloadDir 'extract'
@@ -101,7 +101,7 @@ if (Test-Path $nodeExe) {
     } finally {
         Remove-Item -Recurse -Force $downloadDir -ErrorAction SilentlyContinue
     }
-    if (-not (Test-Path $nodeExe)) { Fail "Node.js extraction failed — node.exe not found under $InstallDir." }
+    if (-not (Test-Path $nodeExe)) { Fail "Node.js extraction failed - node.exe not found under $InstallDir." }
     Write-Info "Installed private Node.js $(& $nodeExe --version)"
 }
 
@@ -142,13 +142,13 @@ if (-not $NoProfile) {
     [Environment]::SetEnvironmentVariable('Path', $userPath, 'User')
     Write-Info "Registered user PATH entries: $InstallDir, $binDir"
 } else {
-    Write-Info "NoProfile set — user PATH, profile and existing bin dirs left untouched."
+    Write-Info "NoProfile set - user PATH, profile and existing bin dirs left untouched."
 }
 
 # --- Provision and verify media binaries (prefix-private bin dir) -------------
 Write-Info 'Provisioning yt-dlp and FFmpeg (flucto setup)'
 & $flucto setup
-if ($LASTEXITCODE -ne 0) { Fail "flucto setup failed (exit $LASTEXITCODE) — binaries were not provisioned." }
+if ($LASTEXITCODE -ne 0) { Fail "flucto setup failed (exit $LASTEXITCODE) - binaries were not provisioned." }
 
 Write-Info 'Verifying install (flucto doctor --json)'
 & $flucto doctor --json

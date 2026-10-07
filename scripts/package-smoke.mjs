@@ -17,7 +17,7 @@ const cliOnly = process.argv.includes('--cli-only');
 if (!cliOnly && process.platform === 'win32' && !process.env.CI) {
   throw new Error('Desktop installer smoke requires a disposable CI runner; use --cli-only locally.');
 }
-const root = await fs.mkdtemp(path.join(os.tmpdir(), 'flucto-package-smoke-'));
+const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'flucto-package-smoke-')));
 const cliHome = path.join(root, 'cli');
 const setupDir = path.join(root, 'setup');
 const mediaDir = path.join(root, 'media');
