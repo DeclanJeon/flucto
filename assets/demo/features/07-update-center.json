@@ -1,0 +1,46 @@
+{
+  "id": "07-update-center",
+  "productVersion": "1.18.0",
+  "capture": "Actual Electron UI screenshots from an isolated owned profile; no mock UI, injected results or generated frames.",
+  "timing": "Frames remain chronological. Long wait/capture gaps capped at 1.25 seconds. Playback is not a speed benchmark.",
+  "sourceRights": "Media downloads/extraction use an original procedural video and authored WebVTT. Blender search/playlist recordings display public metadata only; no third-party video was downloaded.",
+  "durationSeconds": 12.13,
+  "distinctCapturedFrames": 22,
+  "assets": {
+    "mp4": {
+      "bytes": 292632,
+      "sha256": "ce19c55db3029eb838a6bbf5f335b2438a06ad5cfa200c0e28936b6611eec67c"
+    },
+    "gif": {
+      "bytes": 1107431,
+      "sha256": "66918f143104e876e7edb4d94b494fdc158c0a6e7340dd0e679cf2782a8176eb"
+    },
+    "png": {
+      "bytes": 156691,
+      "sha256": "2f5c153131856c472160badd665a45c5b8dfcf3e4025cc53401eed1d0e77b68f"
+    }
+  },
+  "sources": [
+    {
+      "part": "07-complete",
+      "source": "Authentic published Windows v1.18.0 app + live GitHub release and bundled binary checks",
+      "rawFrames": 45,
+      "includedFrames": 45,
+      "originalDurationMs": 14038,
+      "evidence": {
+        "appUpdate": {
+          "type": "not-available",
+          "version": "1.18.0",
+          "installationMode": "restart"
+        },
+        "settings": {
+          "autoUpdate": false,
+          "checkInterval": 172800000,
+          "notifyOnUpdateReady": true
+        },
+        "surface": "Flucto\nCreator-First Media Downloader\n리뷰작성\n5\nSIGNAL-TO-SIGNAL MEDIA FLOW\nAny Platform.\nOne Downloader.\n\nDownload by URL, or search across 12 sites including YouTube, Threads, X, and Instagram.\n\nFlucto keeps each request auditable and visible: batch queueing, resilient format checks, and clean handoff into your download folder.\n\nAPP UPDATES\n\nYou are on the latest app version.\n\nCheck now\nMP4\nMP3\nMD\nBest Quality\nSearch videos\nAll sites (integrated)\nYouTube\nX / Twitter\nInstagram\nReddit\nBilibili\nDailymotion\nNiconico\nOK.ru\nVK Video\nThreads\nTikTok\nVimeo\nSearch\n\nUPDATE CENTER\n\n업데이트 설정\n✕\n자동 업데이트 활성화\n\n앱 시작 시 새 버전이 있으면 알림을 표시합니다\n\n업데이트 체크 주기\n1시간\n12시간\n24시간\n48시간\n자동으로 업데이트를 체크하는 시간 간격\n업데이트 다운로드 완료 시 재시작 안내\n\n새 버전 다운로드가 끝나면 재시작 안내를 표시합니다\n\n현재 바이너리 상태\n\nyt-dlp\n\n업데이트 확인 전용\n\nffmpeg\n\n최신 버전 확인 중\n\n바이너리 상태 확인\nyt-dlp와 ffmpeg 상태를 정상적으로 확인했습니다.\n저장\n취소",
+        "release": "Authentic published v1.18.0 Windows NSIS application payload extracted without running installer."
+      }
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "id": "09-cli-batch-json",
+  "productVersion": "1.18.0",
+  "capture": "Deterministic replay of stdout/stderr captured from the real Flucto CLI (cmd /c, FORCE_COLOR=1), rendered in a terminal-styled viewer labeled \"actual CLI output\". No synthetic or typed output; every command was executed live by capture-transcript.mjs and exits are recorded in the transcript JSON.",
+  "timing": "Native pacing from real download/batch timestamps.",
+  "sourceRights": "All sources are the self-authored localhost fixture MP4s; output files verified as real mp4/mp3 by ffprobe.",
+  "commands": [
+    "type urls.txt",
+    "flucto download \"http://127.0.0.1:58080/reference-b.html\" -f mp4 -o out -j",
+    "flucto batch urls.txt -f mp3 -c 2 -o out -p -j",
+    "dir /b /s out"
+  ],
+  "observedResults": [
+    "download: real MP4 to C:\\flucto-demo\\out (ffprobe h264+aac, 12s), exit 0",
+    "batch: NDJSON progress events on stderr + final JSON summary {\"success\":true,\"total\":2,\"failed\":0}, dedicated out\\urls-batch-mp3-* folder, exit 0",
+    "two real .mp3 audio extractions (ffprobe mp3 codec, 12s each)"
+  ],
+  "durationSeconds": 27.6,
+  "transcriptEvents": 19,
+  "transcriptWallMs": 16572,
+  "transcriptExitCode": 0,
+  "transcriptSha256": "f5518383e85fc0831cee56290f9a5d3062dee9a566dfd22626b90cb36348359b",
+  "assets": {
+    "mp4": {
+      "bytes": 485479,
+      "sha256": "5603521ea4b2fed8f541b4684a30ae0295f675e28b26cb98e3c1f303de182e4e",
+      "width": 1040,
+      "height": 592
+    },
+    "gif": {
+      "bytes": 644907,
+      "sha256": "0fafedfc46ec5508017fb07bef9086cf50e59882ebf72a5ab66705ac5cfb0424",
+      "frames": 276
+    },
+    "png": {
+      "bytes": 272766,
+      "sha256": "42b9bc8e62b081e44819817bc995a0129f2067b82b7854c26f2eee558d063df6"
+    }
+  },
+  "sources": [
+    {
+      "part": "09-cli-batch-json-complete",
+      "source": "type urls.txt",
+      "commands": [
+        "type urls.txt",
+        "flucto download \"http://127.0.0.1:58080/reference-b.html\" -f mp4 -o out -j",
+        "flucto batch urls.txt -f mp3 -c 2 -o out -p -j",
+        "dir /b /s out"
+      ],
+      "transcript": "scripts/demo/captures/09-cli-batch-json.transcript.json",
+      "transcriptLog": "scripts/demo/captures/09-cli-batch-json.transcript.log"
+    }
+  ]
+}

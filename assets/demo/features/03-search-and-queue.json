@@ -1,0 +1,50 @@
+{
+  "id": "03-search-and-queue",
+  "productVersion": "1.18.0",
+  "capture": "Actual Electron UI screenshots from an isolated owned profile; no mock UI, injected results or generated frames.",
+  "timing": "Frames remain chronological. Long wait/capture gaps capped at 1.25 seconds. The long integrated-search wait is cut. Playback is not a speed benchmark.",
+  "sourceRights": "Media downloads/extraction use an original procedural video and authored WebVTT. Blender search/playlist recordings display public metadata only; no third-party video was downloaded.",
+  "durationSeconds": 25.08,
+  "distinctCapturedFrames": 60,
+  "assets": {
+    "mp4": {
+      "bytes": 687042,
+      "sha256": "29dd39bb1e95afbcd9c57e19d2352c0cc20d82cb82fee2408d24b98540d2d30a"
+    },
+    "gif": {
+      "bytes": 1968634,
+      "sha256": "419661c7c983623397fbc330f8d510c4d957cc073e19de816a969562b5c52d66"
+    },
+    "png": {
+      "bytes": 328194,
+      "sha256": "41f35b85183735b1f0a0f23c53085ac5f058e5c5b9749281b95424626b73b34e"
+    }
+  },
+  "sources": [
+    {
+      "part": "03-published",
+      "source": "Live YouTube native search on published1.18.0; public metadata only",
+      "rawFrames": 42,
+      "includedFrames": 42,
+      "originalDurationMs": 10695,
+      "evidence": {
+        "query": "Blender Studio",
+        "added": "Add OVERGROWN - Blender Feature Film (Teaser) to queue",
+        "surface": "eBlender Studio · 4:23\n\nAdd\nProject Gold - Blender Stylized Rendering Showcase\n\nYouTube · nativeBlender Studio · 4:21\n\nAdd\nWe are making a feature film!\n\nYouTube · nativeBlender Studio · 1:10\n\nAdd\nAgent 327: Operation Barbershop\n\nYouTube · nativeBlender Studio · 3:52\n\nAdd\nSprite Fright - Blender Open Movie\n\nYouTube · nativeBlender Studio · 10:30\n\nAdd\nCreating Quick Animation In Blender 4.0\n\nYouTube · nativeThe Adam · 23:00\n\nAdd\nAnimating Storm – Blender 5.0 Advanced Rig in Action\n\nYouTube · nativeBlender Studio · 0:51\n\nAdd\nSpring - Blender Open Movie\n\nYouTube · nativeBlender Studio · 7:45\n\nAdd\nIntroducing Storm - High-quality Blender 5.0 character rig\n\nYouTube · nativeBlender Studio and Blender · 0:51\n\nAdd\nDOGWALK - Trailer\n\nYouTube · nativeBlender Studio · 0:31\n\nAdd\nCoffee Run - Blender Open Movie\n\nYouTube · nativeBlender Studio · 3:05\n\nAdd\nSpring - Blender Open Movie Showreel\n\nYouTube · nativeBlender Studio · 3:09\n\nAdd\nSINGULARITY - Painterly Space Adventure\n\nYouTube · nativeBlender Studio and Blender · 6:31\n\nAdd\nBlender 4.2 LTS - Showcase Reel\n\nYouTube · nativeBlender · 1:40\n\nAdd\nNEW Course: FACIAL RIGGING by Blender Studio\n\nYouTube · nativeBlender Studio · 1:51\n\nAdd\nDownload List (1)\nDownload All\n1:22\nOVERGROWN - Blender Feature Film (Teaser)\nBlender Studio and Blender\n388.4K",
+        "runtime": "Authentic published Windows1.18.0 payload"
+      }
+    },
+    {
+      "part": "03-integrated",
+      "source": "Real all-sites search with native/index attribution and truthful partial source failures",
+      "rawFrames": 186,
+      "includedFrames": 56,
+      "originalDurationMs": 47678,
+      "evidence": {
+        "query": "Blender Studio",
+        "sourceStatus": "YouTube\nNATIVE\n20 results\nsite search\nX / Twitter\nINDEX\nPublic video indexes could not serve X / Twitter results (Google: human-verification page | DuckDuckGo: page.evaluate: Error: ddg-http-403 at fetchDdgVideos (eval at evaluate (:311:30), <anonymous>:8:15) at async <anonymous>:337:30 | Bing: results served but none scoped to X / Twitter).\nnative unavailable\nindex search\nInstagram\nINDEX\nPublic video indexes could not serve Instagram results (Google: human-verification page | DuckDuckGo: page.evaluate: Error: ddg-http-403 at fetchDdgVideos (eval at evaluate (:311:30), <anonymous>:8:15) at async <anonymous>:337:30 | Bing: results served but none scoped to Instagram).\nnative unavailable\nindex search\nReddit\nNATIVE\nreddit search API rejected the request (HTTP 403). Anonymous reddit search is blocked on this network or temporarily rate-limited. Original search: https://www.reddit.com/search/?q=Blender%20Studio&type=media Web-index fallback also failed: Public video indexes could not serve Reddit results (Google: human-verification page | DuckDuckGo: page.evaluate: Error: ddg-http-403 at fetchDdgVideos (eval at evaluate (:311:30), <anonymous>:8:15) at async <anonymous>:337:30 | Bing: results served but none scoped to Reddit).\nsite search\nBilibili\nNATIVE\n17 results\nsite search\nDailymotion\nNATIVE\n20 results\nsite search\nNiconico\nNATIVE\n20 results\nsite search\nOK.ru\nNATIVE\n20 results\nsite search\nVK Video\nNATIVE\n20 results\nsite search\nThreads\nINDEX\nPublic video indexes could not serve Threads results (Google: human-verification page | DuckDuckGo: page.evaluate: Error: ddg-http-403 at fetchDdgVideos (eval at evaluate (:311:30), <anonymous>:8:15) at async <anonymous>:337:30 | Bing: results served but none scoped to Threads).\nnative unavailable\nindex search\nTikTok\nINDEX\n12 results\nnative unavailable\nindex search\nVimeo\nINDEX\nPublic video indexes could not serve Vimeo results (Google: human-verification page | DuckDuckGo: page.evaluate: Error: ddg-http-403 at fetchDdgVideos (eval at evaluate (:311:30), <anonymous>:8:15) at async <anonymous>:337:30 | Bing: results served but none scoped to Vimeo).\nindex search",
+        "surface": " · nativeBuzzVid · 7:44\n\nAdd\n【第６回東方ニコ童祭】紫の弾幕ごっこ（予告）\n\nNiconico · nativeuser:7029651 · 1:15\n\nAdd\nCGI 3D Animated Short_ Sintel - by Blender Animation Studio _ TheCGBros\n\nOK.ru · native · 14:48\n\nAdd\nby Blender Studio\n\nVK Video · nativeВольница. Учим полезному · 4:48\n\nAdd\nRomper una pared de ladrillos en Blender: método realista paso a paso\n\nTikTok · index@reckie7\n\nAdd\nOvergrown 🤝 Cowboi - Blender Studio Log 31\n\nYouTube · nativeBlender Studio · 14:30\n\nAdd\n【Blender】开源动画长片计划OVERGROWN，你能从中得到什么？ @Blender Studio\n\nBilibili · native3分的人生 · 4:42\n\nAdd\nBlender\n\nDailymotion · nativeFreetronic · 0:18\n\nAdd\n硬派なバーチャルYouTuberを作ってみた\n\nNiconico · nativeuser:45208726 · 10:25\n\nAdd\n3.2 Mesh In Blender – SH3D Studio\n\nOK.ru · native · 3:33\n\nAdd\nОбзор Simply Cloth Studio 2.1.0 | Blender 5x\n\nVK Video · nativeBLEND ARS · 51:11\n\nAdd\nWhy are you still prepping food the HARD WAY?! @Ninja Kitchen #blender #foodprocessor #ninjakitchen #ninjacrushboss #kitchenhacks\n\nTikTok · index@sharpafedc\n\nAdd\nWING IT! - Blender Open Movie\n\nYouTube · nativeBlender Studio · 3:58\n\nAdd\nBlender Studio - Rigging Tools绑定工具【Blender】\n\nBilibili · native会打酱油的酱油 · 157:35\n\nAdd\nBlender\n\nDailymotion · nativeAction24_ · 0:56\n\nAdd\n（予告２）人間と紫の弾幕ごっこ\n\nNiconico · nativeuser:7029651 · 1:06\n\nAdd\n1.7 Shader Editor in Blender – SH3D Studio\n\nOK.ru · native · 2:23\n\nAdd\nBlender Studio выкатили Brushstroke Tools - бесплатное расширение для нанесения мазков кистью на 3D-модели в blender 🍩\n\nVK Video · nativeINDIE DEV GAMES | ИНДИ РАЗРАБОТЧИКИ · 2:03\n\nAdd"
+      }
+    }
+  ]
+}

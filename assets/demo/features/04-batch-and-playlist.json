@@ -1,0 +1,127 @@
+{
+  "id": "04-batch-and-playlist",
+  "productVersion": "1.18.0",
+  "capture": "Actual Electron UI screenshots from an isolated owned profile; no mock UI, injected results or generated frames.",
+  "timing": "Frames remain chronological. Long wait/capture gaps capped at 1.25 seconds. Playback is not a speed benchmark.",
+  "sourceRights": "Media downloads/extraction use an original procedural video and authored WebVTT. Blender search/playlist recordings display public metadata only; no third-party video was downloaded.",
+  "durationSeconds": 29.57,
+  "distinctCapturedFrames": 59,
+  "assets": {
+    "mp4": {
+      "bytes": 675429,
+      "sha256": "a03db397d242ff6ccbaf302c429479ae73c1f0d57ea8016765962e10bee0390a"
+    },
+    "gif": {
+      "bytes": 2123056,
+      "sha256": "4b68dbf3f1c8353b43439ffc4dbe4ee44522db9bb59fd3fe4bc4fda25c681918"
+    },
+    "png": {
+      "bytes": 322170,
+      "sha256": "f7ce19aa01be6fc90d1aefc2c8d76131f7f0aec1b4ad8474c306777846641798"
+    }
+  },
+  "sources": [
+    {
+      "part": "04-complete",
+      "source": "Self-authored .txt input with two real HTML5 video pages",
+      "rawFrames": 9,
+      "includedFrames": 9,
+      "originalDurationMs": 32088,
+      "evidence": {
+        "nativePicker": {
+          "ownerProcessId": 17728,
+          "dialog": "Select Batch File (URL List)",
+          "selection": "C:\\Users\\Declan\\AppData\\Local\\Temp\\flucto-demo-KWPDkF\\sources.txt",
+          "action": "Owned native bounded WM_SETTEXT + posted BM_CLICK"
+        },
+        "history": [
+          {
+            "id": "batch-1791375918509-1",
+            "url": "http://127.0.0.1:49479/reference-b.html?batch=1",
+            "title": "Flucto Studio Reference 02 (1)",
+            "timestamp": 1791375924441,
+            "status": "success",
+            "filePath": "C:\\Users\\Declan\\AppData\\Local\\Temp\\flucto-demo-KWPDkF\\outputs\\Flucto Studio Reference 02 (1).mp4",
+            "format": "mp4"
+          },
+          {
+            "id": "batch-1791375918502-0",
+            "url": "http://127.0.0.1:49479/reference-a.html?batch=1",
+            "title": "Flucto Studio Reference 01 (1)",
+            "timestamp": 1791375924428,
+            "status": "success",
+            "filePath": "C:\\Users\\Declan\\AppData\\Local\\Temp\\flucto-demo-KWPDkF\\outputs\\Flucto Studio Reference 01 (1).mp4",
+            "format": "mp4"
+          },
+          {
+            "id": "batch-1791375195207-0",
+            "url": "http://127.0.0.1:49479/reference-b.html?audio=2",
+            "title": "Flucto Studio Reference 02 (1)",
+            "timestamp": 1791375198587,
+            "status": "success",
+            "filePath": "C:\\Users\\Declan\\AppData\\Local\\Temp\\flucto-demo-KWPDkF\\outputs\\Flucto Studio Reference 02 (1).mp3",
+            "format": "mp3"
+          },
+          {
+            "id": "batch-1791375079591-0",
+            "url": "http://127.0.0.1:49479/reference-a.html?video=4",
+            "title": "Flucto Studio Reference 01 (1)",
+            "timestamp": 1791375084397,
+            "status": "success",
+            "filePath": "C:\\Users\\Declan\\AppData\\Local\\Temp\\flucto-demo-KWPDkF\\outputs\\Flucto Studio Reference 01 (1).mp4",
+            "format": "mp4"
+          },
+          {
+            "id": "099aa6ac-08d7-40d1-8eb0-75a842184712",
+            "url": "http://127.0.0.1:49479/reference-a.html?captions=2",
+            "title": "Flucto Studio Reference 01 (1)",
+            "timestamp": 1791374976735,
+            "status": "success",
+            "filePath": "C:\\Users\\Declan\\AppData\\Local\\Temp\\flucto-demo-KWPDkF\\outputs\\Flucto_Studio_Reference_01_(1)_20261007.md",
+            "format": "md"
+          },
+          {
+            "id": "batch-1791374449744-0",
+            "url": "http://127.0.0.1:49479/reference-b.html",
+            "title": "Flucto Studio Reference 02 (1)",
+            "timestamp": 1791374457534,
+            "status": "success",
+            "filePath": "C:\\Users\\Declan\\AppData\\Local\\Temp\\flucto-demo-KWPDkF\\outputs\\Flucto Studio Reference 02 (1).mp3",
+            "format": "mp3"
+          },
+          {
+            "id": "batch-1791374324664-0",
+            "url": "http://127.0.0.1:49479/reference-a.html?take=3",
+            "title": "Flucto Studio Reference 01 (1)",
+            "timestamp": 1791374331100,
+            "status": "success",
+            "filePath": "C:\\Users\\Declan\\AppData\\Local\\Temp\\flucto-demo-KWPDkF\\outputs\\Flucto Studio Reference 01 (1).mp4",
+            "format": "mp4"
+          },
+          {
+            "id": "batch-1791373945069-0",
+            "url": "http://127.0.0.1:49479/reference-a.html",
+            "title": "Flucto Studio Reference 01 (1)",
+            "timestamp": 1791373950639,
+            "status": "success",
+            "filePath": "C:\\Users\\Declan\\AppData\\Local\\Temp\\flucto-demo-KWPDkF\\outputs\\Flucto Studio Reference 01 (1).mp4",
+            "format": "mp4"
+          }
+        ]
+      }
+    },
+    {
+      "part": "04-playlist",
+      "source": "https://www.youtube.com/playlist?list=PLav47HAVZMjkxzzLDqYpTCosbsWjosUN0",
+      "rawFrames": 61,
+      "includedFrames": 61,
+      "originalDurationMs": 19745,
+      "evidence": {
+        "source": "https://www.youtube.com/playlist?list=PLav47HAVZMjkxzzLDqYpTCosbsWjosUN0",
+        "removed": "Remove Overgrown 🤝 Cowboi - Blender Studio Log 31 from queue",
+        "surface": ":07\nHome Stretch! - Blender Studio Log 17\nBlender Studio\n12K\n9:39\nPrepping the Vertical Slice - Blender Studio Log 11\nBlender Studio\n18K\n10:13\nMood, Emotes & More! - Blender Studio Log 13\nBlender Studio\n16K\n11:09\nIgnore Error Messages - Blender Studio Log 12\nBlender Studio\n16K\n15:29\nThe Pablico Paradox - Blender Studio Log 15\nBlender Studio\n14K\n12:54\nLighting, FX and Wiggles - Blender Studio Log 16\nBlender Studio\n14K\n11:32\nPlaytesting and Playgrounds - Blender Studio Log 14\nBlender Studio\n13K\n10:16\nWhy Godot? - Blender Studio Log 10\nBlender Studio\n80K\n9:45\nGame Project Begins! - Blender Studio Log 07\nBlender Studio\n29K\n10:07\nBlender Studio Log 09 - Building the Papercraft Look\nBlender Studio\n21K\n7:52\nNew Year, New Projects - Blender Studio Log 06\nBlender Studio\n19K\n8:58\nMeet Your Heroes - Blender Studio Log 04\nBlender Studio\n15K\n11:26\nQuadrupeds - Blender Studio Log 08\nBlender Studio\n12K\n12:53\nWrapping Up & BCON24 Preparations - Blender Studio Log 05\nBlender Studio\n9.6K\n10:05\nBCON24 identity and more - Blender Studio Log 02\nBlender Studio\n12K\n7:02\nTrying the new Grease Pencil - Blender Studio Log 03\nBlender Studio\n11K\n12:01\nOut of the Zone - Blender Studio Log 01\nBlender Studio\n21K",
+        "rights": "Public official Blender Studio playlist metadata only; no external video downloaded."
+      }
+    }
+  ]
+}

@@ -1,0 +1,209 @@
+{
+  "id": "06-settings-and-history",
+  "productVersion": "1.18.0",
+  "capture": "Actual Electron UI screenshots from an isolated owned profile; no mock UI, injected results or generated frames.",
+  "timing": "Frames remain chronological. Long wait/capture gaps capped at 1.25 seconds. Playback is not a speed benchmark.",
+  "sourceRights": "Media downloads/extraction use an original procedural video and authored WebVTT. Blender search/playlist recordings display public metadata only; no third-party video was downloaded.",
+  "durationSeconds": 41.77,
+  "distinctCapturedFrames": 106,
+  "assets": {
+    "mp4": {
+      "bytes": 624339,
+      "sha256": "3063ea1c6f6c95151c1f3c53c5c2dfde1ee816eeffacf456fad393e9d5a57422"
+    },
+    "gif": {
+      "bytes": 2474097,
+      "sha256": "103a0984bc84c71b6339f70dd08855b356233802f610eab0912c6cdbee7ebadc"
+    },
+    "png": {
+      "bytes": 220633,
+      "sha256": "78dd4684596110d963c66c6790e145afb0313443e2dd6d2e9be92027c4d35516"
+    }
+  },
+  "sources": [
+    {
+      "part": "06-complete",
+      "source": "http://127.0.0.1:49479/reference-a.html?settings=1",
+      "rawFrames": 72,
+      "includedFrames": 72,
+      "originalDurationMs": 18408,
+      "evidence": {
+        "nativePicker": {
+          "ownerProcessId": 17728,
+          "dialog": "Select Download Directory",
+          "selection": "C:\\Users\\Declan\\AppData\\Local\\Temp\\flucto-demo-KWPDkF\\creator-project",
+          "action": "Owned native bounded WM_SETTEXT + posted BM_CLICK"
+        },
+        "settings": {
+          "downloadsDirectory": "C:\\Users\\Declan\\AppData\\Local\\Temp\\flucto-demo-KWPDkF\\creator-project",
+          "qualityPreferences": {
+            "video": "720p",
+            "audio": "192kbps"
+          },
+          "formatOverrides": {
+            "videoFormatId": null,
+            "audioFormatId": null
+          },
+          "notifyPerItemInBatch": true
+        },
+        "history": [
+          {
+            "id": "8d67b5de-7ccb-4322-bad4-42ddb5c542ca",
+            "url": "http://127.0.0.1:49479/reference-a.html?settings=1",
+            "title": "Flucto Studio Reference 01 (1)",
+            "timestamp": 1791376196924,
+            "status": "success",
+            "filePath": "C:\\Users\\Declan\\AppData\\Local\\Temp\\flucto-demo-KWPDkF\\creator-project\\Flucto Studio Reference 01 (1).mp4",
+            "format": "mp4"
+          },
+          {
+            "id": "batch-1791375918509-1",
+            "url": "http://127.0.0.1:49479/reference-b.html?batch=1",
+            "title": "Flucto Studio Reference 02 (1)",
+            "timestamp": 1791375924441,
+            "status": "success",
+            "filePath": "C:\\Users\\Declan\\AppData\\Local\\Temp\\flucto-demo-KWPDkF\\outputs\\Flucto Studio Reference 02 (1).mp4",
+            "format": "mp4"
+          },
+          {
+            "id": "batch-1791375918502-0",
+            "url": "http://127.0.0.1:49479/reference-a.html?batch=1",
+            "title": "Flucto Studio Reference 01 (1)",
+            "timestamp": 1791375924428,
+            "status": "success",
+            "filePath": "C:\\Users\\Declan\\AppData\\Local\\Temp\\flucto-demo-KWPDkF\\outputs\\Flucto Studio Reference 01 (1).mp4",
+            "format": "mp4"
+          },
+          {
+            "id": "batch-1791375195207-0",
+            "url": "http://127.0.0.1:49479/reference-b.html?audio=2",
+            "title": "Flucto Studio Reference 02 (1)",
+            "timestamp": 1791375198587,
+            "status": "success",
+            "filePath": "C:\\Users\\Declan\\AppData\\Local\\Temp\\flucto-demo-KWPDkF\\outputs\\Flucto Studio Reference 02 (1).mp3",
+            "format": "mp3"
+          },
+          {
+            "id": "batch-1791375079591-0",
+            "url": "http://127.0.0.1:49479/reference-a.html?video=4",
+            "title": "Flucto Studio Reference 01 (1)",
+            "timestamp": 1791375084397,
+            "status": "success",
+            "filePath": "C:\\Users\\Declan\\AppData\\Local\\Temp\\flucto-demo-KWPDkF\\outputs\\Flucto Studio Reference 01 (1).mp4",
+            "format": "mp4"
+          },
+          {
+            "id": "099aa6ac-08d7-40d1-8eb0-75a842184712",
+            "url": "http://127.0.0.1:49479/reference-a.html?captions=2",
+            "title": "Flucto Studio Reference 01 (1)",
+            "timestamp": 1791374976735,
+            "status": "success",
+            "filePath": "C:\\Users\\Declan\\AppData\\Local\\Temp\\flucto-demo-KWPDkF\\outputs\\Flucto_Studio_Reference_01_(1)_20261007.md",
+            "format": "md"
+          },
+          {
+            "id": "batch-1791374449744-0",
+            "url": "http://127.0.0.1:49479/reference-b.html",
+            "title": "Flucto Studio Reference 02 (1)",
+            "timestamp": 1791374457534,
+            "status": "success",
+            "filePath": "C:\\Users\\Declan\\AppData\\Local\\Temp\\flucto-demo-KWPDkF\\outputs\\Flucto Studio Reference 02 (1).mp3",
+            "format": "mp3"
+          },
+          {
+            "id": "batch-1791374324664-0",
+            "url": "http://127.0.0.1:49479/reference-a.html?take=3",
+            "title": "Flucto Studio Reference 01 (1)",
+            "timestamp": 1791374331100,
+            "status": "success",
+            "filePath": "C:\\Users\\Declan\\AppData\\Local\\Temp\\flucto-demo-KWPDkF\\outputs\\Flucto Studio Reference 01 (1).mp4",
+            "format": "mp4"
+          },
+          {
+            "id": "batch-1791373945069-0",
+            "url": "http://127.0.0.1:49479/reference-a.html",
+            "title": "Flucto Studio Reference 01 (1)",
+            "timestamp": 1791373950639,
+            "status": "success",
+            "filePath": "C:\\Users\\Declan\\AppData\\Local\\Temp\\flucto-demo-KWPDkF\\outputs\\Flucto Studio Reference 01 (1).mp4",
+            "format": "mp4"
+          }
+        ],
+        "clearedHistory": []
+      }
+    },
+    {
+      "part": "06-exact-formats",
+      "source": "http://127.0.0.1:49479/format-reference.html",
+      "rawFrames": 93,
+      "includedFrames": 93,
+      "originalDurationMs": 23742,
+      "evidence": {
+        "availableFormats": {
+          "videos": [
+            {
+              "value": "",
+              "label": "Auto (quality preset)"
+            },
+            {
+              "value": "hls-1500",
+              "label": "hls-1500 - 960x540"
+            }
+          ],
+          "audios": [
+            {
+              "value": "",
+              "label": "Auto (quality preset)"
+            },
+            {
+              "value": "hls-audio-Reference_audio",
+              "label": "hls-audio-Reference_audio - Reference audio"
+            }
+          ]
+        },
+        "settings": {
+          "downloadsDirectory": "C:/Users/Declan/AppData/Local/Temp/flucto-demo-KWPDkF/outputs",
+          "qualityPreferences": {
+            "video": "1080p",
+            "audio": "320kbps"
+          },
+          "formatOverrides": {
+            "videoFormatId": "hls-1500",
+            "audioFormatId": "hls-audio-Reference_audio"
+          },
+          "notifyPerItemInBatch": false
+        },
+        "history": [
+          {
+            "id": "2bb5abe7-632d-47f0-8a7e-88330fe8a928",
+            "url": "http://127.0.0.1:49479/format-reference.html",
+            "title": "Flucto Original Format Reference (1)",
+            "timestamp": 1791378309170,
+            "status": "success",
+            "filePath": "C:\\Users\\Declan\\AppData\\Local\\Temp\\flucto-demo-KWPDkF\\outputs\\Flucto Original Format Reference (1).mp4",
+            "format": "mp4"
+          },
+          {
+            "id": "batch-1791377861627-0",
+            "url": "http://127.0.0.1:49479/reference-b.html?published=1",
+            "title": "Flucto Studio Reference 02 (1)",
+            "timestamp": 1791377866414,
+            "status": "success",
+            "filePath": "C:\\Users\\Declan\\AppData\\Local\\Temp\\flucto-demo-KWPDkF\\outputs\\Flucto Studio Reference 02 (1).mp3",
+            "format": "mp3"
+          },
+          {
+            "id": "batch-1791377797255-0",
+            "url": "http://127.0.0.1:49479/reference-a.html?published=1",
+            "title": "Flucto Studio Reference 01 (1)",
+            "timestamp": 1791377802015,
+            "status": "success",
+            "filePath": "C:\\Users\\Declan\\AppData\\Local\\Temp\\flucto-demo-KWPDkF\\outputs\\Flucto Studio Reference 01 (1).mp4",
+            "format": "mp4"
+          }
+        ],
+        "runtime": "Published Windows1.18.0; original HLS video/audio fixture"
+      }
+    }
+  ]
+}

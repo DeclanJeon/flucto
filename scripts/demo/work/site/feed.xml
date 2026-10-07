@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/">
+<channel>
+  <title>Flucto Demo Channel</title>
+  <link>http://127.0.0.1:58080/</link>
+  <description>Self-authored two-item reference playlist for the Flucto channel to-md CLI demo.</description>
+  <item>
+    <title>Reference Clip A</title>
+    <link>http://127.0.0.1:58080/reference-a.html</link>
+    <guid isPermaLink="false">flucto-demo-clip-a</guid>
+    <media:content url="http://127.0.0.1:58080/v1/reference-a.mp4" type="video/mp4" medium="video" duration="12"/>
+  </item>
+  <item>
+    <title>Reference Clip B</title>
+    <link>http://127.0.0.1:58080/reference-b.html</link>
+    <guid isPermaLink="false">flucto-demo-clip-b</guid>
+    <media:content url="http://127.0.0.1:58080/v2/reference-b.mp4" type="video/mp4" medium="video" duration="12"/>
+  </item>
+</channel>
+</rss>

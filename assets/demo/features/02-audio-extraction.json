@@ -1,0 +1,56 @@
+{
+  "id": "02-audio-extraction",
+  "productVersion": "1.18.0",
+  "capture": "Actual Electron UI screenshots from an isolated owned profile; no mock UI, injected results or generated frames.",
+  "timing": "Frames remain chronological. Long wait/capture gaps capped at 1.25 seconds. Playback is not a speed benchmark.",
+  "sourceRights": "Media downloads/extraction use an original procedural video and authored WebVTT. Blender search/playlist recordings display public metadata only; no third-party video was downloaded.",
+  "durationSeconds": 24.22,
+  "distinctCapturedFrames": 82,
+  "assets": {
+    "mp4": {
+      "bytes": 409870,
+      "sha256": "50bac8746bad100d9bb9e9fbb06f7af46730eb398fbbee12eaa6161bc5b85eb8"
+    },
+    "gif": {
+      "bytes": 1529343,
+      "sha256": "55c4649fa2581255babe9b2350f537193d902c0ad1e962fd01baaf55f91dfe2f"
+    },
+    "png": {
+      "bytes": 245803,
+      "sha256": "ae425fa886d77a6030cd11c457dd9a04d169bd084b4a53155db9463e20009b39"
+    }
+  },
+  "sources": [
+    {
+      "part": "02-published",
+      "source": "http://127.0.0.1:49479/reference-b.html?published=1",
+      "rawFrames": 96,
+      "includedFrames": 96,
+      "originalDurationMs": 24439,
+      "evidence": {
+        "history": [
+          {
+            "id": "batch-1791377861627-0",
+            "url": "http://127.0.0.1:49479/reference-b.html?published=1",
+            "title": "Flucto Studio Reference 02 (1)",
+            "timestamp": 1791377866414,
+            "status": "success",
+            "filePath": "C:\\Users\\Declan\\AppData\\Local\\Temp\\flucto-demo-KWPDkF\\outputs\\Flucto Studio Reference 02 (1).mp3",
+            "format": "mp3"
+          },
+          {
+            "id": "batch-1791377797255-0",
+            "url": "http://127.0.0.1:49479/reference-a.html?published=1",
+            "title": "Flucto Studio Reference 01 (1)",
+            "timestamp": 1791377802015,
+            "status": "success",
+            "filePath": "C:\\Users\\Declan\\AppData\\Local\\Temp\\flucto-demo-KWPDkF\\outputs\\Flucto Studio Reference 01 (1).mp4",
+            "format": "mp4"
+          }
+        ],
+        "surface": "Flucto\nCreator-First Media Downloader\n리뷰작성\n5\nSIGNAL-TO-SIGNAL MEDIA FLOW\nAny Platform.\nOne Downloader.\n\nDownload by URL, or search across 12 sites including YouTube, Threads, X, and Instagram.\n\nFlucto keeps each request auditable and visible: batch queueing, resilient format checks, and clean handoff into your download folder.\n\nAPP UPDATES\n\nYou are on the latest app version.\n\nCheck now\nMP4\nMP3\nMD\nBest Quality\nSearch videos\nAll sites (integrated)\nYouTube\nX / Twitter\nInstagram\nReddit\nBilibili\nDailymotion\nNiconico\nOK.ru\nVK Video\nThreads\nTikTok\nVimeo\nSearch\nDownload History(2)\nOpen Folder\nClear\n\nOctober 7, 2026\n\nFlucto Studio Reference 02 (1)\n\nC:\\Users\\Declan\\AppData\\Local\\Temp\\flucto-demo-KWPDkF\\outputs\\Flucto Studio Reference 02 (1).mp3\n\nJust now\n\nFlucto Studio Reference 01 (1)\n\nC:\\Users\\Declan\\AppData\\Local\\Temp\\flucto-demo-KWPDkF\\outputs\\Flucto Studio Reference 01 (1).mp4\n\n1m ago",
+        "runtime": "Authentic published Windows1.18.0 payload"
+      }
+    }
+  ]
+}

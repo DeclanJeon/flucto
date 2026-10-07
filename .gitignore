@@ -106,3 +106,6 @@ pids
 
 # ─── Local CLI job outputs ────────────────────────────────────────
 flucto-cli-output/
+
+# ─── Demo capture intermediates ───────────────────────────────────
+scripts/demo/captures/
