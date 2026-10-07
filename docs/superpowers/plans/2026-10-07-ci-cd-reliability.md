@@ -212,3 +212,6 @@
 - 격리 bin에서 실제 CLI `setup --force --json`으로 yt-dlp와 FFmpeg ZIP을 새로 내려받았다. 설치 결과 `valid: true`, yt-dlp `2026.09.27.232945`, FFmpeg `8.1.2` 실행 버전을 확인했다. 기존 사용자 bin은 변경하지 않았다.
 - 실제 `concurrently` CLI로 공백 포함 두 Node command를 동시에 실행해 둘 다 exit 0을 확인했다.
 - 최종 production audit은 **0건**이다. 전체 audit은 **22건(12 high / 10 moderate), exit 1**로 여전히 실패한다. 남은 원인은 unpatched `braces`/`sprintf-js`, electron-builder의 legacy `@electron/get` chain 및 npm 11.21.0 내부 bundled dependency다. 무검증 cross-major override나 semantic-release plugin 강제 downgrade로 숨기지 않는다.
+- [Artifact smoke run 37588814483](https://github.com/DeclanJeon/flucto/actions/runs/37588814483)은 3개 OS 모두 v6 upload → v8 download → 복원된 실제 compiled CLI 실행에 성공했다. Linux job은 기존 v4 원본 run `37508545685`의 Windows artifact도 v8로 받아 setup installer SHA-256이 공개 Release digest와 동일함을 검증했다.
+- [Branch CI run 37588814417](https://github.com/DeclanJeon/flucto/actions/runs/37588814417)의 Windows/macOS/Linux checks도 모두 성공했다. 실제 실행 annotation에는 Node 20 action deprecation이 없고 Ubuntu runner migration/macOS queue 안내만 있었다.
+- [PR #5](https://github.com/DeclanJeon/flucto/pull/5)로 변경을 제출했다. 검증용 workflow와 격리 profile/bin/download smoke 파일은 제거했다. 보안 변경은 아직 배포된 `v1.17.0`에 반영되지 않았다.
