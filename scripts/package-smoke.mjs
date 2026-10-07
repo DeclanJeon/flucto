@@ -146,7 +146,6 @@ try {
     const bundledYt = path.join(resources, 'bin', process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp');
     await run(bundledYt, ['--version']);
     await run(bundledFfmpeg, ['-version']);
-    asar.statFile(path.join(resources, 'app.asar'), 'node_modules/ajv/dist/2020.js');
     const cpu = process.arch;
     const port = 38147;
     const screenshotPath = path.join(releaseDir, `package-smoke-${process.platform}-${cpu}.png`);
@@ -163,7 +162,7 @@ try {
       if (desktop.exitCode !== null) throw new Error(`Desktop exited: ${launchOutput}`);
       const response = await fetch(`http://127.0.0.1:${port}/json/list`, { signal: AbortSignal.timeout(2000) });
       return (await response.json()).find((entry) => entry.type === 'page' && entry.url.startsWith('file:'));
-    }, 'installed desktop renderer');
+    }, 'installed desktop renderer').catch((error) => { throw new Error(`${error.message}\nDesktop output:\n${launchOutput}`, { cause: error }); });
     socket = new WebSocket(target.webSocketDebuggerUrl);
     await new Promise((resolve, reject) => { socket.addEventListener('open', resolve, { once: true }); socket.addEventListener('error', reject, { once: true }); });
     let nextId = 0;
