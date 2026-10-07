@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -12,11 +13,7 @@ import { checkBinaryHealth, resolveCliBinaries } from '../dist-electron/main/ser
 import { setupUtilities } from '../dist-electron/main/services/binaryInstaller.js';
 import { applyCliUpdate, checkForCliUpdate, downloadCliUpdate, parseChecksumManifest, verifySha256 } from '../dist-electron/main/services/cliUpdater.js';
 import { compareVersions, parseGitHubRelease } from '../dist-electron/main/services/githubRelease.js';
-import { selectReleaseAsset } from '../dist-electron/main/services/platformAssets.js';
-import {
-  parseDownloadProgress,
-  parseFinalFilePath,
-} from '../dist-electron/main/services/mediaDownload.js';
+import { parseDownloadProgress } from '../dist-electron/main/services/mediaDownload.js';
 import { normalizeTranscriptSettings, saveMarkdownFile, transcriptWordCount } from '../dist-electron/main/services/transcriptMarkdown.js';
 
 const tempDirs = [];
@@ -33,16 +30,15 @@ const writeExecutable = createExecutableFixtures();
 
 const updateAssets = [
   { name: 'Flucto-1.10.0-x64-setup.exe', browser_download_url: 'https://example.test/setup.exe', size: 10, content_type: 'application/octet-stream' },
-  { name: 'Flucto-1.10.0-x64.zip', browser_download_url: 'https://example.test/x64.zip', size: 10, content_type: 'application/octet-stream' },
+  { name: 'Flucto-1.10.0-universal.dmg', browser_download_url: 'https://example.test/universal.dmg', size: 10, content_type: 'application/octet-stream' },
+  { name: 'Flucto-1.10.0-universal.zip', browser_download_url: 'https://example.test/universal.zip', size: 10, content_type: 'application/octet-stream' },
   { name: 'Flucto-1.10.0-arm64.zip', browser_download_url: 'https://example.test/arm64.zip', size: 10, content_type: 'application/octet-stream' },
+  { name: 'Flucto-1.10.0-arm64-setup.exe', browser_download_url: 'https://example.test/arm64-setup.exe', size: 10, content_type: 'application/octet-stream' },
   { name: 'Flucto-1.10.0-x86_64.AppImage', browser_download_url: 'https://example.test/flucto.AppImage', size: 11, content_type: 'application/octet-stream' },
+  { name: 'Flucto-1.10.0-cli-setup.zip', browser_download_url: 'https://example.test/cli-setup.zip', size: 13, content_type: 'application/zip' },
   { name: 'checksums-sha256.txt', browser_download_url: 'https://example.test/checksums.txt', size: 12, content_type: 'text/plain' },
 ];
-const expectedUpdateAsset = {
-  win32: 'Flucto-1.10.0-x64-setup.exe',
-  darwin: process.arch === 'arm64' ? 'Flucto-1.10.0-arm64.zip' : 'Flucto-1.10.0-x64.zip',
-  linux: 'Flucto-1.10.0-x86_64.AppImage',
-}[process.platform];
+const expectedUpdateAsset = 'Flucto-1.10.0-cli-setup.zip';
 
 test('CLI parser handles transcript stdout/json flags and defaults', () => {
   const options = parseCliArgs(['transcript', 'https://example.test/video', '--stdout', '--json', '--language', 'auto', '--no-timestamps']);
@@ -116,9 +112,8 @@ test('CLI parser handles setup and update commands', () => {
   assert.equal(update.updateAction, 'download');
   assert.equal(update.outputDir, '/tmp/releases');
 
-  const apply = parseCliArgs(['update', 'apply', '--asset', '/tmp/Flucto.AppImage', '--json']);
+  const apply = parseCliArgs(['update', 'apply', '--json']);
   assert.equal(apply.updateAction, 'apply');
-  assert.equal(apply.assetPath, '/tmp/Flucto.AppImage');
 });
 
 
@@ -242,14 +237,12 @@ test('setupUtilities force does not overwrite explicit binary paths', async () =
 });
 
 
-test('download output parsers extract progress and final file paths', () => {
+test('download progress parser extracts percentage, speed and ETA', () => {
   assert.deepEqual(parseDownloadProgress('[download] 42.5% of 10.00MiB at 1.25MiB/s ETA 00:12'), {
     progress: 42.5,
     speed: '1.25MiB/s',
     eta: '00:12',
   });
-  assert.equal(parseFinalFilePath('[Merger] Merging formats into "Video Title.mp4"'), 'Video Title.mp4');
-  assert.equal(parseFinalFilePath('[download] Destination: Song Title.webm'), 'Song Title.webm');
 });
 
 test('transcript settings normalize auto sentinel and default missing fields', () => {
@@ -280,12 +273,84 @@ test('GitHub release helpers parse versions, choose assets, and report update ch
 
   assert.equal(compareVersions('1.10.0', '1.9.1'), 1);
   assert.equal(release.version, '1.10.0');
-  assert.equal(selectReleaseAsset(release.assets, { platform: 'linux', arch: 'x64' })?.name, 'Flucto-1.10.0-x86_64.AppImage');
 
   const check = await checkForCliUpdate({ currentVersion: '1.9.1', release });
   assert.equal(check.updateAvailable, true);
   assert.equal(check.recommendedAsset, expectedUpdateAsset);
 });
+
+test('CLI update never recommends a desktop installer when the CLI archive is absent', async () => {
+  const release = parseGitHubRelease({
+    tag_name: 'v1.10.0',
+    assets: updateAssets.filter((asset) => !asset.name.includes('-cli-setup.zip')),
+  });
+  const check = await checkForCliUpdate({ currentVersion: '1.9.1', release });
+  assert.equal(check.recommendedAsset, null);
+});
+
+
+
+test('downloadCliUpdate verifies checksums and never leaves a corrupt final file', async () => {
+  const payload = Buffer.from('real cli setup archive bytes');
+  const goodHash = createHash('sha256').update(payload).digest('hex');
+  const release = parseGitHubRelease({
+    tag_name: 'v1.10.0',
+    assets: updateAssets,
+  });
+  const outputDir = makeTempDir();
+  const finalPath = path.join(outputDir, expectedUpdateAsset);
+
+  // Tampered manifest: download succeeds, checksum fails, final path stays clean.
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    if (String(url).endsWith('checksums.txt')) {
+      return new Response(`${'0'.repeat(64)}  ${expectedUpdateAsset}\n`);
+    }
+    return new Response(payload, { headers: { 'content-length': String(payload.length) } });
+  };
+  try {
+    await assert.rejects(
+      () => downloadCliUpdate({ currentVersion: '1.9.1', outputDir, release }),
+      /Checksum verification failed/,
+    );
+    assert.equal(fs.existsSync(finalPath), false);
+    assert.equal(fs.readdirSync(outputDir).filter((n) => !n.startsWith('.')).length, 0);
+
+    // Correct manifest: verified bytes land at the final name.
+    globalThis.fetch = async (url) => {
+      if (String(url).endsWith('checksums.txt')) {
+        return new Response(`${goodHash}  ${expectedUpdateAsset}\n`);
+      }
+      return new Response(payload, { headers: { 'content-length': String(payload.length) } });
+    };
+    const result = await downloadCliUpdate({ currentVersion: '1.9.1', outputDir, release });
+    assert.equal(result.downloaded, true);
+    assert.equal(result.checksumVerified, true);
+    assert.equal(result.path, finalPath);
+    assert.equal(fs.readFileSync(finalPath).toString(), payload.toString());
+    assert.equal(fs.readdirSync(outputDir).filter((n) => n.startsWith('.flucto-dl-')).length, 0);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+test('checksum failure preserves a previously downloaded verified installer', async () => {
+  const outputDir = makeTempDir();
+  const finalPath = path.join(outputDir, expectedUpdateAsset);
+  const verifiedBytes = Buffer.from('previous verified CLI installer');
+  fs.writeFileSync(finalPath, verifiedBytes);
+  const release = parseGitHubRelease({ tag_name: 'v1.10.0', assets: updateAssets });
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => String(url).endsWith('checksums.txt')
+    ? new Response(`${'0'.repeat(64)}  ${expectedUpdateAsset}\n`)
+    : new Response('tampered replacement');
+  try {
+    await assert.rejects(() => downloadCliUpdate({ currentVersion: '1.9.1', outputDir, release }), /Checksum verification failed/);
+    assert.deepEqual(fs.readFileSync(finalPath), verifiedBytes);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
 
 test('downloadCliUpdate fails when checksum manifest omits selected asset', async () => {
   const release = parseGitHubRelease({
@@ -311,7 +376,7 @@ test('downloadCliUpdate fails when checksum manifest omits selected asset', asyn
   }
 });
 
-test('checksum helpers verify files and update apply stays conservative', async () => {
+test('checksum helpers verify files', async () => {
   const temp = makeTempDir();
   const asset = path.join(temp, 'Flucto.AppImage');
   fs.writeFileSync(asset, 'release-asset', 'utf8');
@@ -320,39 +385,8 @@ test('checksum helpers verify files and update apply stays conservative', async 
   assert.equal(manifest.entries.get('Flucto.AppImage'), hash);
   assert.equal(await verifySha256(asset, hash), true);
 
-  const apply = await applyCliUpdate({ currentVersion: '1.9.1', assetPath: asset, installMode: 'portable' });
-  assert.equal(apply.applied, false);
-  assert.match(apply.next, /manually/);
 });
 
-test('update apply installs via npm in npm installs and fails without network side effects', async () => {
-  const applied = await applyCliUpdate({
-    currentVersion: '1.9.1',
-    installMode: 'npm',
-    execNpmInstall: async () => ({ failed: false, stdout: 'added 1 package', stderr: '' }),
-  });
-  assert.equal(applied.applied, true);
-  assert.match(applied.next, /flucto version/);
-
-  const failed = await applyCliUpdate({
-    currentVersion: '1.9.1',
-    installMode: 'npm',
-    execNpmInstall: async () => ({ failed: true, stdout: '', stderr: 'npm ERR! network unreachable' }),
-  });
-  assert.equal(failed.applied, false);
-  assert.match(failed.reason, /network unreachable/);
-  assert.match(failed.next, /npm install -g flucto@latest/);
-
-  const thrown = await applyCliUpdate({
-    currentVersion: '1.9.1',
-    installMode: 'npm',
-    execNpmInstall: async () => {
-      throw new Error('spawn npm ENOENT');
-    },
-  });
-  assert.equal(thrown.applied, false);
-  assert.match(thrown.reason, /ENOENT/);
-});
 
 test('update apply in source installs points at git instead of release assets', async () => {
   const result = await applyCliUpdate({ currentVersion: '1.9.1', installMode: 'source' });

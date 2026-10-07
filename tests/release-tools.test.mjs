@@ -18,6 +18,7 @@ import {
   validateSource,
   validateSourceRun,
   verifyArtifacts,
+  verifyPublicationSource,
 } from '../scripts/release-tools.mjs';
 
 const VERSION = '1.17.0';
@@ -126,13 +127,10 @@ const manifestYaml = (version, entries) =>
 
 const ARTIFACT_FILES = (version) => ({
   setup: `Flucto-${version}-x64-setup.exe`,
-  portable: `Flucto-${version}-x64-portable.exe`,
-  dmgX64: `Flucto-${version}-x64.dmg`,
-  dmgArm: `Flucto-${version}-arm64.dmg`,
-  zipX64: `Flucto-${version}-x64.zip`,
-  zipArm: `Flucto-${version}-arm64.zip`,
+  dmg: `Flucto-${version}-universal.dmg`,
+  zip: `Flucto-${version}-universal.zip`,
   appImage: `Flucto-${version}-x86_64.AppImage`,
-  deb: `Flucto-${version}-amd64.deb`,
+  cliSetup: `Flucto-${version}-cli-setup.zip`,
 });
 
 // A complete, correct artifact directory for the given version.
@@ -144,7 +142,7 @@ const makeArtifacts = (version, { omit = [], mutate = null } = {}) => {
     const content = `installer-bytes:${name}:${version}`;
     fileContents.set(name, content);
     if (!omit.includes(name)) write(dir, name, content);
-    if (name.endsWith('-setup.exe') || name.endsWith('.dmg') || name.endsWith('.zip')) {
+    if (name.endsWith('-setup.exe') || name.endsWith('.dmg') || name.endsWith('-universal.zip')) {
       write(dir, `${name}.blockmap`, `blockmap-bytes:${name}`);
     }
   }
@@ -152,8 +150,8 @@ const makeArtifacts = (version, { omit = [], mutate = null } = {}) => {
     names.map((name) => ({ url: name, sha512: sha512b64(fileContents.get(name)), size: fileContents.get(name).length }));
   const manifests = {
     'latest.yml': [names.setup],
-    'latest-mac.yml': [names.dmgX64, names.dmgArm, names.zipX64, names.zipArm],
-    'latest-linux.yml': [names.appImage, names.deb],
+    'latest-mac.yml': [names.dmg, names.zip],
+    'latest-linux.yml': [names.appImage],
   };
   for (const [manifest, files] of Object.entries(manifests)) {
     if (!omit.includes(manifest)) write(dir, manifest, manifestYaml(version, entries(files)));
@@ -307,6 +305,40 @@ test('compareVersions orders semver including prereleases', () => {
   assert.ok(compareVersions('2.0.0', '1.99.9') > 0);
 });
 
+test('publication accepts only the remotely pushed version-only release descended from the build source', async () => {
+  const repo = makeSourceRepo();
+  const remote = tmp('rt-remote-');
+  gitIn(remote, 'init', '--bare');
+  gitIn(repo.dir, 'remote', 'add', 'origin', remote);
+  gitIn(repo.dir, 'push', '--atomic', 'origin', 'main', `v${VERSION}`);
+  const ctx = { cwd: repo.dir, env: { GITHUB_SHA: repo.headSha, GITHUB_REF_NAME: 'main' } };
+  assert.equal((await verifyPublicationSource(ctx, VERSION)).head, repo.tagSha);
+  gitIn(repo.dir, 'checkout', '--detach', repo.headSha);
+  await assert.rejects(verifyPublicationSource(ctx), /stale/);
+});
+
+test('publication rejects an unpushed release tag even when the branch is current', async () => {
+  const repo = makeSourceRepo();
+  const remote = tmp('rt-remote-');
+  gitIn(remote, 'init', '--bare');
+  gitIn(repo.dir, 'remote', 'add', 'origin', remote);
+  gitIn(repo.dir, 'push', 'origin', 'main');
+  await assert.rejects(verifyPublicationSource({
+    cwd: repo.dir, env: { GITHUB_SHA: repo.headSha, GITHUB_REF_NAME: 'main' },
+  }, VERSION), /tag .* was not pushed/);
+});
+
+test('publication rejects source changes made after native builds despite a valid remote branch and tag', async () => {
+  const repo = makeSourceRepo({ mutate: (dir) => write(dir, 'src/app.js', 'export const app = 2;\n') });
+  const remote = tmp('rt-remote-');
+  gitIn(remote, 'init', '--bare');
+  gitIn(repo.dir, 'remote', 'add', 'origin', remote);
+  gitIn(repo.dir, 'push', '--atomic', 'origin', 'main', `v${VERSION}`);
+  await assert.rejects(verifyPublicationSource({
+    cwd: repo.dir, env: { GITHUB_SHA: repo.headSha, GITHUB_REF_NAME: 'main' },
+  }, VERSION), /source changed after native builds/);
+});
+
 // ---- verify -----------------------------------------------------------------
 
 test('verify accepts a complete artifact set and writes deterministic checksums', async () => {
@@ -327,19 +359,7 @@ test('verify accepts a complete artifact set and writes deterministic checksums'
 
 test('verify rejects a missing required installer', async () => {
   const { dir, names } = makeArtifacts(VERSION);
-  fs.rmSync(path.join(dir, names.deb));
-  fs.rmSync(path.join(dir, 'latest-linux.yml'));
-  write(
-    dir,
-    'latest-linux.yml',
-    manifestYaml(VERSION, [
-      {
-        url: names.appImage,
-        sha512: sha512b64(`installer-bytes:${names.appImage}:${VERSION}`),
-        size: `installer-bytes:${names.appImage}:${VERSION}`.length,
-      },
-    ]),
-  );
+  fs.rmSync(path.join(dir, names.appImage));
   await assert.rejects(() => verifyArtifacts(VERSION, dir), /missing ubuntu-latest installer/);
 });
 
@@ -369,14 +389,14 @@ test('verify rejects a manifest sha512 that does not match the artifact', async 
 
 test('verify rejects a manifest entry pointing at a missing file', async () => {
   const { dir, names } = makeArtifacts(VERSION);
-  fs.rmSync(path.join(dir, names.dmgArm));
-  fs.rmSync(path.join(dir, `${names.dmgArm}.blockmap`));
-  await assert.rejects(() => verifyArtifacts(VERSION, dir), new RegExp(`references "${names.dmgArm}"`));
+  fs.rmSync(path.join(dir, names.dmg));
+  fs.rmSync(path.join(dir, `${names.dmg}.blockmap`));
+  await assert.rejects(() => verifyArtifacts(VERSION, dir), new RegExp(`references "${names.dmg}"`));
 });
 
 test('verify rejects a missing blockmap for a differential artifact', async () => {
   const { dir, names } = makeArtifacts(VERSION);
-  fs.rmSync(path.join(dir, `${names.dmgX64}.blockmap`));
+  fs.rmSync(path.join(dir, `${names.dmg}.blockmap`));
   await assert.rejects(() => verifyArtifacts(VERSION, dir), /missing .*\.blockmap/);
 });
 
@@ -384,6 +404,18 @@ test('verify rejects an orphaned blockmap', async () => {
   const { dir } = makeArtifacts(VERSION);
   write(dir, 'Ghost-9.9.9-x64.dmg.blockmap', 'stray');
   await assert.rejects(() => verifyArtifacts(VERSION, dir), /orphaned/);
+});
+
+test('verify rejects a missing CLI setup archive before publishing desktop-only releases', async () => {
+  const { dir, names } = makeArtifacts(VERSION);
+  fs.rmSync(path.join(dir, names.cliSetup));
+  await assert.rejects(() => verifyArtifacts(VERSION, dir), /missing CLI setup archive/);
+});
+
+test('verify rejects obsolete extra installer formats instead of publishing ambiguous downloads', async () => {
+  const { dir } = makeArtifacts(VERSION);
+  write(dir, `Flucto-${VERSION}-x64-portable.exe`, 'obsolete-installer');
+  await assert.rejects(() => verifyArtifacts(VERSION, dir), /unexpected release file.*portable/);
 });
 
 test('verify fails when the artifact directory does not exist', async () => {
@@ -726,7 +758,7 @@ test('recover refuses a wrong source run before touching npm or GitHub releases'
 
 test('recover refuses corrupt artifacts before publishing', async () => {
   const { dir: artifactDir, names } = makeArtifacts(VERSION);
-  fs.rmSync(path.join(artifactDir, names.zipArm));
+  fs.rmSync(path.join(artifactDir, names.zip));
   const { github, registry, npm, ctx, sourceDir } = await recoverCtx();
   await assert.rejects(
     () => runRecover(ctx, { sourceRunId: RUN_ID, version: VERSION, artifactDir, sourceDir }),

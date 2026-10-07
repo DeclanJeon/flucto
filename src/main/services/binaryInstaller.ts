@@ -1,6 +1,8 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import zlib from 'zlib';
+import { pipeline } from 'stream/promises';
 import { createRequire } from 'module';
 import { execa } from '../spawn.js';
 import { resolveCliBinaries, type BinaryResolver } from './binaryResolver.js';
@@ -81,39 +83,75 @@ export const getManagedBinDir = (env: NodeJS.ProcessEnv = process.env): string =
   return path.join(env.XDG_DATA_HOME || path.join(os.homedir(), '.local', 'share'), 'flucto', 'bin');
 };
 
-export const utilitySpecs = (): UtilitySpec[] => {
-  const platform = currentPlatform();
-  const ytDlpUrl = platform === 'win32'
-    ? 'https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp.exe'
-    : platform === 'darwin'
-      ? 'https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp_macos'
-      : `https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/${process.arch === 'arm64' ? 'yt-dlp_linux_aarch64' : 'yt-dlp_linux'}`;
+// Download sources per OS/CPU. Fallback ordering only lists builds that are
+// architecturally compatible: evermeet.cx ships x86_64-only, so arm64 Macs
+// never see it; Linux entries cover amd64, arm64, armhf and i686.
+export const ytDlpUrlFor = (platform: NodeJS.Platform = currentPlatform(), arch: string = process.arch): string => {
+  if (platform === 'win32') {
+    return 'https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp.exe';
+  }
+  if (platform === 'darwin') {
+    // yt-dlp_macos is a universal2 (x86_64+arm64) Mach-O binary.
+    return 'https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp_macos';
+  }
+  if (platform === 'linux') {
+    return arch === 'arm64'
+      ? 'https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp_linux_aarch64'
+      : 'https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp_linux';
+  }
+  throw new Error(`No yt-dlp download source for platform ${platform}`);
+};
 
-  const ffmpegUrls = platform === 'win32'
-    ? [
+export const ffmpegDownloadUrlsFor = (platform: NodeJS.Platform = currentPlatform(), arch: string = process.arch): string[] => {
+  if (platform === 'win32') {
+    return [
       'https://github.com/GyanD/codexffmpeg/releases/download/8.1.2/ffmpeg-8.1.2-essentials_build.zip',
       'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip',
-    ]
-    : platform === 'darwin'
-      ? ['https://evermeet.cx/ffmpeg/getrelease/zip']
+    ];
+  }
+  if (platform === 'darwin') {
+    return arch === 'arm64'
+      ? [
+        'https://ffmpeg.martin-riedl.de/redirect/latest/macos/arm64/release/ffmpeg.zip',
+        'https://github.com/eugeneware/ffmpeg-static/releases/latest/download/ffmpeg-darwin-arm64.gz',
+      ]
       : [
-        'https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz',
-        'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz',
+        'https://evermeet.cx/ffmpeg/getrelease/zip',
+        'https://ffmpeg.martin-riedl.de/redirect/latest/macos/amd64/release/ffmpeg.zip',
+        'https://github.com/eugeneware/ffmpeg-static/releases/latest/download/ffmpeg-darwin-x64.gz',
       ];
+  }
+  if (platform === 'linux') {
+    if (arch === 'arm64' || arch === 'arm' || arch === 'ia32') {
+      const archSlug = arch === 'arm64' ? 'arm64' : arch === 'arm' ? 'armhf' : 'i686';
+      const urls = [`https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-${archSlug}-static.tar.xz`];
+      if (arch === 'arm64') {
+        urls.push('https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linuxarm64-gpl.tar.xz');
+      }
+      return urls;
+    }
+    return [
+      'https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz',
+      'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz',
+    ];
+  }
+  throw new Error(`No FFmpeg download source for platform ${platform}`);
+};
 
+export const utilitySpecs = (): UtilitySpec[] => {
   return [
     {
       name: 'yt-dlp',
       executableName: executableName('yt-dlp'),
       versionArgs: ['--version'],
-      downloadUrls: [ytDlpUrl],
+      downloadUrls: [ytDlpUrlFor()],
     },
     {
       name: 'ffmpeg',
       executableName: executableName('ffmpeg'),
       versionArgs: ['-version'],
-      downloadUrls: ffmpegUrls,
-      archiveMember: platform === 'win32' || platform === 'darwin' ? executableName('ffmpeg') : 'ffmpeg',
+      downloadUrls: ffmpegDownloadUrlsFor(),
+      archiveMember: executableName('ffmpeg'),
     },
   ];
 };
@@ -126,10 +164,6 @@ const isExecutable = (candidate: string): boolean => {
   } catch {
     return false;
   }
-};
-
-const chmodExecutable = async (filePath: string): Promise<void> => {
-  if (process.platform !== 'win32') await fs.promises.chmod(filePath, 0o755);
 };
 
 const normalizeYtDlpVersion = (value: string | null | undefined): string | null => {
@@ -181,7 +215,7 @@ const extractZipMember = async (archivePath: string, memberName: string, destina
 const extractTarMember = async (archivePath: string, memberName: string, destination: string): Promise<void> => {
   const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'flucto-bin-'));
   try {
-    const result = await execa('tar', ['-xJf', archivePath, '-C', tempDir], { reject: false });
+    const result = await execa('tar', ['-xf', archivePath, '-C', tempDir], { reject: false });
     if (result.failed) throw new Error(result.stderr || 'tar extraction failed');
     const found = findFileNamed(tempDir, memberName);
     if (!found) throw new Error(`Archive member not found: ${memberName}`);
@@ -190,6 +224,11 @@ const extractTarMember = async (archivePath: string, memberName: string, destina
   } finally {
     await fs.promises.rm(tempDir, { recursive: true, force: true });
   }
+};
+
+const extractGzipMember = async (archivePath: string, destination: string): Promise<void> => {
+  await fs.promises.mkdir(path.dirname(destination), { recursive: true });
+  await pipeline(fs.createReadStream(archivePath), zlib.createGunzip(), fs.createWriteStream(destination));
 };
 
 const findFileNamed = (directory: string, filename: string): string | null => {
@@ -203,6 +242,18 @@ const findFileNamed = (directory: string, filename: string): string | null => {
   }
   return null;
 };
+const isZipArchive = async (filePath: string): Promise<boolean> => {
+  if (filePath.toLowerCase().endsWith('.zip')) return true;
+  const file = await fs.promises.open(filePath, 'r');
+  try {
+    const signature = Buffer.allocUnsafe(4);
+    const { bytesRead } = await file.read(signature, 0, 4, 0);
+    return bytesRead === 4 && signature.readUInt32LE(0) === 0x04034b50;
+  } finally {
+    await file.close();
+  }
+};
+
 
 const provisionUtilityFromUrl = async (spec: UtilitySpec, url: string, targetPath: string, onStatus?: (message: string) => void): Promise<void> => {
   const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'flucto-download-'));
@@ -211,13 +262,22 @@ const provisionUtilityFromUrl = async (spec: UtilitySpec, url: string, targetPat
     onStatus?.(`Downloading ${spec.name}...`);
     await downloadFile(url, archivePath);
     if (spec.name === 'yt-dlp') {
+      // yt-dlp assets are bare executables, never archives.
       await fs.promises.copyFile(archivePath, targetPath);
-    } else if (process.platform === 'linux') {
-      await extractTarMember(archivePath, spec.archiveMember ?? spec.executableName, targetPath);
     } else {
-      await extractZipMember(archivePath, spec.archiveMember ?? spec.executableName, targetPath);
+      // Pick the extractor from the archive format, not the host platform:
+      // macOS sources ship both .zip (vendor builds) and .gz (ffmpeg-static).
+      const lower = archivePath.toLowerCase();
+      const member = spec.archiveMember ?? spec.executableName;
+      if (await isZipArchive(archivePath)) {
+        await extractZipMember(archivePath, member, targetPath);
+      } else if (lower.endsWith('.gz') && !lower.endsWith('.tar.gz')) {
+        await extractGzipMember(archivePath, targetPath);
+      } else {
+        await extractTarMember(archivePath, member, targetPath);
+      }
     }
-    await chmodExecutable(targetPath);
+    if (process.platform !== 'win32') await fs.promises.chmod(targetPath, 0o755);
   } finally {
     await fs.promises.rm(tempDir, { recursive: true, force: true });
   }

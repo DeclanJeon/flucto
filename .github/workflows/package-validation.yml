@@ -1,0 +1,110 @@
+name: Package Validation
+
+on:
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    name: Package ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Setup Native Binaries
+        shell: bash
+        run: node scripts/setup-binaries.mjs ${{ runner.os == 'macOS' && '--universal' || '' }}
+
+      - name: Build Desktop Installer
+        run: npm run dist -- --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build CLI Setup Archive
+        run: npm run build:cli-release
+
+      - name: Verify Installed CLI and Desktop
+        if: runner.os != 'Linux'
+        run: node scripts/package-smoke.mjs
+
+      - name: Verify Installed CLI and Desktop (Linux virtual display)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a node scripts/package-smoke.mjs
+
+      - name: Retain Native UI Proof
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: validation-proof-${{ matrix.os }}
+          path: release/package-smoke-*.png
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Retain Verified Release Assets
+        uses: actions/upload-artifact@v6
+        with:
+          name: validated-${{ matrix.os }}
+          path: |
+            release/*-setup.exe
+            release/*-universal.dmg
+            release/*-universal.zip
+            release/*.AppImage
+            ${{ runner.os == 'Linux' && 'release/*-cli-setup.zip' || '' }}
+            release/latest*.yml
+            release/*.blockmap
+          retention-days: 14
+          if-no-files-found: error
+
+  assets:
+    name: Verify Release Downloads
+    needs: package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Collect Verified Release Assets
+        uses: actions/download-artifact@v8
+        with:
+          pattern: validated-*
+          merge-multiple: true
+          path: release
+
+      - name: Verify Installers Updater Integrity and Four Download Choices
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          node scripts/release-tools.mjs verify "$VERSION" release
+          node scripts/release-tools.mjs notes "$VERSION" release

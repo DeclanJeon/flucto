@@ -31,6 +31,7 @@
     "README.md",
     "CHANGELOG.md"
   ],
+  "bundleDependencies": true,
   "bin": {
     "flucto": "./dist-electron/cli/index.js",
     "fl": "./dist-electron/cli/index.js"
@@ -45,16 +46,15 @@
     "build:renderer": "vite build",
     "build:electron": "tsc -p tsconfig.electron.json",
     "prepack": "npm run build:electron",
+    "build:cli-release": "node scripts/build-cli-release.mjs",
     "dist": "npm run build && electron-builder",
     "dist:linux": "npm run build && electron-builder --linux --publish never",
     "dist:linux:appimage": "npm run build && electron-builder --linux AppImage --publish never",
-    "dist:linux:deb": "npm run build && electron-builder --linux deb --publish never",
-    "dist:mac": "npm run build && electron-builder --mac",
-    "dist:mac:dmg": "npm run build && electron-builder --mac dmg",
-    "dist:mac:zip": "npm run build && electron-builder --mac zip",
+    "dist:mac": "npm run build && electron-builder --mac --universal",
+    "dist:mac:dmg": "npm run build && electron-builder --mac dmg --universal",
+    "dist:mac:zip": "npm run build && electron-builder --mac zip --universal",
     "dist:win": "npm run build && electron-builder --win",
     "dist:win:nsis": "npm run build && electron-builder --win nsis",
-    "dist:win:portable": "npm run build && electron-builder --win portable",
     "dist:all": "npm run build && electron-builder -mwl",
     "pack": "npm run dist",
     "pack:linux": "npm run dist:linux",
@@ -78,8 +78,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
-    "@semantic-release/changelog": "^6.0.3",
-    "@semantic-release/git": "^10.0.1",
+    "@release-it/conventional-changelog": "^12.0.2",
     "@supabase/supabase-js": "^2.98.0",
     "@tailwindcss/postcss": "^4.1.17",
     "@types/node": "^24.10.1",
@@ -89,6 +88,8 @@
     "autoprefixer": "^10.4.22",
     "clsx": "^2.1.1",
     "concurrently": "^9.2.1",
+    "conventional-changelog-conventionalcommits": "^10.4.0",
+    "conventional-recommended-bump": "^12.1.0",
     "cross-env": "^10.1.0",
     "electron": "^41.10.6",
     "electron-builder": "^26.0.12",
@@ -105,7 +106,7 @@
     "react-dom": "^19.2.0",
     "react-hook-form": "^7.67.0",
     "react-router-dom": "^7.13.1",
-    "semantic-release": "^25.0.9",
+    "release-it": "^21.1.0",
     "tailwind-merge": "^3.4.0",
     "tailwindcss": "^4.2.4",
     "typescript": "~5.9.3",
@@ -118,6 +119,15 @@
     "vite": "npm:rolldown-vite@7.2.5",
     "concurrently": {
       "shell-quote": "^1.11.0"
+    },
+    "app-builder-lib": {
+      "@electron/get": "^5.1.0"
+    },
+    "release-it": {
+      "undici": "^7.30.0"
+    },
+    "get-uri": {
+      "basic-ftp": "^6.2.2"
     }
   }
 }

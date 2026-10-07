@@ -112,13 +112,16 @@ export const parseDownloadProgress = (output: string): Pick<DownloadProgress, 'p
 };
 
 export const parseFinalFilePath = (output: string): string | null => {
-  const mergerMatch = output.match(/\[Merger\].*?-> (.+\.mp4)|Merging formats into\s+"(.+?)"/);
-  if (mergerMatch) return mergerMatch[1] || mergerMatch[2] || null;
-  const destinationMatch = output.match(/\[download\]\s+Destination:\s+(.+)/);
-  if (destinationMatch) return destinationMatch[1].trim();
-  const alreadyDownloadedMatch = output.match(/\[download\]\s+(.+)\s+has already been downloaded/);
-  if (alreadyDownloadedMatch) return alreadyDownloadedMatch[1].trim();
-  return null;
+  let finalPath: string | null = null;
+  for (const match of output.matchAll(/^__FLUCTO_FINAL__(".*")\r?$/gm)) {
+    try {
+      const value: unknown = JSON.parse(match[1]);
+      if (typeof value === 'string' && value) finalPath = value;
+    } catch {
+      // A streaming chunk may end before the JSON path is complete.
+    }
+  }
+  return finalPath;
 };
 
 export const buildDownloadArgs = (options: MediaDownloadOptions, binaries: BinaryResolver): string[] => {
@@ -133,6 +136,10 @@ export const buildDownloadArgs = (options: MediaDownloadOptions, binaries: Binar
     '--no-check-certificates',
     '--no-warnings',
     '--newline',
+    '--print', 'after_move:__FLUCTO_FINAL__%(filepath)j',
+    '--no-simulate',
+    '--no-quiet',
+    '--progress',
     '--no-playlist',
     options.forceOverwrite === false ? '--no-overwrites' : '--force-overwrites',
     ...(referer ? ['--add-header', `referer:${referer}`] : []),
@@ -170,7 +177,6 @@ export const runMediaDownload = async (
   const requestId = options.requestId || randomUUID();
   const title = options.title || 'Downloading...';
   const sleep = deps.sleep ?? defaultSleep;
-  const outputTemplate = path.join(options.outputDir, '%(title)s.%(ext)s');
   let finalFilePath: string | undefined;
 
   // Check if a custom adapter handles this URL (e.g. Threads)
@@ -205,8 +211,6 @@ export const runMediaDownload = async (
       subprocess.stdout?.on('data', (data) => {
         const output = data.toString();
         const progress = parseDownloadProgress(output);
-        const parsedFilePath = parseFinalFilePath(output);
-        if (parsedFilePath) finalFilePath = parsedFilePath;
         if (progress) {
           deps.onProgress?.({
             requestId,
@@ -217,13 +221,8 @@ export const runMediaDownload = async (
           });
         }
       });
-      subprocess.stderr?.on('data', (data) => {
-        const parsedFilePath = parseFinalFilePath(data.toString());
-        if (parsedFilePath) finalFilePath = parsedFilePath;
-      });
       const result = await subprocess;
-      const parsedFilePath = parseFinalFilePath(`${result.stdout}\n${result.stderr}`);
-      if (parsedFilePath) finalFilePath = parsedFilePath;
+      finalFilePath = parseFinalFilePath(result.stdout) ?? undefined;
     } catch (error: unknown) {
       if ((options.url.includes('x.com') || options.url.includes('twitter.com')) && retryCount < 2) {
         await sleep(1000 * (retryCount + 1));
@@ -235,7 +234,8 @@ export const runMediaDownload = async (
 
   try {
     await tryDownload();
-    const filePath = finalFilePath || outputTemplate;
+    if (!finalFilePath) throw new Error('yt-dlp completed without reporting the final output file.');
+    const filePath = finalFilePath;
     deps.onProgress?.({
       requestId,
       url: options.url,

@@ -215,3 +215,21 @@
 - [Artifact smoke run 37588814483](https://github.com/DeclanJeon/flucto/actions/runs/37588814483)은 3개 OS 모두 v6 upload → v8 download → 복원된 실제 compiled CLI 실행에 성공했다. Linux job은 기존 v4 원본 run `37508545685`의 Windows artifact도 v8로 받아 setup installer SHA-256이 공개 Release digest와 동일함을 검증했다.
 - [Branch CI run 37588814417](https://github.com/DeclanJeon/flucto/actions/runs/37588814417)의 Windows/macOS/Linux checks도 모두 성공했다. 실제 실행 annotation에는 Node 20 action deprecation이 없고 Ubuntu runner migration/macOS queue 안내만 있었다.
 - [PR #5](https://github.com/DeclanJeon/flucto/pull/5)로 변경을 제출했다. 검증용 workflow와 격리 profile/bin/download smoke 파일은 제거했다. 보안 변경은 아직 배포된 `v1.17.0`에 반영되지 않았다.
+
+### Approved Installation and Release Normalization
+
+- 사용자 승인: Windows NSIS installer 1개, macOS universal DMG 1개, Linux x64 AppImage 1개, 공통 CLI setup ZIP 1개를 다운로드 표에 표시한다. updater용 macOS universal ZIP/YAML/blockmap/checksum은 별도 내부 파일로 유지한다. 검증 후 새 버전을 실제 게시하며 이전 Release 파일은 보존한다.
+- CLI: setup ZIP에 해당 버전 npm tarball 및 Windows/macOS/Linux bootstrap을 포함한다. private Node runtime, 사용자 범위 CLI command/PATH, yt-dlp·FFmpeg 설치를 한 번에 수행한다. CLI updater는 desktop asset을 선택하지 않으며 private 설치를 업데이트할 때 같은 prefix를 유지한다.
+- Desktop: universal macOS bundle의 FFmpeg도 실제 x64/arm64로 실행 가능하게 구성한다. Windows portable 및 Linux DEB 중복 target을 제거한다. macOS signing credential이 없으므로 DMG 기반 업데이트 설치 안내를 제공하고 unsigned native in-place update가 된다고 주장하지 않는다.
+- Release: 새 artifact 계약에 맞춰 validation/recovery/checksum을 바꾼다. 3-OS 실제 패키징과 CLI bootstrap smoke를 PR에서 실행하며, installer와 internal updater 파일을 구분한 Release body를 생성한다.
+- 보안: 미패치 `braces`/bundled npm을 끌어오는 semantic-release toolchain 대신 유지되는 conventional-commit/release tooling을 검토·적용한다. electron-builder의 legacy downloader는 새 API 호환성을 실제 OS packaging으로 검증한 뒤 교체한다. audit를 숨기거나 forced downgrade하지 않는다.
+- 검증: CLI wrong-asset regression은 수정 전 실제 실패를 확인했다. 이후 전체 suite, lint/typecheck/build, 격리 CLI 설치·실제 media 처리, 설치된 Windows desktop UI, macOS/Linux CI의 native binary/package/launch smoke, 최종 게시 파일·manifest·checksum·npm package를 확인한다.
+
+#### Local native evidence
+
+- Full `npm audit`: 0 vulnerabilities. Windows lint/typecheck 및 138개 consumer regression 통과. 이후 CLI/Desktop asset selector의 구형 portable/DEB/ZIP-install fallback 및 `--asset` 경로를 제거했다.
+- 실제 Windows CLI setup ZIP: official SHA256 검증 Node 24.21.0, private npm install, native yt-dlp/FFmpeg provisioning 및 private-prefix doctor 성공. 시스템 Node를 PATH에서 제외하고 Restricted PowerShell의 `flucto`/`fl.cmd` 실행을 확인했다. `fl`은 PowerShell의 기본 Format-List alias이므로 profile/policy를 덮어쓰지 않는다.
+- 실제 CLI MP3 다운로드 반환 파일을 FFmpeg로 끝까지 decode하여 종료 0을 확인했다. 수정 전에는 삭제된 중간 MP4를 반환했다.
+- Windows NSIS 패키징 성공. 실제 패키징된 Electron main/preload/renderer에서 설정 toggle 후 reload persistence, single/legacy/batch MP3의 반환·history 경로와 native FFmpeg decode를 확인했다. 네 개 파일 모두 존재하며 decode 종료 0, renderer 오류 0이었다.
+- Publisher는 Git-first atomic push 후 원래 Actions source와 remote branch/tag, version-only diff를 검증한다. 실제 임시 bare Git remote regression에서 stale checkout, 미게시 tag 및 build 이후 source mutation을 차단했다.
+- macOS/Linux native installer 및 새 Release/npm publication은 아래 원격 검증 결과로 기록한다. 이전 v1.17.0은 수정/삭제하지 않는다.

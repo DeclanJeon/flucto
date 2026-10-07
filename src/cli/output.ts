@@ -22,7 +22,7 @@ ${c.bold('Usage')}
   flucto setup [--force] [--check-only] [--yt-dlp-only] [--bin-dir DIR] [--json]
   flucto update check [--json]
   flucto update download [--output-dir DIR] [--json]
-  flucto update apply --asset PATH [--json]
+  flucto update apply [--json]
   flucto --version
 
 ${c.bold('Short form')}
@@ -66,7 +66,6 @@ ${c.bold('Global options')}
   --force                Re-download managed setup binaries
   --check-only           Check setup state without downloading
   --yt-dlp-only          Setup yt-dlp only (skip ffmpeg; enough for transcripts)
-  --asset PATH           Update asset path for update apply
   --cookies PATH         Netscape cookies file for yt-dlp (or FLUCTO_COOKIES / YOUTUBE_COOKIES_PATH)
   --cookies-from-browser BROWSER[:PROFILE]
                          Extract cookies from a local browser via yt-dlp

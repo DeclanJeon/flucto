@@ -512,6 +512,7 @@ export const MainDownloader: React.FC = () => {
       const message = error instanceof Error ? error.message : String(error);
       setStatusMessage(`❌ Failed to install app update: ${message}`);
       setTimeout(() => setStatusMessage(null), 4000);
+    } finally {
       setUpdateActionBusy(false);
     }
   };
@@ -529,7 +530,9 @@ export const MainDownloader: React.FC = () => {
         return `Downloading app update: ${progress}`;
       }
       case 'downloaded':
-        return `Update ready: v${appUpdateEvent.version ?? 'new version'}. Restart to apply.`;
+        return appUpdateEvent.installationMode === 'installer'
+          ? `Update ready: v${appUpdateEvent.version ?? 'new version'}. Open the DMG and drag Flucto to Applications.`
+          : `Update ready: v${appUpdateEvent.version ?? 'new version'}. Restart to apply.`;
       case 'error':
         return `App update error: ${appUpdateEvent.message ?? 'unknown error'}`;
       default:
@@ -671,7 +674,7 @@ export const MainDownloader: React.FC = () => {
                   disabled={updateActionBusy}
                   className="rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
                 >
-                  Restart to update
+                  {appUpdateEvent.installationMode === 'installer' ? 'Open installer' : 'Restart to update'}
                 </button>
               )}
             </div>

@@ -32,7 +32,7 @@ import { createPlatformRegistry } from '../main/platforms/createRegistry.js';
 import { sanitizeMarkdownFilename } from '../main/transcript/markdownFormatter.js';
 import { getManagedBinDir, setupUtilities } from '../main/services/binaryInstaller.js';
 import { checkAndRefreshBinaries } from '../main/services/binaryRefresh.js';
-import { applyCliUpdate, checkForCliUpdate, downloadCliUpdate } from '../main/services/cliUpdater.js';
+import { applyCliUpdate, checkForCliUpdate, downloadCliUpdate, findPrivateInstallRoot } from '../main/services/cliUpdater.js';
 import { detectInstallMode } from '../main/services/platformAssets.js';
 import { execa } from '../main/spawn.js';
 import { resolveCaptionNetworkOptions } from '../main/net/captionNetwork.js';
@@ -40,7 +40,9 @@ import { searchVideos } from '../main/services/videoSearch.js';
 import type { TranscriptMarkdownResponse, TranscriptRequest } from '../shared/types.js';
 import { VIDEO_SEARCH_SITES } from '../shared/videoSearchPlatforms.js';
 
-const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+const moduleFile = fileURLToPath(import.meta.url);
+const moduleDir = path.dirname(moduleFile);
+const privateInstallRoot = findPrivateInstallRoot(moduleFile);
 
 /** Base output directory (parent). Multi-file jobs create a dedicated subfolder under this. */
 const outputBaseDir = (options: CliOptions): string => path.resolve(options.outputDir ?? process.cwd());
@@ -67,7 +69,9 @@ const readPackageVersion = (): string => {
   return '0.0.0';
 };
 
-const setupBinDir = (options: CliOptions): string => path.resolve(options.binDir ?? getManagedBinDir());
+const setupBinDir = (options: CliOptions): string => path.resolve(
+  options.binDir ?? process.env.FLUCTO_BIN_DIR ?? (privateInstallRoot ? path.join(privateInstallRoot, 'bin') : getManagedBinDir()),
+);
 
 const resolveBinaries = (options: CliOptions) => resolveCliBinaries({
   binDir: setupBinDir(options),
@@ -191,7 +195,7 @@ const runUpdate = async (options: CliOptions): Promise<number> => {
       return result.downloaded ? 0 : 4;
     }
     if (options.updateAction === 'apply') {
-      const result = await applyCliUpdate({ currentVersion, assetPath: options.assetPath });
+      const result = await applyCliUpdate({ currentVersion });
       if (options.json) writeJson(result);
       else if (result.applied) writeHuman(result.next);
       else writeError(`${result.reason ?? 'Update was not applied.'} ${result.next}`);
@@ -202,9 +206,9 @@ const runUpdate = async (options: CliOptions): Promise<number> => {
     if (options.json) {
       writeJson(result);
     } else if (result.updateAvailable) {
-      writeHuman(`Flucto ${result.latestVersion} is available (${detectInstallMode()} install): ${result.releaseUrl}`);
+      writeHuman(`Flucto ${result.latestVersion} is available (${detectInstallMode(moduleFile)} install): ${result.releaseUrl}`);
       if (result.recommendedAsset) writeHuman(`Recommended asset: ${result.recommendedAsset}`);
-      if (detectInstallMode() === 'npm') writeHuman('Apply with: `flucto update apply`');
+      if (privateInstallRoot || detectInstallMode(moduleFile) === 'npm') writeHuman('Apply with: `flucto update apply`');
     } else {
       writeHuman(`Flucto is up to date (${result.currentVersion}).`);
     }

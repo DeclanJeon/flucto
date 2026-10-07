@@ -1,12 +1,32 @@
-import { app, dialog } from 'electron';
-import electronUpdater from 'electron-updater';
+import { app, dialog, shell } from 'electron';
+import path from 'path';
+import { createRequire } from 'module';
+import type { AppUpdater, UpdateCheckResult } from 'electron-updater';
 import type { AppUpdateEvent } from '../shared/types.js';
+import { compareVersions, fetchLatestRelease, type GitHubReleaseAsset, type GitHubReleaseInfo } from './services/githubRelease.js';
+import { selectMacInstallerAsset } from './services/platformAssets.js';
+import { downloadReleaseAsset } from './services/releaseDownload.js';
 import { logger } from './logger.js';
 import { getStoredUpdateSettings, markAutoUpdateCheckNow, shouldRunAutoUpdateCheck } from './store.js';
 
-const { autoUpdater } = electronUpdater;
-
 type UpdateListener = (event: AppUpdateEvent) => void;
+
+const require = createRequire(import.meta.url);
+
+// electron-updater is a CJS module that requires 'electron' internally. It is
+// loaded lazily via createRequire (repo convention, see binaryInstaller.ts)
+// because unsigned macOS builds never use its Squirrel.Mac path — macOS
+// updates take the manual DMG flow below — so keeping it out of the module
+// graph also keeps that flow testable without a real Electron runtime.
+let autoUpdater: AppUpdater | null = null;
+
+const loadAutoUpdater = (): AppUpdater => {
+  if (!autoUpdater) {
+    const mod = require('electron-updater') as { autoUpdater: AppUpdater };
+    autoUpdater = mod.autoUpdater;
+  }
+  return autoUpdater;
+};
 
 let initialized = false;
 let checking = false;
@@ -15,7 +35,26 @@ let updateDownloaded = false;
 let currentUpdateVersion: string | undefined;
 let currentAppUpdateEvent: AppUpdateEvent = { type: 'idle' };
 
+// macOS (unsigned) manual-install state.
+let macInstallerPath: string | null = null;
+let macRelease: GitHubReleaseInfo | null = null;
+let macAsset: GitHubReleaseAsset | null = null;
+
 const listeners = new Set<UpdateListener>();
+
+// Test seam: the unsigned-macOS update flow does not depend on
+// electron-updater, so these hooks let tests exercise check/download/install.
+export const macUpdateHooks = {
+  isMacPlatform: () => process.platform === 'darwin',
+  fetchRelease: (): Promise<GitHubReleaseInfo> => fetchLatestRelease('DeclanJeon/flucto'),
+  downloadAsset: downloadReleaseAsset,
+};
+
+// Unsigned macOS builds cannot use electron-updater's Squirrel.Mac install, so
+// macOS always takes the manual DMG flow.
+const isMacManualUpdate = (): boolean => macUpdateHooks.isMacPlatform();
+
+const installationMode = (): 'restart' | 'installer' => (isMacManualUpdate() ? 'installer' : 'restart');
 
 const emitAppUpdateEvent = (event: AppUpdateEvent): void => {
   currentAppUpdateEvent = event;
@@ -69,6 +108,131 @@ const toProgressInfo = (value: unknown): { percent?: number; bytesPerSecond?: nu
   };
 };
 
+// ── macOS manual installer flow (unsigned builds) ────────────────────────────
+
+
+const macInstallInstructions = (): string =>
+  'The DMG is open. Drag Flucto into the Applications folder, then relaunch Flucto from Applications.';
+
+const openMacInstaller = async (): Promise<void> => {
+  if (!macInstallerPath) {
+    throw new Error('No downloaded macOS installer is available to open');
+  }
+  const failure = await shell.openPath(macInstallerPath);
+  if (failure) {
+    throw new Error(`Could not open the downloaded installer (${failure}). Open it manually: ${macInstallerPath}`);
+  }
+  await dialog.showMessageBox({
+    type: 'info',
+    title: 'Install Flucto Update',
+    message: 'Finish installing the update manually.',
+    detail: macInstallInstructions(),
+    buttons: ['OK'],
+    defaultId: 0,
+    cancelId: 0,
+  });
+};
+
+const showMacInstallPrompt = async (): Promise<void> => {
+  const isDmg = macInstallerPath?.toLowerCase().endsWith('.dmg') ?? true;
+  const detail = macInstallerPath
+    ? (isDmg
+      ? 'Open the downloaded DMG, then drag Flucto into Applications to finish the update. Restarting the app alone does not install it.'
+      : 'Open the downloaded archive, extract Flucto.app into Applications to finish the update. Restarting the app alone does not install it.')
+    : 'Open the latest DMG from the Flucto GitHub releases page, then drag Flucto into Applications to finish the update.';
+  const buttons = macInstallerPath ? ['Open Installer', 'Later'] : ['Later'];
+  const result = await dialog.showMessageBox({
+    type: 'info',
+    title: 'Flucto Update Downloaded',
+    message: `Flucto ${macRelease?.version ?? 'update'} is ready to install.`,
+    detail,
+    buttons,
+    defaultId: 0,
+    cancelId: buttons.length - 1,
+  });
+
+  if (macInstallerPath && result.response === 0) {
+    await openMacInstaller();
+  }
+};
+
+const checkForMacUpdate = async (currentVersion: string): Promise<void> => {
+  const release = await macUpdateHooks.fetchRelease();
+  macRelease = release;
+  macAsset = selectMacInstallerAsset(release);
+  const updateAvailable = compareVersions(release.version, currentVersion) > 0;
+
+  if (!updateAvailable) {
+    currentUpdateVersion = undefined;
+    updateDownloaded = false;
+    emitAppUpdateEvent({
+      type: 'not-available',
+      version: release.version,
+      releaseDate: release.publishedAt || undefined,
+      installationMode: 'installer',
+    });
+    return;
+  }
+
+  currentUpdateVersion = release.version;
+  updateDownloaded = false;
+  emitAppUpdateEvent({
+    type: 'available',
+    version: release.version,
+    releaseDate: release.publishedAt || undefined,
+    installationMode: 'installer',
+    message: macAsset ? undefined : `Update ${release.version} is published but has no macOS installer asset. See ${release.url}`,
+  });
+};
+
+const downloadMacUpdate = async (): Promise<void> => {
+  const release = macRelease ?? await macUpdateHooks.fetchRelease();
+  macRelease = release;
+  const asset = macAsset ?? selectMacInstallerAsset(release);
+  if (!asset) {
+    throw new Error(`The latest release (${release.version}) does not include a macOS installer asset. Download it manually: ${release.url}`);
+  }
+  macAsset = asset;
+
+  const outputDir = path.join(app.getPath('downloads'), 'Flucto-Updates');
+  const result = await macUpdateHooks.downloadAsset({
+    release,
+    asset,
+    outputDir,
+    onProgress: (progress) => {
+      downloading = true;
+      emitAppUpdateEvent({
+        type: 'download-progress',
+        version: release.version,
+        percent: progress.percent,
+        bytesPerSecond: progress.bytesPerSecond,
+        transferred: progress.transferred,
+        total: progress.total,
+        installationMode: 'installer',
+      });
+    },
+  });
+
+  macInstallerPath = result.path;
+  downloading = false;
+  updateDownloaded = true;
+  currentUpdateVersion = release.version;
+  emitAppUpdateEvent({
+    type: 'downloaded',
+    version: release.version,
+    releaseDate: release.publishedAt || undefined,
+    downloadedFile: result.path,
+    installationMode: 'installer',
+  });
+
+  const settings = getStoredUpdateSettings();
+  if (settings.notifyOnUpdateReady) {
+    await showMacInstallPrompt();
+  }
+};
+
+// ── electron-updater flow (Windows NSIS, Linux AppImage) ─────────────────────
+
 const showRestartPrompt = async (): Promise<void> => {
   const result = await dialog.showMessageBox({
     type: 'info',
@@ -81,17 +245,17 @@ const showRestartPrompt = async (): Promise<void> => {
   });
 
   if (result.response === 0) {
-    autoUpdater.quitAndInstall();
+    autoUpdater?.quitAndInstall();
   }
 };
 
-const setupUpdaterEvents = (): void => {
-  autoUpdater.on('checking-for-update', () => {
+const setupUpdaterEvents = (updater: AppUpdater): void => {
+  updater.on('checking-for-update', () => {
     logger.info('Auto-update: checking for updates');
-    emitAppUpdateEvent({ type: 'checking' });
+    emitAppUpdateEvent({ type: 'checking', installationMode: 'restart' });
   });
 
-  autoUpdater.on('update-available', (info: unknown) => {
+  updater.on('update-available', (info: unknown) => {
     const updateInfo = toUpdateInfo(info);
     currentUpdateVersion = updateInfo.version;
     updateDownloaded = false;
@@ -103,10 +267,11 @@ const setupUpdaterEvents = (): void => {
       type: 'available',
       version: updateInfo.version,
       releaseDate: updateInfo.releaseDate,
+      installationMode: 'restart',
     });
   });
 
-  autoUpdater.on('update-not-available', (info: unknown) => {
+  updater.on('update-not-available', (info: unknown) => {
     const updateInfo = toUpdateInfo(info);
     currentUpdateVersion = undefined;
     updateDownloaded = false;
@@ -116,10 +281,11 @@ const setupUpdaterEvents = (): void => {
     emitAppUpdateEvent({
       type: 'not-available',
       version: updateInfo.version,
+      installationMode: 'restart',
     });
   });
 
-  autoUpdater.on('error', (error: unknown) => {
+  updater.on('error', (error: unknown) => {
     const errorInfo = toErrorInfo(error);
     downloading = false;
     logger.error('Auto-update error', {
@@ -134,7 +300,7 @@ const setupUpdaterEvents = (): void => {
     });
   });
 
-  autoUpdater.on('download-progress', (progress: unknown) => {
+  updater.on('download-progress', (progress: unknown) => {
     const progressInfo = toProgressInfo(progress);
     downloading = true;
     logger.info('Auto-update download progress', {
@@ -150,10 +316,11 @@ const setupUpdaterEvents = (): void => {
       bytesPerSecond: progressInfo.bytesPerSecond,
       transferred: progressInfo.transferred,
       total: progressInfo.total,
+      installationMode: 'restart',
     });
   });
 
-  autoUpdater.on('update-downloaded', async (info: unknown) => {
+  updater.on('update-downloaded', async (info: unknown) => {
     const updateInfo = toUpdateInfo(info);
     downloading = false;
     updateDownloaded = true;
@@ -166,14 +333,16 @@ const setupUpdaterEvents = (): void => {
       type: 'downloaded',
       version: updateInfo.version,
       downloadedFile: updateInfo.downloadedFile,
+      installationMode: 'restart',
     });
-
     const settings = getStoredUpdateSettings();
     if (settings.notifyOnUpdateReady) {
       await showRestartPrompt();
     }
   });
 };
+
+// ── Public API ───────────────────────────────────────────────────────────────
 
 export const onAppUpdateEvent = (listener: UpdateListener): (() => void) => {
   listeners.add(listener);
@@ -190,7 +359,7 @@ export const getCurrentAppUpdateEvent = (): AppUpdateEvent => {
 export const checkForAppUpdates = async (force = false): Promise<void> => {
   if (!app.isPackaged) {
     logger.info('Auto-update skipped in development mode');
-    emitAppUpdateEvent({ type: 'idle', message: 'development mode' });
+    emitAppUpdateEvent({ type: 'idle', message: 'development mode', installationMode: installationMode() });
     return;
   }
 
@@ -211,9 +380,13 @@ export const checkForAppUpdates = async (force = false): Promise<void> => {
   }
 
   checking = true;
-  emitAppUpdateEvent({ type: 'checking' });
+  emitAppUpdateEvent({ type: 'checking', installationMode: installationMode() });
   try {
-    await autoUpdater.checkForUpdates();
+    if (isMacManualUpdate()) {
+      await checkForMacUpdate(app.getVersion());
+    } else {
+      await loadAutoUpdater().checkForUpdates();
+    }
     markAutoUpdateCheckNow();
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
@@ -237,13 +410,19 @@ export const downloadAppUpdate = async (): Promise<void> => {
 
   downloading = true;
   try {
-    const result = await autoUpdater.checkForUpdates();
+    if (isMacManualUpdate()) {
+      await downloadMacUpdate();
+      return;
+    }
+
+    const updater = loadAutoUpdater();
+    const result: UpdateCheckResult | null = await updater.checkForUpdates();
     if (!result?.isUpdateAvailable) {
       const version = result?.updateInfo?.version ?? currentUpdateVersion;
       const message = version
         ? `No app update is available (latest version: ${version})`
         : 'No app update is available';
-      emitAppUpdateEvent({ type: 'not-available', version });
+      emitAppUpdateEvent({ type: 'not-available', version, installationMode: 'restart' });
       throw new Error(message);
     }
 
@@ -252,7 +431,7 @@ export const downloadAppUpdate = async (): Promise<void> => {
       return;
     }
 
-    await autoUpdater.downloadUpdate(result.cancellationToken);
+    await updater.downloadUpdate(result.cancellationToken);
   } catch (error: unknown) {
     downloading = false;
     const message = error instanceof Error ? error.message : String(error);
@@ -267,6 +446,16 @@ export const installDownloadedAppUpdate = async (): Promise<void> => {
     throw new Error('No downloaded app update is ready to install');
   }
 
+  if (isMacManualUpdate()) {
+    // Unsigned macOS builds can never install in place: the only honest action
+    // is opening the verified DMG so the user drags the app into Applications.
+    await openMacInstaller();
+    return;
+  }
+
+  if (!autoUpdater) {
+    throw new Error('The native updater is not initialized');
+  }
   autoUpdater.quitAndInstall();
 };
 
@@ -277,10 +466,14 @@ export const initializeAutoUpdater = async (): Promise<void> => {
 
   initialized = true;
 
-  autoUpdater.autoDownload = false;
-  autoUpdater.autoInstallOnAppQuit = true;
-
-  setupUpdaterEvents();
+  if (!isMacManualUpdate()) {
+    const updater = loadAutoUpdater();
+    updater.autoDownload = false;
+    updater.autoInstallOnAppQuit = true;
+    setupUpdaterEvents(updater);
+  } else {
+    logger.info('Auto-update: macOS build uses the manual DMG installer flow (unsigned app)');
+  }
 
   void checkForAppUpdates(false).catch((error: unknown) => {
     const message = error instanceof Error ? error.message : String(error);

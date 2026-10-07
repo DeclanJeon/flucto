@@ -122,6 +122,31 @@ Flucto now provisions and refreshes the **official yt-dlp nightly channel**, [re
 
 Flucto ships `flucto` and the shorter `fl` command for automation, batch jobs, and AI-agent workflows. The CLI uses the same TypeScript service layer as the desktop app; it does not launch the Electron window and does not call desktop IPC handlers.
 
+### Install from GitHub Releases
+
+Download from [the latest release](https://github.com/DeclanJeon/flucto/releases/latest). There are four primary installation choices:
+
+| Installation | File |
+| --- | --- |
+| Windows desktop (x64) | `Flucto-<version>-x64-setup.exe` |
+| macOS desktop (Intel + Apple Silicon) | `Flucto-<version>-universal.dmg` |
+| Linux desktop (x64) | `Flucto-<version>-x86_64.AppImage` |
+| CLI (Windows, macOS, Linux) | `Flucto-<version>-cli-setup.zip` |
+
+The universal macOS ZIP, updater YAML, blockmaps and `checksums-sha256.txt` are internal update/integrity files, **not additional installer choices**. Historical releases remain unchanged.
+
+For desktop installation, run the Windows setup, drag the macOS app into Applications, or make the Linux AppImage executable. Without FUSE, run `./Flucto-<version>-x86_64.AppImage --appimage-extract-and-run`. The macOS app is unsigned; approval may be required in Privacy & Security. macOS updates download a checksum-verified DMG and open it for manual replacement, rather than claiming an automatic restart will install it.
+
+For CLI installation, extract the ZIP into a writable directory and:
+
+- **Windows:** run `install.cmd`.
+- **macOS/Linux:** run `bash install.sh`.
+
+No existing Node.js installation or administrator access is required. The bootstrap downloads Node.js 24 from nodejs.org, verifies its SHA256, installs the bundled CLI tarball and provisions native yt-dlp/FFmpeg under a private user prefix. Internet access is required. Open a new shell afterward and run `flucto doctor --json`.
+
+Use `-InstallDir DIR -NoProfile` with `install.ps1`, or `--install-dir DIR --no-profile` with `install.sh`, for an isolated installation without persistent PATH changes. Windows bootstrap execution policy is process-scoped; it does not change the user's policy. CLI launchers use `.cmd`, so subsequent commands work in restricted PowerShell. PowerShell reserves `fl` for `Format-List`: use `flucto` or `fl.cmd` there; `fl` works in cmd.exe and POSIX shells.
+
+
 ### Demo: channel → Markdown
 
 ![flucto channel to-md demo](assets/demo/flucto-channel-to-md.gif)
@@ -164,7 +189,7 @@ Packaged releases expose both commands through `package.json`'s `bin` entry. Sho
 | `flucto md <url>` | `fl md <url>` | Download media and convert to Markdown in one step | `.md` file with metadata + transcript |
 | `flucto update check` | `fl u check` | Check GitHub releases for a newer Flucto version | Current/latest version and recommended asset |
 | `flucto update download` | `fl u download` | Download the recommended GitHub release asset | Downloaded asset path and checksum status |
-| `flucto update apply` | `fl u apply` | Apply an already downloaded asset when safe | Conservative apply result or manual install instructions |
+| `flucto update apply` | `fl u apply` | Update the CLI in its existing private/npm prefix | Update result or source-install instructions |
 
 Short option aliases: `-j` = `--json`, `-p` = `--progress-json`, `-f` = `--format`, `-q` = `--quality`, `-a` = `--audio-quality`, `-l` = `--language`, `-s` = `--stdout`, `-o` = `--output-dir`, and `-c` = `--concurrency`.
 
@@ -203,7 +228,7 @@ fl b urls.txt -f md -c 2 -o ./notes -j
 # Check and download GitHub release updates from CLI
 fl u check -j
 fl u download -o ~/Downloads -j
-fl u apply --asset ~/Downloads/Flucto-1.9.2-x86_64.AppImage -j
+fl u apply -j
 ```
 
 `batch` files are plain text. Empty lines and lines starting with `#`, `;`, or `]` are ignored, so URL lists can contain comments:
@@ -251,20 +276,22 @@ Managed binary defaults:
 | macOS | `~/Library/Application Support/Flucto/bin` |
 | Windows | `%LOCALAPPDATA%\\Flucto\\bin` |
 
+CLI bootstrap installs instead keep utilities under their private prefix's `bin/`, alongside the private runtime. Package updates do not replace these utilities. Explicit flags and environment overrides still take precedence.
+
 Resolution order is explicit paths, environment paths, `--bin-dir`, managed bin directory, package-local `bin/`, module-relative `bin/`, then system `PATH`.
 
 
 ### CLI updates
 
-The desktop app continues to use Electron's auto-updater. CLI update commands use GitHub releases directly:
+Windows/Linux desktop updates use Electron's updater. Unsigned macOS updates use a verified DMG and manual installation. CLI update commands are independent of desktop assets:
 
 ```bash
 flucto update check --json
 flucto update download --output-dir ~/Downloads --json
-flucto update apply --asset ~/Downloads/Flucto-1.9.2-x86_64.AppImage --json
+flucto update apply --json
 ```
 
-`check` and `download` are safe automation commands. `apply` is intentionally conservative: unsupported install modes return manual installation instructions instead of silently overwriting application files. When a release includes `checksums-sha256.txt`, downloaded assets are verified before the command reports success.
+`check` selects only the versioned CLI setup ZIP. `download` requires a matching SHA256 entry and preserves an existing verified archive if a replacement fails verification. `apply` uses the private Node/npm runtime and the original private prefix for bootstrap installs; existing global npm installs use npm, and source checkouts receive Git update instructions. Re-running the latest ZIP's installer is also supported.
 
 ### Current limitations
 
@@ -317,7 +344,7 @@ flucto update apply --asset ~/Downloads/Flucto-1.9.2-x86_64.AppImage --json
 
 ## 📦 CI/CD & Automated Releases
 
-Flucto uses GitHub Actions and semantic-release for automated validation and releases:
+Flucto uses GitHub Actions, maintained release-it version/changelog tooling and its existing verified publication helper:
 
 - **Automatic Versioning**: Semantic versioning based on Conventional Commit types
 - **Generated Release Notes**: `feat`, `fix`, and breaking-change commits become GitHub Release notes and `CHANGELOG.md` entries
@@ -328,7 +355,7 @@ Flucto uses GitHub Actions and semantic-release for automated validation and rel
 
 The reusable `ci.yml` workflow also validates pull requests and pushes to development branches. All jobs use Node.js 24 and lockfile-based `npm ci` installs. Run the same checks locally with `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build`.
 
-The release workflow predicts the next version using only commit analysis and release notes generation; this step does not load publishing plugins or require npm authentication. It builds Windows/macOS/Linux packages with that version, validates updater manifests and file hashes, generates SHA256 checksums, and publishes through the repository's locked semantic-release installation. Publication updates `package.json`, `package-lock.json`, and `CHANGELOG.md` and creates the version tag. A `feat` commit triggers a minor release; do not manually create a competing release tag.
+Release prediction is read-only Conventional Commit analysis, without publishing plugins or npm authentication. Native runners build and actually install/start their packages, exercise CLI and desktop MP3 conversion, verify persisted settings and capture screenshots. Publication bumps version/changelog metadata, atomically pushes the release branch and tag, then verifies their remote identity and that application code/dependencies still match the native build source before npm publication. GitHub releases remain drafts until all normalized assets have been uploaded. A `feat` commit triggers a minor release; do not create a competing release tag.
 
 npm publishing uses GitHub Actions OIDC trusted publishing, not `NPM_TOKEN`. Register the publisher in the npm package's **Settings → Trusted Publisher** section:
 
@@ -341,7 +368,7 @@ npm publishing uses GitHub Actions OIDC trusted publishing, not `NPM_TOKEN`. Reg
 | Environment name | Leave empty; the release job does not use a GitHub environment |
 | Allowed actions | Allow direct publishing with `npm publish`; stage-only permission is insufficient |
 
-Publishing jobs use Node.js 24, npm 11.17.0, and semantic-release 25. Keep `id-token: write` enabled on these jobs; provenance is generated automatically by trusted publishing. No npm token secret is required. An OIDC exchange error or npm `403` requires checking the package's actual Trusted Publisher configuration; adding permissions to GitHub alone cannot fix npm-side authorization.
+Publishing jobs use Node.js 24 and npm 12.2.0. Keep `id-token: write` enabled; `npm publish --provenance` uses trusted publishing, with no npm token fallback. An OIDC exchange error or npm `403` requires checking the package's actual Trusted Publisher configuration; adding GitHub permissions cannot fix npm-side authorization.
 
 Preserve GitHub's `GITHUB_SHA` and `GITHUB_REF` when publishing: npm verifies provenance against the actual Actions execution identity. Recovery still builds the package from the separately validated original tag checkout; automatic npm provenance identifies the executing control workflow commit, not that secondary checkout. Overriding these environment fields to the recovered tag causes npm `422` provenance verification failures.
 
@@ -351,20 +378,20 @@ Local AI-agent metadata under `.commandcode/` is ignored and must not be committ
 
 ### Recover a partially published release
 
-semantic-release creates the Git tag before publishing. If publication fails, fixing authentication and rerunning commit analysis may report no new release. Use the workflow's independent manual recovery job for the existing version:
+The release branch and tag are pushed before npm publication. If publication subsequently fails, use the workflow's independent manual recovery job for that existing version:
 
 ```bash
 # After the workflow changes are pushed and npm Trusted Publisher is configured:
 gh workflow run release.yml --ref master \
-  -f source_run_id=37508545685 \
-  -f release_version=1.17.0
+  -f source_run_id=SOURCE_RUN_ID \
+  -f release_version=VERSION
 ```
 
 `source_run_id` must identify a completed `release.yml` push run on main/master whose three packaging jobs succeeded. `release_version` must match an existing tag and all downloaded artifacts. Recovery validates that the tag has the same application code and dependency metadata as the build commit, then checks out that tag separately for the npm build. It never creates, deletes, or moves the tag.
 
 Recovery skips npm versions that already exist, completes missing GitHub release assets, and publishes a newly created release only after its uploads finish. Recovering an older version preserves a newer `latest`; an unpublished older npm version uses the `release-VERSION` dist-tag. Authentication/network errors are failures, not evidence that a package or release is absent. Publication failures remain visible; there is no automatic dispatch retry.
 
-New build artifacts are retained for 14 days. The original `37508545685` artifacts were created with the old one-day retention and expire on **2026-10-07 around 18:07–18:09 UTC**; the new workflow cannot extend their lifetime. Recovery requires unexpired artifacts. If they expire, stop and rebuild the original version's packages in a new verified source run rather than substituting artifacts from the current branch. A failure before tag creation is not eligible for this recovery path; use the normal release workflow.
+New build artifacts are retained for 14 days. Recovery requires unexpired, normalized artifacts from the validated source run. If they expire, rebuild that version from its verified source rather than substituting current-branch artifacts. A failure before tag creation is not eligible for recovery; use the normal release workflow. Do not delete or rewrite historical releases.
 
 
 ### Commit Conventions
@@ -376,7 +403,7 @@ Follow [Conventional Commits](./COMMIT_CONVENTIONS.md) to trigger automatic rele
 git commit -m "feat(transcript): add caption-to-markdown output mode"
 
 # Bug fix release
-git commit -m "fix(updater): publish deb updater metadata"
+git commit -m "fix(updater): verify the downloaded CLI archive"
 
 # Breaking change release
 git commit -m "feat!: redesign download request API"
