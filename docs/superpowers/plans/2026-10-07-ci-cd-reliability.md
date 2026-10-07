@@ -111,7 +111,7 @@
 - `.github/workflows/ci.yml`에 재사용 3-OS 검증을 추가하고, `release.yml`을 push 검증·정상 배포·독립 수동 복구로 분리했다.
 - `scripts/release-tools.mjs`에 버전 예측, source/tag 검증, installer/manifest/hash 검증 및 부분 publication 복구를 구현했다. 소스 문자열 테스트는 동작 기반 `tests/release-tools.test.mjs`로 교체했다.
 - review에서 발견한 세 경계 오류를 회귀 테스트와 함께 수정했다: AppImage의 embedded blockmap 허용, 성공한 Checks로 실패한 Build를 덮어쓰지 않는 정확한 job 이름 검사, 크기가 같아도 digest가 다른 기존 asset 재업로드.
-- 복구 npm publish child에만 원본 태그의 `GITHUB_SHA`/`GITHUB_REF`를 전달한다. 실제 제어 workflow의 ref/SHA 및 OIDC 자격 정보는 변경하지 않는다.
+- 복구 npm publish에서도 GitHub의 실제 `GITHUB_SHA`/`GITHUB_REF` 및 OIDC 실행 identity를 보존한다. application package는 별도로 검증한 원본 태그 checkout에서 compile·pack한다. 자동 npm provenance는 제어 workflow 실행 commit을 식별한다.
 - Windows executable fixture는 실제 Node child process에서 버전 응답을 생성한다. production API는 변경하지 않았고, updater fixture에는 플랫폼별 installer와 checksum을 제공했다.
 - README, commit conventions, Unreleased changelog에 현재 운영 절차를 반영했다.
 
@@ -129,7 +129,7 @@
 | `node scripts/release-tools.mjs prepare` | npm 인증 없이 실행; 작업 브랜치에서는 `has_release=false` |
 | `node scripts/release-tools.mjs source 37508545685 1.17.0` | GitHub 실제 run/build 결과와 기존 태그 검증 성공; source SHA `23e122745103a781d01bcf2c279c3c1ec3ea21d0` |
 | 격리된 `v1.17.0` checkout의 `npm ci --ignore-scripts` 및 `npm pack` | 실제 prepack compile 성공; `flucto-1.17.0.tgz`에 151개 파일 및 CLI bin 포함; 원본 CLI `--version`도 `1.17.0` |
-| npm provenance smoke | 복구 helper와 설치된 npm의 실제 provenance 생성기를 실행해 원본 태그 소스와 제어 workflow ref의 분리를 확인; 서명 및 publish 경계는 차단 |
+| 초기 npm provenance smoke의 한계 | 로컬 생성기만 실행하고 npm registry의 SourceRepository 일치 검증을 수행하지 않아 잘못된 태그 identity 변경을 발견하지 못했다. 후속 실제 게시의 E422와 아래 수정 검증으로 보완했다. |
 
 세 review 회귀 시나리오는 수정 전 실패 / 수정 후 성공을 확인했다. 전체 테스트는 최종 통합 상태에서 다시 통과했다.
 
@@ -172,3 +172,10 @@
 - 실제 npm PUT은 **E403: OIDC permission denied for this action**으로 거부되었다. 이전 ENEEDAUTH와 구분한다. 현재 확인할 계정 설정은 Trusted Publisher의 **Allowed actions → direct npm publish 허용**이다.
 - 실행 후 npm latest는 `1.16.4`이며 GitHub `v1.17.0` Release는 아직 없다. 등록 성공을 publication 성공으로 취급하지 않는다.
 - 계정 소유자가 직접 게시 권한을 확인·저장하면 동일 source/version으로 복구를 이어간다. staged-publish나 npm token으로 우회하지 않는다.
+
+### Provenance Identity Correction
+
+- [재시도 run 37583501412](https://github.com/DeclanJeon/flucto/actions/runs/37583501412)은 직접 게시 권한 검사를 통과했지만 npm registry에서 E422 provenance 검증 오류로 거부되었다.
+- registry가 기대한 SourceRepository는 실제 실행의 `refs/heads/master` / `54dd1fd7a2a78fdb92df772f386a48b81167b513`이었다. helper가 이를 `refs/tags/v1.17.0` / `a65d485743163df199dab7686442260b14dd9a30`으로 덮어쓴 것이 원인이다.
+- 해당 환경 override를 제거했다. provenance 검증을 끄거나 token/staged publishing으로 우회하지 않는다. 원본 태그 checkout 및 원본 소스 package build/pack 경로는 유지한다.
+- 설치된 npm의 실제 provenance 생성기를 사용하는 임시 smoke는 수정 전 issuer SourceRepository 일치 검사에서 실패했고 수정 후 통과했다. 외부 pack/publish/signing 경계는 차단했다. lint/typecheck/109개 전체 테스트/build/compiled CLI도 통과했다.
