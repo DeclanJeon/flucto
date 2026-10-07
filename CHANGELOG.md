@@ -1,3 +1,17 @@
+# Changelog
+
+## [1.18.0](https://github.com/DeclanJeon/flucto/compare/v1.17.0...v1.18.0) (2026-10-07)
+
+### Features
+
+* **release:** normalize installers and provision private CLI runtime ([1855355](https://github.com/DeclanJeon/flucto/commit/1855355e9db5fb3b4e4dd6cac916eb20342a316e))
+
+### Bug Fixes
+
+* **deps:** harden runtime dependencies and Actions runtimes ([1fc20a4](https://github.com/DeclanJeon/flucto/commit/1fc20a4c3160b78c791891abb20617c38c36c785))
+* **packaging:** load interpreter-owned modules and validate native Mac Intel ([f144419](https://github.com/DeclanJeon/flucto/commit/f144419f70105836020f79ccc29014d1dea83519))
+* **setup:** support PowerShell ANSI decoding and canonical native prefixes ([68d4cc1](https://github.com/DeclanJeon/flucto/commit/68d4cc1aa6e73f730da4e22bf78bda372a2e03ec))
+
 ## Unreleased
 
 ### Security
@@ -410,7 +424,7 @@
 
 * CI 빌드 에러 수정 - package-lock.json gitignore 제거 및 추가 ([9ee905b](https://github.com/DeclanJeon/flucto/commit/9ee905b27c63d8fd0c1f5db823e03cb7b0a2f850))
 
-# Changelog
+
 
 All notable changes to this project will be documented in this file.
 
