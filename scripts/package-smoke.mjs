@@ -147,15 +147,13 @@ try {
     await run(bundledYt, ['--version']);
     await run(bundledFfmpeg, ['-version']);
     asar.statFile(path.join(resources, 'app.asar'), 'node_modules/ajv/dist/2020.js');
-    const cpuModes = process.platform === 'darwin' && process.arch === 'arm64' ? ['arm64', 'x64'] : [process.arch];
-    for (const [index, cpu] of cpuModes.entries()) {
-    const port = 38147 + index;
+    const cpu = process.arch;
+    const port = 38147;
     const screenshotPath = path.join(releaseDir, `package-smoke-${process.platform}-${cpu}.png`);
     const desktopUrl = (name) => mediaUrl(`${cpu}-${name}`);
     // CI Linux lacks a configured interactive desktop sandbox; production switches are unchanged.
     const args = [...(process.platform === 'linux' ? ['--appimage-extract-and-run'] : []), `--remote-debugging-port=${port}`, `--user-data-dir=${path.join(root, `desktop-profile-${cpu}`)}`, '--disable-gpu', ...(process.platform === 'linux' ? ['--no-sandbox'] : [])];
-    const rosetta = process.platform === 'darwin' && cpu === 'x64' && process.arch === 'arm64';
-    desktop = spawn(rosetta ? 'arch' : executable, rosetta ? ['-x86_64', executable, ...args] : args, { stdio: ['ignore', 'pipe', 'pipe'], detached: process.platform !== 'win32' });
+    desktop = spawn(executable, args, { stdio: ['ignore', 'pipe', 'pipe'], detached: process.platform !== 'win32' });
     desktopExit = new Promise((resolve) => desktop.once('exit', resolve));
     let launchOutput = '';
     desktop.stdout.on('data', (data) => { launchOutput += data; });
@@ -214,7 +212,6 @@ try {
     console.log(`Installed desktop ${cpu} main/preload/UI, persisted settings, single/batch playable MP3 paths verified: ${version}`);
     console.log(`Native screenshot: ${screenshotPath}`);
     await stopDesktop();
-    }
   }
 } finally {
   await stopDesktop();

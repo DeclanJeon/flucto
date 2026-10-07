@@ -516,6 +516,9 @@ export const validateSourceRun = (run, jobs) => {
       failed.push(`${job.name} (${job.conclusion ?? job.status})`);
     }
   }
+  const intel = jobs.find((job) => job.name === 'Verify macOS Intel');
+  if (!intel) missing.push('macos-15-intel');
+  else if (intel.conclusion !== 'success') failed.push(`${intel.name} (${intel.conclusion ?? intel.status})`);
   if (missing.length) {
     throw new ReleaseToolsError(`source run ${runId} has no build job for: ${missing.join(', ')}`);
   }

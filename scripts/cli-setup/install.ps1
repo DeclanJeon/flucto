@@ -30,6 +30,11 @@ param(
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
+# PowerShell 7 callers can pass a module path incompatible with Windows PowerShell.
+# Load the built-in modules belonging to this interpreter, not an inherited newer edition.
+Import-Module (Join-Path $PSHOME 'Modules\Microsoft.PowerShell.Utility') -Force
+Import-Module (Join-Path $PSHOME 'Modules\Microsoft.PowerShell.Archive') -Force
+
 function Write-Info([string]$Message) { Write-Host "[flucto] $Message" }
 function Fail([string]$Message) {
     Write-Host "[flucto] ERROR: $Message" -ForegroundColor Red

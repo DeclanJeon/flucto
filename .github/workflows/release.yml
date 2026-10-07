@@ -159,8 +159,41 @@ jobs:
           retention-days: 14
           if-no-files-found: error
 
+  mac-intel:
+    name: Verify macOS Intel
+    needs: [prepare, build, cli]
+    if: github.event_name == 'push' && needs.prepare.outputs.has_release == 'true'
+    runs-on: macos-15-intel
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - run: npm ci --ignore-scripts
+      - name: Update Version
+        env:
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: npm version "$RELEASE_VERSION" --no-git-tag-version --allow-same-version
+      - uses: actions/download-artifact@v8
+        with:
+          name: artifacts-macos-latest
+          path: release
+      - uses: actions/download-artifact@v8
+        with:
+          name: common-cli-setup
+          path: release
+      - run: node scripts/package-smoke.mjs
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: package-proof-macos-intel
+          path: release/package-smoke-*.png
+          retention-days: 14
+          if-no-files-found: warn
+
   release:
-    needs: [prepare, build]
+    needs: [prepare, build, mac-intel]
     if: github.event_name == 'push' && needs.prepare.outputs.has_release == 'true'
     runs-on: ubuntu-latest
     permissions:

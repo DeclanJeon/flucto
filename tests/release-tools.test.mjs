@@ -107,8 +107,8 @@ const runFixture = (headSha, overrides = {}) => ({
 });
 
 const jobsFixture = (overrides = {}) =>
-  ['ubuntu-latest', 'windows-latest', 'macos-latest'].map((os) => ({
-    name: `Build ${os}`,
+  ['Build ubuntu-latest', 'Build windows-latest', 'Build macos-latest', 'Verify macOS Intel'].map((name) => ({
+    name,
     status: 'completed',
     conclusion: 'success',
     ...overrides,

@@ -100,9 +100,37 @@ jobs:
           retention-days: 14
           if-no-files-found: error
 
+  mac-intel:
+    name: Verify macOS Intel
+    needs: [package, cli]
+    runs-on: macos-15-intel
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - run: npm ci --ignore-scripts
+      - uses: actions/download-artifact@v8
+        with:
+          name: validated-macos-latest
+          path: release
+      - uses: actions/download-artifact@v8
+        with:
+          name: common-cli-setup
+          path: release
+      - run: node scripts/package-smoke.mjs
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: validation-proof-macos-intel
+          path: release/package-smoke-*.png
+          retention-days: 14
+          if-no-files-found: warn
+
   assets:
     name: Verify Release Downloads
-    needs: package
+    needs: [package, mac-intel]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
