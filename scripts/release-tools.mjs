@@ -568,7 +568,7 @@ export const publishNpmPackage = async (ctx, { version, sourceDir, packageName }
 const listReleaseAssets = async (client, releaseId) =>
   fetchAllPages(client, `/releases/${releaseId}/assets`);
 
-export const ensureGitHubRelease = async (ctx, { tag, sourceSha, version, artifactDir, artifactFiles }) => {
+export const ensureGitHubRelease = async (ctx, { tag, version, artifactDir, artifactFiles }) => {
   const github = ctx.github;
   let { body: release } = await github.api('GET', `/releases/tags/${tag}`, { expected: [200] });
   let created = false;
@@ -576,7 +576,6 @@ export const ensureGitHubRelease = async (ctx, { tag, sourceSha, version, artifa
     ({ body: release } = await github.api('POST', '/releases', {
       body: {
         tag_name: tag,
-        target_commitish: sourceSha,
         name: tag,
         draft: true,
         generate_release_notes: true,
@@ -638,7 +637,6 @@ export const runRecover = async (ctx, { sourceRunId, version, artifactDir, sourc
   const npm = await publishNpmPackage(ctx, { version, sourceDir, packageName: source.packageName });
   const github = await ensureGitHubRelease(ctx, {
     tag: source.tag,
-    sourceSha: source.sourceSha,
     version,
     artifactDir: resolvedArtifactDir,
     artifactFiles: files,

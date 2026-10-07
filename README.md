@@ -345,6 +345,8 @@ Publishing jobs use Node.js 24, npm 11.17.0, and semantic-release 25. Keep `id-t
 
 Preserve GitHub's `GITHUB_SHA` and `GITHUB_REF` when publishing: npm verifies provenance against the actual Actions execution identity. Recovery still builds the package from the separately validated original tag checkout; automatic npm provenance identifies the executing control workflow commit, not that secondary checkout. Overriding these environment fields to the recovered tag causes npm `422` provenance verification failures.
 
+Recovery attaches the GitHub Release to the already validated existing tag without `target_commitish`. That field is unused for existing tags, but GitHub still checks workflow-write authorization for its resolved target; selecting an older workflow commit can reject the built-in token with `403` even when `contents: write` is granted. See [GitHub's release API contract](https://docs.github.com/en/rest/releases/releases#create-a-release).
+
 Local AI-agent metadata under `.commandcode/` is ignored and must not be committed; generated paths can be incompatible with Windows.
 
 ### Recover a partially published release

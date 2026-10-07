@@ -150,7 +150,7 @@
 - 원본 build 로그의 실제 파일명은 `Flucto-1.17.0-x86_64.AppImage` 및 `Flucto-1.17.0-amd64.deb`이다. Electron Builder는 x64 target의 `${arch}`를 형식별로 변환한다. 검증기와 fixture의 잘못된 공통 `x64` 가정을 수정했다.
 - 실제 이름을 반영한 기존 acceptance test가 수정 전 실패하는 것을 확인했다. 수정 후 실제 verify CLI는 fixture 기반 16개 산출물을 검증하고 checksum manifest를 생성했다.
 - Linux 이름 수정 후 lint/typecheck/109개 전체 테스트/build/compiled CLI 버전 확인이 모두 성공했다. 동일 acceptance test는 실패 전/통과 후 회귀 증거를 갖는다.
-- npm 설정 페이지는 계정 로그인이 필요했다. 제출된 로그인은 `username or password was invalid`를 반환했다. 계정 로그인·Trusted Publisher UI 설정을 우회하지 않으며, 현재 설정의 유효성은 실제 OIDC 복구 결과로 확인한다.
+- 브라우저 자동화의 격리 세션은 소유자의 일반 브라우저 로그인 상태와 별개였다. 소유자 브라우저의 로그인 실패로 해석하지 않는다. npm 설정의 실제 유효성은 후속 OIDC 복구 결과로 확인했다.
 - [PR #2](https://github.com/DeclanJeon/flucto/pull/2)도 branch/PR 3-OS CI 총 6개 job 성공 후 merge했다: `38164dfa598154dde77c08032ef7fc3098dab3cf`. [기본 브랜치 run 37578032904](https://github.com/DeclanJeon/flucto/actions/runs/37578032904)의 checks 및 prepare도 성공했다.
 - [두 번째 복구 run 37578036243](https://github.com/DeclanJeon/flucto/actions/runs/37578036243)은 실제 3-OS 산출물 및 checksum 총 **17개 release files**를 검증했다. 원본 `v1.17.0` checkout의 prepack compile과 151개 파일을 포함한 npm tarball 생성도 성공했다.
 - 실제 `npm publish`는 `ENEEDAUTH`로 거부되었다. npm CLI 11.17.0 및 id-token:write가 적용된 실행에서도 게시 자격을 얻지 못했다. 오류만으로 npm UI의 특정 설정값을 단정하지 않는다.
@@ -179,3 +179,11 @@
 - registry가 기대한 SourceRepository는 실제 실행의 `refs/heads/master` / `54dd1fd7a2a78fdb92df772f386a48b81167b513`이었다. helper가 이를 `refs/tags/v1.17.0` / `a65d485743163df199dab7686442260b14dd9a30`으로 덮어쓴 것이 원인이다.
 - 해당 환경 override를 제거했다. provenance 검증을 끄거나 token/staged publishing으로 우회하지 않는다. 원본 태그 checkout 및 원본 소스 package build/pack 경로는 유지한다.
 - 설치된 npm의 실제 provenance 생성기를 사용하는 임시 smoke는 수정 전 issuer SourceRepository 일치 검사에서 실패했고 수정 후 통과했다. 외부 pack/publish/signing 경계는 차단했다. lint/typecheck/109개 전체 테스트/build/compiled CLI도 통과했다.
+
+### Existing-tag Release Target Correction
+
+- [복구 run 37584319571](https://github.com/DeclanJeon/flucto/actions/runs/37584319571)은 원본 산출물 17개 검증 및 **npm `flucto@1.17.0` 실제 게시에 성공**했다. registry의 latest도 `1.17.0`이며 CLI bin 및 SLSA v1 provenance 메타데이터가 존재한다.
+- 이어진 GitHub draft Release 생성은 `Resource not accessible by integration` 403으로 실패했다. `contents: write`는 이미 부여되어 있었다.
+- [GitHub 공식 API 계약](https://docs.github.com/en/rest/releases/releases#create-a-release)에 따르면 `target_commitish`는 기존 태그에는 쓰이지 않지만 그 target의 workflow 변경에는 추가 workflow-write 권한 검사를 한다. `GITHUB_TOKEN`에는 그 권한을 줄 수 없다.
+- 기존 태그를 검증한 복구에서 불필요한 과거 `target_commitish`를 제거했다. 태그를 이동하거나 PAT fallback을 추가하지 않는다. 재실행은 이미 존재하는 npm 버전을 건너뛰고 GitHub publication만 이어간다.
+- 수정 후 lint/typecheck/109개 전체 테스트/build/compiled CLI가 통과했다. 실제 Release API 성공 여부는 후속 복구 실행으로 검증한다.

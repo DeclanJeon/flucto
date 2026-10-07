@@ -8,6 +8,7 @@
 - Retain new release artifacts for 14 days and fail when required installers or updater metadata are missing.
 - Validate Linux x64 targets using Electron Builder's format-specific `x86_64.AppImage` and `amd64.deb` artifact names.
 - Preserve the actual GitHub Actions source identity in recovery provenance while packing application code from the validated original tag.
+- Create recovery releases against the existing validated tag without a redundant historical target that triggers GitHub workflow-write authorization.
 - Make executable and updater test fixtures portable to Windows; remove obsolete workflow source-text tests.
 
 # [1.17.0](https://github.com/DeclanJeon/flucto/compare/v1.16.4...v1.17.0) (2026-10-06)

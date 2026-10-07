@@ -686,7 +686,7 @@ test('release recovery replaces a same-size asset with a different digest', asyn
   github.state.release.upload_url = `${github.baseUrl}/uploads{?name,label}`;
   await ensureGitHubRelease(
     { github: createGitHubClient({ apiBase: github.baseUrl, repository: REPO, token: 'test-token' }) },
-    { tag: 'v1.17.0', sourceSha: 'a'.repeat(40), version: VERSION, artifactDir, artifactFiles: [name] },
+    { tag: 'v1.17.0', version: VERSION, artifactDir, artifactFiles: [name] },
   );
   assert.equal(github.state.assets.find((asset) => asset.name === name)?.digest, digest);
   assert.equal(github.state.release.draft, false);
