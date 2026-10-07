@@ -164,3 +164,11 @@
 4. 설정 완료 후 artifacts가 만료되기 전에 같은 source/version으로 workflow_dispatch를 다시 실행한다. `37508545685` / `1.17.0`을 유지하며 태그를 삭제·이동하거나 토큰 fallback을 추가하지 않는다.
 
 코드 통합 및 3-OS CI는 완료되었다. npm 계정 설정과 실제 publication 완료는 외부 인증 선행조건 때문에 아직 미완료다.
+
+### Trusted Publisher Registration Follow-up
+
+- 계정 소유자가 Trusted Publisher 등록을 완료했다고 알린 후 [복구 run 37581486264](https://github.com/DeclanJeon/flucto/actions/runs/37581486264)을 실행했다.
+- 원본 산출물 17개 검증 및 npm pack은 성공했다. 이번에는 OIDC 게시 인증이 진행되었고 provenance 서명이 transparency log에 기록되었다.
+- 실제 npm PUT은 **E403: OIDC permission denied for this action**으로 거부되었다. 이전 ENEEDAUTH와 구분한다. 현재 확인할 계정 설정은 Trusted Publisher의 **Allowed actions → direct npm publish 허용**이다.
+- 실행 후 npm latest는 `1.16.4`이며 GitHub `v1.17.0` Release는 아직 없다. 등록 성공을 publication 성공으로 취급하지 않는다.
+- 계정 소유자가 직접 게시 권한을 확인·저장하면 동일 source/version으로 복구를 이어간다. staged-publish나 npm token으로 우회하지 않는다.
