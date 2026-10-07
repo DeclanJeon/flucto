@@ -428,6 +428,13 @@ For user-facing changes, include concrete behavior in the commit subject or body
    npm run dev
    ```
 
+### Dependency maintenance
+
+- Use Node.js 24 and `npm ci` when reproducing CI results. `npm audit --omit=dev` checks the CLI/runtime dependency tree; also run the full `npm audit` because desktop packaging and publication depend on development tools.
+- Electron stays on the patched 41.x line (minimum 41.10.6). Electron 42+ requires code signing for native macOS notifications; establish signing before that upgrade rather than silently dropping notifications in unsigned builds.
+- The `concurrently`-scoped `shell-quote` override selects patched 1.11.x because the upstream release still pins 1.9.0. Remove the override when upstream accepts the patched version.
+- The 2026-10-07 lockfile audit reports zero production vulnerabilities and 22 development-tool findings (12 high, 10 moderate). Remaining roots include unpatched `braces`/`sprintf-js` and dependencies bundled inside npm 11.21.0. Do not treat the full audit as passing or run `npm audit fix --force`: its suggested release-plugin downgrades would change the trusted-publishing toolchain.
+
 ## Architecture & Tech Stack
 
 Flucto is built with a modern stack prioritizing performance and developer experience:

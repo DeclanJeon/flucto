@@ -70,7 +70,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "adm-zip": "^0.5.16",
+    "adm-zip": "^0.6.1",
     "dotenv": "^17.2.3",
     "electron-store": "^11.0.2",
     "electron-updater": "^6.8.3",
@@ -90,7 +90,7 @@
     "clsx": "^2.1.1",
     "concurrently": "^9.2.1",
     "cross-env": "^10.1.0",
-    "electron": "^40.6.1",
+    "electron": "^41.10.6",
     "electron-builder": "^26.0.12",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
@@ -98,7 +98,7 @@
     "fix-path": "^5.0.0",
     "framer-motion": "^12.23.25",
     "globals": "^16.5.0",
-    "js-yaml": "^4.3.1",
+    "js-yaml": "^4.3.2",
     "lucide-react": "^0.555.0",
     "postcss": "^8.5.6",
     "react": "^19.2.0",
@@ -115,6 +115,9 @@
     "wait-on": "^9.0.3"
   },
   "overrides": {
-    "vite": "npm:rolldown-vite@7.2.5"
+    "vite": "npm:rolldown-vite@7.2.5",
+    "concurrently": {
+      "shell-quote": "^1.11.0"
+    }
   }
 }

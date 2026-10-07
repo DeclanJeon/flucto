@@ -1,5 +1,11 @@
 ## Unreleased
 
+### Security
+
+- Update `adm-zip`, `js-yaml`, and compatible transitive dependencies; select patched `shell-quote` for `concurrently`.
+- Raise Electron's minimum to 41.10.6 while preserving unsigned macOS notification compatibility.
+- Reduce the production dependency audit to zero vulnerabilities; document the remaining development-tool findings rather than forcing incompatible release-tool changes.
+
 ### CI/CD
 
 - Gate releases on lint, renderer/Node type checks, regression tests, builds, and CLI smoke checks across Windows, macOS, and Linux.
@@ -10,6 +16,7 @@
 - Preserve the actual GitHub Actions source identity in recovery provenance while packing application code from the validated original tag.
 - Create recovery releases against the existing validated tag without a redundant historical target that triggers GitHub workflow-write authorization.
 - Make executable and updater test fixtures portable to Windows; remove obsolete workflow source-text tests.
+- Move checkout/setup-node/upload-artifact/download-artifact to Node 24-based action releases.
 
 # [1.17.0](https://github.com/DeclanJeon/flucto/compare/v1.16.4...v1.17.0) (2026-10-06)
 

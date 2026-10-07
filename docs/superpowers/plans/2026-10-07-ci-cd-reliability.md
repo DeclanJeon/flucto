@@ -199,3 +199,16 @@
 - 공개 checksum 파일 자체의 SHA-256 및 나머지 16개 checksum과 GitHub asset digest 메타데이터의 일치를 검증했다. 3개 OS updater manifest를 실제 다운로드해 SHA-256, version `1.17.0`, 참조 asset 존재를 확인했다. 큰 installer 전체 hash 및 manifest SHA-512 검증은 성공한 복구 job에서 수행했다.
 - 원본 태그 `v1.17.0`은 `a65d485743163df199dab7686442260b14dd9a30`으로 유지했다. 토큰 fallback, 태그 이동, provenance 비활성화를 사용하지 않았다.
 - 별도 위험: 원본 태그 dependency 설치 로그의 npm audit은 전체 dependency tree에서 47건(12 moderate / 33 high / 2 critical)을 보고했다. 이번 CI/CD 복구는 해당 dependency 보안 개선을 수행하거나 production 영향 범위를 분석한 작업이 아니다.
+
+### Dependency Hardening Follow-up — 2026-10-07
+
+- 승인 범위는 Electron 41.x 최소 보안 갱신 및 PR/CI 검증까지다. master merge와 신규 npm/GitHub Release publication은 수행하지 않는다.
+- 현재 master의 설치 graph 기준 audit은 33건(10 moderate / 21 high / 2 critical), production graph는 3 high였다. 원본 v1.17.0 태그의 47건과 구분한다.
+- `adm-zip`/`js-yaml` 및 호환 범위 transitive dependency를 갱신했다. `concurrently`가 취약한 `shell-quote` 1.9.0을 고정해 동일 1.x API의 `^1.11.0` scoped override를 적용했다.
+- Electron 최소 버전은 `^41.10.6`, 실제 lockfile/runtime은 `41.10.7`이다. Electron 42+의 native macOS notification은 code signing이 필요하므로 unsigned build 동작을 보존하는 보안 backport를 선택했다.
+- checkout/setup-node/upload-artifact/download-artifact를 각각 Node 24 runtime의 v5/v5/v6/v8로 갱신했다. release permissions, artifact 이름, 원본 태그 검증 및 provenance identity 규칙은 유지했다.
+- clean `npm ci`, lint, typecheck, 109개 전체 테스트, renderer/Electron build 및 실제 compiled CLI가 통과했다.
+- 격리 userData/bin으로 실제 Windows Electron 41.10.7 main/preload/renderer를 실행했다. CDP로 화면을 확인하고 설정 checkbox 변경 → 실제 IPC 값 변경 → reload 후 저장값 유지까지 검증했다. renderer error 목록은 비어 있었다.
+- 격리 bin에서 실제 CLI `setup --force --json`으로 yt-dlp와 FFmpeg ZIP을 새로 내려받았다. 설치 결과 `valid: true`, yt-dlp `2026.09.27.232945`, FFmpeg `8.1.2` 실행 버전을 확인했다. 기존 사용자 bin은 변경하지 않았다.
+- 실제 `concurrently` CLI로 공백 포함 두 Node command를 동시에 실행해 둘 다 exit 0을 확인했다.
+- 최종 production audit은 **0건**이다. 전체 audit은 **22건(12 high / 10 moderate), exit 1**로 여전히 실패한다. 남은 원인은 unpatched `braces`/`sprintf-js`, electron-builder의 legacy `@electron/get` chain 및 npm 11.21.0 내부 bundled dependency다. 무검증 cross-major override나 semantic-release plugin 강제 downgrade로 숨기지 않는다.

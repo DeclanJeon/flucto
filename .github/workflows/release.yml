@@ -43,12 +43,12 @@ jobs:
       version: ${{ steps.prepare.outputs.version }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '24'
           cache: 'npm'
@@ -73,10 +73,10 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '24'
           cache: 'npm'
@@ -149,7 +149,7 @@ jobs:
           "release/linux-unpacked/resources/bin/ffmpeg" -version >/dev/null
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: artifacts-${{ matrix.os }}
           path: |
@@ -174,12 +174,12 @@ jobs:
       id-token: write # npm trusted publishing (OIDC)
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '24'
           cache: 'npm'
@@ -191,19 +191,19 @@ jobs:
         run: npm ci --ignore-scripts
 
       - name: Download Windows Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: artifacts-windows-latest
           path: release
 
       - name: Download macOS Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: artifacts-macos-latest
           path: release
 
       - name: Download Linux Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: artifacts-ubuntu-latest
           path: release
@@ -231,12 +231,12 @@ jobs:
       id-token: write # npm trusted publishing (OIDC)
     steps:
       - name: Checkout control checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '24'
           cache: 'npm'
@@ -258,7 +258,7 @@ jobs:
         run: node scripts/release-tools.mjs source "$SOURCE_RUN_ID" "$RELEASE_VERSION"
 
       - name: Checkout pinned source at tag
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: recovery-source
           ref: ${{ steps.source.outputs.tag }}
@@ -269,7 +269,7 @@ jobs:
         run: npm ci --ignore-scripts
 
       - name: Download Windows Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: artifacts-windows-latest
           path: release
@@ -277,7 +277,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download macOS Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: artifacts-macos-latest
           path: release
@@ -285,7 +285,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download Linux Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: artifacts-ubuntu-latest
           path: release

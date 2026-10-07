@@ -1,0 +1,49 @@
+name: Hardening Artifact Smoke
+
+on:
+  push:
+    branches: [fix/dependency-hardening]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  artifacts:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build:electron
+      - uses: actions/upload-artifact@v6
+        with:
+          name: hardening-cli-${{ matrix.os }}
+          path: dist-electron/
+          retention-days: 1
+          if-no-files-found: error
+      - uses: actions/download-artifact@v8
+        with:
+          name: hardening-cli-${{ matrix.os }}
+          path: smoke-restored
+      - name: Run restored compiled CLI
+        run: node smoke-restored/cli/index.js --version
+      - name: Download original v4 Windows release artifact
+        if: runner.os == 'Linux'
+        uses: actions/download-artifact@v8
+        with:
+          github-token: ${{ github.token }}
+          run-id: '37508545685'
+          name: artifacts-windows-latest
+          path: smoke-original
+      - name: Verify original installer digest
+        if: runner.os == 'Linux'
+        run: |
+          node --input-type=module -e "import fs from 'node:fs'; import crypto from 'node:crypto'; import assert from 'node:assert/strict'; const actual=crypto.createHash('sha256').update(fs.readFileSync('smoke-original/Flucto-1.17.0-x64-setup.exe')).digest('hex'); assert.equal(actual,'e48ba36f300c29091427616af45c50d9b88fba504c0110b5dd074a488ef37e3f'); console.log('original v4 installer digest verified',actual);"
