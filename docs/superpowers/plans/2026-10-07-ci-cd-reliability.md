@@ -82,7 +82,7 @@
 **Files:** Modify `README.md`, `COMMIT_CONVENTIONS.md`, `CHANGELOG.md`, 이 작업지시서.
 
 - [x] CI trigger, checks, Node/npm 버전, OIDC 권한 및 수동 복구 절차를 문서화한다.
-- [x] npm Trusted Publisher 설정값을 문서화한다: GitHub Actions / DeclanJeon / flucto / release.yml / Environment empty / direct npm publish allowed. 실제 등록은 아래 외부 운영 단계로 남는다.
+- [x] npm Trusted Publisher 설정값을 문서화한다: GitHub Actions / DeclanJeon / flucto / release.yml / Environment empty / direct npm publish allowed. 소유자의 실제 등록 이후 OIDC 게시 성공으로 검증했다.
 - [x] 1.17.0 복구는 source_run_id=37508545685 및 release_version=1.17.0 사용. artifact 만료 전 실행이 필요함을 명시한다.
 - [x] artifact 만료 시 latest source가 아니라 원본 version tag/source로 3개 OS 패키지를 다시 만들어 검증해야 한다. 태그 삭제를 복구 방식으로 권장하지 않는다.
 - [x] 과거 npm 토큰 설계 문서는 역사적 문서로 유지하며 현재 README 운영 절차를 명시한다.
@@ -94,14 +94,14 @@
 - [x] workflow YAML lint 성공.
 - [x] release helper 검증: 실제 source run/tag read-only smoke, 실제 태그 소스 npm pack, fixture 기반 잘못된 버전/누락 artifact 거부 및 정상 manifest/checksum 생성.
 - [x] recovery behavior tests에서 네트워크 오류와 부분 publication을 구분한다.
-- [x] 실제 npm/GitHub publication은 수행하지 않는다. 따라서 production 성공 여부는 npm 설정 등록 및 변경 push 후 Actions에서 별도 확인한다.
+- [x] 초기 read-only 구현 검증 이후 사용자 승인 하에 실제 npm/GitHub publication까지 완료했다. 실행 및 공개 산출물 확인 결과는 아래에 기록했다.
 
-## External Operations — 계정 소유자 실행
+## External Operations — 완료
 
-1. npm flucto package의 Trusted Publisher 설정을 등록/수정한다. UI의 실제 설정은 이 세션에서 인증되어 있지 않다.
-2. 검증된 변경을 commit/push한다.
-3. source artifacts가 유효하면 고정 버전 수동 복구를 실행한다. 만료되면 동일 태그의 패키지를 재생성한다.
-4. npm `flucto@1.17.0`, GitHub `v1.17.0`, 모든 OS assets/update manifests/checksums를 확인한다.
+1. [x] 계정 소유자가 npm Trusted Publisher 및 direct publish 설정을 완료했다. 실제 OIDC 게시가 성공했다.
+2. [x] 검증된 변경을 commit/push하고 PR #1–#4를 3-OS CI 성공 후 merge했다.
+3. [x] 만료 전 기존 source artifacts로 고정 버전 복구 run `37585635024`가 성공했다.
+4. [x] npm `flucto@1.17.0`, GitHub `v1.17.0`, 모든 OS assets/update manifests/checksums를 확인했다.
 
 ## Execution Results
 
@@ -156,14 +156,14 @@
 - 실제 `npm publish`는 `ENEEDAUTH`로 거부되었다. npm CLI 11.17.0 및 id-token:write가 적용된 실행에서도 게시 자격을 얻지 못했다. 오류만으로 npm UI의 특정 설정값을 단정하지 않는다.
 - 게시 시도 후 npm latest는 `1.16.4`, `flucto@1.17.0` 조회는 E404, GitHub `v1.17.0` Release는 없음으로 확인했다. 기존 tag commit은 `a65d485743163df199dab7686442260b14dd9a30`으로 유지되었다.
 
-### Current Blocker / Account Owner Action
+### Account Setup History — Resolved
 
 1. [npm flucto 설정](https://www.npmjs.com/package/flucto/access)에 계정 소유자로 로그인한다. 비밀번호·OTP·토큰을 채팅에 제공하지 않는다.
 2. Settings → Trusted publishing에서 GitHub Actions / Organization or user `DeclanJeon` / Repository `flucto` / Workflow filename **`release.yml`** / Environment name 비움을 확인·저장한다.
 3. Allowed actions에서 **direct `npm publish` 허용**을 명시적으로 선택한다. 신규 설정의 기본 `npm stage publish` 허용만으로는 현재 workflow의 직접 게시를 승인하지 않는다. [공식 설정 안내](https://docs.npmjs.com/trusted-publishers/).
 4. 설정 완료 후 artifacts가 만료되기 전에 같은 source/version으로 workflow_dispatch를 다시 실행한다. `37508545685` / `1.17.0`을 유지하며 태그를 삭제·이동하거나 토큰 fallback을 추가하지 않는다.
 
-코드 통합 및 3-OS CI는 완료되었다. npm 계정 설정과 실제 publication 완료는 외부 인증 선행조건 때문에 아직 미완료다.
+이 계정 설정 선행조건은 후속 실행에서 해소되었다. npm 및 GitHub publication은 아래 최종 운영 결과와 같이 완료되었다.
 
 ### Trusted Publisher Registration Follow-up
 
@@ -186,4 +186,16 @@
 - 이어진 GitHub draft Release 생성은 `Resource not accessible by integration` 403으로 실패했다. `contents: write`는 이미 부여되어 있었다.
 - [GitHub 공식 API 계약](https://docs.github.com/en/rest/releases/releases#create-a-release)에 따르면 `target_commitish`는 기존 태그에는 쓰이지 않지만 그 target의 workflow 변경에는 추가 workflow-write 권한 검사를 한다. `GITHUB_TOKEN`에는 그 권한을 줄 수 없다.
 - 기존 태그를 검증한 복구에서 불필요한 과거 `target_commitish`를 제거했다. 태그를 이동하거나 PAT fallback을 추가하지 않는다. 재실행은 이미 존재하는 npm 버전을 건너뛰고 GitHub publication만 이어간다.
-- 수정 후 lint/typecheck/109개 전체 테스트/build/compiled CLI가 통과했다. 실제 Release API 성공 여부는 후속 복구 실행으로 검증한다.
+- 수정 후 lint/typecheck/109개 전체 테스트/build/compiled CLI가 통과했다. 실제 Release API의 실패 전/성공 후 증거는 아래 복구 실행으로 확인했다.
+
+### Final Operational Verification — 2026-10-07
+
+- [PR #3](https://github.com/DeclanJeon/flucto/pull/3) 및 [PR #4](https://github.com/DeclanJeon/flucto/pull/4)는 각각 branch/PR의 3-OS checks 총 6개 job 성공 후 merge했다. 최종 code commit은 `628cd0409684c682e5a0cb0cd8114cb7fbec9c8e`이다.
+- [기본 브랜치 run 37585632549](https://github.com/DeclanJeon/flucto/actions/runs/37585632549)의 3-OS checks 및 prepare도 성공했다. CI 전용 변경이라 신규 버전 build/publish는 정상적으로 skipped되었다.
+- [최종 복구 run 37585635024](https://github.com/DeclanJeon/flucto/actions/runs/37585635024)이 성공했다. 실제 로그는 `artifacts verified (17 release files)`, `npm already has version 1.17.0`, `GitHub release v1.17.0 created; uploaded 17 assets`를 확인했다. 부분 성공 후 재실행이 npm 재게시 없이 남은 publication을 마무리했다.
+- npm latest는 `1.17.0`; `fl`/`flucto` bin과 SLSA v1 provenance가 존재한다. 공개 provenance subject SHA-512는 registry tarball integrity와 일치하며 invocation은 npm 게시 run `37584319571`이다. execution source는 제어 workflow commit `3c721dd07fff692dc6aeac3c6a7f410dfd042a44`이며 application source tag와 혼동하지 않는다.
+- 격리 디렉터리에 실제 공개 npm package를 설치한 뒤 compiled CLI의 `--version` → `1.17.0` 및 `--help` 정상 출력을 확인했다. 임시 설치와 provenance smoke 파일은 제거했다.
+- [GitHub Release](https://github.com/DeclanJeon/flucto/releases/tag/v1.17.0)는 `2026-10-07T07:13:56Z`에 공개되었고 draft/prerelease가 아니며 latest다. 17개 asset 모두 uploaded 상태 및 양수 size다.
+- 공개 checksum 파일 자체의 SHA-256 및 나머지 16개 checksum과 GitHub asset digest 메타데이터의 일치를 검증했다. 3개 OS updater manifest를 실제 다운로드해 SHA-256, version `1.17.0`, 참조 asset 존재를 확인했다. 큰 installer 전체 hash 및 manifest SHA-512 검증은 성공한 복구 job에서 수행했다.
+- 원본 태그 `v1.17.0`은 `a65d485743163df199dab7686442260b14dd9a30`으로 유지했다. 토큰 fallback, 태그 이동, provenance 비활성화를 사용하지 않았다.
+- 별도 위험: 원본 태그 dependency 설치 로그의 npm audit은 전체 dependency tree에서 47건(12 moderate / 33 high / 2 critical)을 보고했다. 이번 CI/CD 복구는 해당 dependency 보안 개선을 수행하거나 production 영향 범위를 분석한 작업이 아니다.
