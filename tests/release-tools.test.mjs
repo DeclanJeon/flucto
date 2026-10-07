@@ -131,8 +131,8 @@ const ARTIFACT_FILES = (version) => ({
   dmgArm: `Flucto-${version}-arm64.dmg`,
   zipX64: `Flucto-${version}-x64.zip`,
   zipArm: `Flucto-${version}-arm64.zip`,
-  appImage: `Flucto-${version}-x64.AppImage`,
-  deb: `Flucto-${version}-x64.deb`,
+  appImage: `Flucto-${version}-x86_64.AppImage`,
+  deb: `Flucto-${version}-amd64.deb`,
 });
 
 // A complete, correct artifact directory for the given version.

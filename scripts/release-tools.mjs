@@ -39,7 +39,7 @@ const CHECKSUMS_FILE = 'checksums-sha256.txt';
 const BUILD_MATRIX = {
   'ubuntu-latest': {
     manifest: 'latest-linux.yml',
-    suffixes: (v) => [`-${v}-x64.AppImage`, `-${v}-x64.deb`],
+    suffixes: (v) => [`-${v}-x86_64.AppImage`, `-${v}-amd64.deb`],
   },
   'windows-latest': {
     manifest: 'latest.yml',
