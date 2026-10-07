@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // Release tooling for the Release workflow.
-//   prepare                        semantic-release dry-run (commit-analyzer + release-notes-generator only)
-//   verify   <version> <dir>       validate release artifacts + generate checksums-sha256.txt
+//   prepare                        predict conventional-commit release version without publishing/authentication
+//   verify   <version> <dir>       validate installer/internal artifacts + generate checksums-sha256.txt
 //   source   <run-id> <version>    validate the source run and the release tag
 //   recover  <run-id> <version> <dir> <source-dir>  finish a partially published release
+//   notes    <version> <dir>       print the four user-facing installation downloads
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
@@ -39,24 +40,27 @@ const CHECKSUMS_FILE = 'checksums-sha256.txt';
 const BUILD_MATRIX = {
   'ubuntu-latest': {
     manifest: 'latest-linux.yml',
-    suffixes: (v) => [`-${v}-x86_64.AppImage`, `-${v}-amd64.deb`],
+    suffixes: (v) => [`-${v}-x86_64.AppImage`],
   },
   'windows-latest': {
     manifest: 'latest.yml',
-    suffixes: (v) => [`-${v}-x64-setup.exe`, `-${v}-x64-portable.exe`],
+    suffixes: (v) => [`-${v}-x64-setup.exe`],
   },
   'macos-latest': {
     manifest: 'latest-mac.yml',
-    suffixes: (v) => [`-${v}-x64.dmg`, `-${v}-arm64.dmg`, `-${v}-x64.zip`, `-${v}-arm64.zip`],
+    suffixes: (v) => [`-${v}-universal.dmg`, `-${v}-universal.zip`],
   },
 };
-// AppImage blockmaps are embedded; NSIS, DMG and ZIP use standalone sidecars.
-const BLOCKMAP_REQUIRED_RE = /(?:-setup\.exe|\.dmg|\.zip)$/i;
+// CLI setup ZIPs are not electron-updater archives. AppImage blockmaps are embedded.
+const BLOCKMAP_REQUIRED_RE = /(?:-setup\.exe|\.dmg|-universal\.zip)$/i;
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
 const USAGE = `Usage:
   node scripts/release-tools.mjs prepare
   node scripts/release-tools.mjs verify <version> <artifact-dir>
+  node scripts/release-tools.mjs notes <version> <artifact-dir>
+  node scripts/release-tools.mjs guard-source
+  node scripts/release-tools.mjs publish <version> <artifact-dir>
   node scripts/release-tools.mjs source <source-run-id> <version>
   node scripts/release-tools.mjs recover <source-run-id> <version> <artifact-dir> <source-dir>`;
 
@@ -249,20 +253,11 @@ const fetchAllPages = async (client, requestPath, { key } = {}) => {
 // ---- prepare ----------------------------------------------------------------
 
 export const runPrepare = async (ctx) => {
-  const semanticRelease = ctx.semanticRelease ?? (await import('semantic-release')).default;
-  const result = await semanticRelease(
-    {
-      dryRun: true,
-      branches: ['main', 'master'],
-      // Dry run must never require npm/GitHub publish credentials.
-      plugins: ['@semantic-release/commit-analyzer', '@semantic-release/release-notes-generator'],
-    },
-    { cwd: ctx.cwd, env: ctx.env },
-  );
-  const version = result?.nextRelease?.version ?? '';
-  await writeGithubOutput(ctx.env, { has_release: version ? 'true' : 'false', version });
-  ctx.log(version ? `next release version: ${version}` : 'no release-worthy commits');
-  return { hasRelease: Boolean(version), version };
+  const { predictRelease } = await import('./version-tools.mjs');
+  const { hasRelease, version } = await predictRelease(ctx.cwd);
+  await writeGithubOutput(ctx.env, { has_release: hasRelease ? 'true' : 'false', version });
+  ctx.log(hasRelease ? `next release version: ${version}` : 'no release-worthy commits');
+  return { hasRelease, version };
 };
 
 // ---- verify -----------------------------------------------------------------
@@ -302,12 +297,24 @@ export const verifyArtifacts = async (version, artifactDir) => {
   }
   const errors = [];
 
-  // 1. The complete required artifact set for every OS must exist at this version.
+  // Exactly one desktop installation choice per OS; macOS ZIP is updater-only.
+  const expected = new Set(Object.values(BUILD_MATRIX).map((spec) => spec.manifest));
   for (const [os, spec] of Object.entries(BUILD_MATRIX)) {
     for (const suffix of spec.suffixes(version)) {
-      const match = [...names].find((name) => name.endsWith(suffix));
-      if (!match) errors.push(`missing ${os} installer matching "*${suffix}"`);
+      const matches = [...names].filter((name) => name.endsWith(suffix));
+      if (matches.length === 0) errors.push(`missing ${os} installer matching "*${suffix}"`);
+      if (matches.length > 1) errors.push(`multiple ${os} release files matching "*${suffix}"`);
+      for (const name of matches) {
+        expected.add(name);
+        if (BLOCKMAP_REQUIRED_RE.test(name)) expected.add(`${name}.blockmap`);
+      }
     }
+  }
+  const cliArchive = `Flucto-${version}-cli-setup.zip`;
+  expected.add(cliArchive);
+  if (!names.has(cliArchive)) errors.push(`missing CLI setup archive "${cliArchive}"`);
+  for (const name of names) {
+    if (!expected.has(name)) errors.push(`unexpected release file "${name}"`);
   }
 
   // 2. Every updater manifest must point at existing files whose sha512 matches.
@@ -375,6 +382,111 @@ export const runVerify = async (ctx, version, artifactDir) => {
   return result;
 };
 
+const installationNotes = (version, artifactFiles, repository) => {
+  const choices = [
+    ['Windows x64', `-${version}-x64-setup.exe`, 'Run the installer.'],
+    ['macOS Intel + Apple Silicon', `-${version}-universal.dmg`, 'Open the DMG and drag Flucto into Applications.'],
+    ['Linux x64', `-${version}-x86_64.AppImage`, 'Make executable and run; no DEB/portable choice is required.'],
+    ['CLI — Windows / macOS / Linux', `Flucto-${version}-cli-setup.zip`, 'Extract once, then run install.cmd (Windows) or bash install.sh (macOS/Linux). Node, CLI, yt-dlp and FFmpeg are set up together.'],
+  ];
+  const rows = choices.map(([platform, suffix, instruction]) => {
+    const matches = artifactFiles.filter((name) => name.endsWith(suffix));
+    if (matches.length !== 1) throw new ReleaseToolsError(`expected one ${platform} installation file matching "${suffix}"`);
+    const name = matches[0];
+    const url = `https://github.com/${repository}/releases/download/v${version}/${encodeURIComponent(name)}`;
+    return `| ${platform} | [${name}](${url}) | ${instruction} |`;
+  });
+  return [
+    '<!-- flucto-installation-downloads -->',
+    '## Install Flucto',
+    '',
+    '**Choose just one desktop installer for your OS, or the CLI setup ZIP.**',
+    '',
+    '| Platform | Download | Installation |',
+    '| --- | --- | --- |',
+    ...rows,
+    '',
+    'The macOS DMG supports both Intel and Apple Silicon. This unsigned build uses DMG-based update installation; it does not silently replace the app. macOS may require explicit approval in Privacy & Security.',
+    '',
+    '### Internal update files — do not install these',
+    '',
+    'The universal macOS ZIP, latest*.yml, *.blockmap and checksums-sha256.txt support update discovery and integrity checks. They are not alternative installers. Keep these files available for the app/CLI updater.',
+    '<!-- /flucto-installation-downloads -->',
+  ].join('\n');
+};
+
+const runNotes = async (ctx, version, artifactDir) => {
+  const entries = await fsp.readdir(path.resolve(ctx.cwd, artifactDir), { withFileTypes: true });
+  const files = entries.filter((entry) => entry.isFile()).map((entry) => entry.name);
+  const repository = ctx.env.GITHUB_REPOSITORY ?? 'DeclanJeon/flucto';
+  let notes = installationNotes(version, files, repository);
+  const changelog = await fsp.readFile(path.join(ctx.cwd, 'CHANGELOG.md'), 'utf8');
+  const lines = changelog.split(/\r?\n/);
+  const start = lines.findIndex((line) => /^#{1,2} /.test(line) && line.includes(`[${version}]`));
+  if (start >= 0) {
+    const next = lines.findIndex((line, index) => index > start && /^#{1,2} /.test(line));
+    notes += `\n\n${lines.slice(start, next < 0 ? undefined : next).join('\n').trim()}`;
+  }
+  ctx.log(notes);
+  return notes;
+};
+
+// ---- publish: Git first, then trusted npm and a complete draft release -------
+
+export const verifyPublicationSource = async (ctx, version) => {
+  const sourceSha = ctx.env.GITHUB_SHA;
+  const branch = ctx.env.GITHUB_REF_NAME;
+  if (!sourceSha || !RELEASE_BRANCHES.has(branch)) {
+    throw new ReleaseToolsError('publication requires the original GitHub Actions GITHUB_SHA and release branch');
+  }
+  const head = (await git(ctx, ['rev-parse', 'HEAD'])).stdout;
+  const refNames = [`refs/heads/${branch}`];
+  if (version) refNames.push(`refs/tags/v${version}`, `refs/tags/v${version}^{}`);
+  const remote = (await git(ctx, ['ls-remote', 'origin', ...refNames])).stdout;
+  const refs = new Map(remote.split('\n').filter(Boolean).map((line) => {
+    const [sha, name] = line.split(/\s+/);
+    return [name, sha];
+  }));
+  if (refs.get(`refs/heads/${branch}`) !== head) {
+    throw new ReleaseToolsError(`source checkout is stale or its release commit was not pushed to ${branch}; refusing npm publication`);
+  }
+  if (!version) {
+    if (head !== sourceSha) throw new ReleaseToolsError('checkout HEAD does not match the original Actions source SHA');
+    return { head, sourceSha, branch };
+  }
+  const tag = `v${version}`;
+  const tagCommit = (await git(ctx, ['rev-parse', '--verify', `${tag}^{commit}`])).stdout;
+  const remoteTag = refs.get(`refs/tags/${tag}^{}`) ?? refs.get(`refs/tags/${tag}`);
+  if (tagCommit !== head || remoteTag !== head) {
+    throw new ReleaseToolsError(`release tag ${tag} was not pushed with the release commit; refusing npm publication`);
+  }
+  const ancestry = await git(ctx, ['merge-base', '--is-ancestor', sourceSha, head], { allowFailure: true });
+  if (!ancestry.ok) throw new ReleaseToolsError('release commit is not descended from the original Actions source SHA');
+  const changed = (await git(ctx, ['diff', '--name-only', sourceSha, head])).stdout.split('\n').filter(Boolean);
+  const disallowed = changed.filter((file) => !RELEASE_FILE_ALLOWLIST.has(file));
+  if (disallowed.length) throw new ReleaseToolsError(`release source changed after native builds: ${disallowed.join(', ')}`);
+  for (const file of ['package.json', 'package-lock.json']) {
+    const before = (await git(ctx, ['show', `${sourceSha}:${file}`])).stdout;
+    const after = (await git(ctx, ['show', `${head}:${file}`])).stdout;
+    if (stripVersionFields(file, before) !== stripVersionFields(file, after)) {
+      throw new ReleaseToolsError(`${file} changed beyond release version fields after native builds`);
+    }
+  }
+  const pkg = JSON.parse((await git(ctx, ['show', `${head}:package.json`])).stdout);
+  if (pkg.version !== version) throw new ReleaseToolsError(`release commit package version ${pkg.version} does not match ${version}`);
+  return { head, sourceSha, branch, tag, packageName: pkg.name };
+};
+
+export const runPublish = async (ctx, version, artifactDir) => {
+  const source = await verifyPublicationSource(ctx, version);
+  const resolvedArtifactDir = path.resolve(ctx.cwd, artifactDir);
+  const { files } = await verifyArtifacts(version, resolvedArtifactDir);
+  const npm = await publishNpmPackage(ctx, { version, sourceDir: ctx.cwd, packageName: source.packageName });
+  const github = await ensureGitHubRelease(ctx, { tag: source.tag, version, artifactDir: resolvedArtifactDir, artifactFiles: files });
+  ctx.log(`published ${source.tag}: npm ${npm.action}, GitHub release ${github.releaseId}`);
+  return { npm, github };
+};
+
 // ---- source -----------------------------------------------------------------
 
 export const validateSourceRun = (run, jobs) => {
@@ -404,6 +516,9 @@ export const validateSourceRun = (run, jobs) => {
       failed.push(`${job.name} (${job.conclusion ?? job.status})`);
     }
   }
+  const intel = jobs.find((job) => job.name === 'Verify macOS Intel');
+  if (!intel) missing.push('macos-15-intel');
+  else if (intel.conclusion !== 'success') failed.push(`${intel.name} (${intel.conclusion ?? intel.status})`);
   if (missing.length) {
     throw new ReleaseToolsError(`source run ${runId} has no build job for: ${missing.join(', ')}`);
   }
@@ -555,7 +670,7 @@ export const publishNpmPackage = async (ctx, { version, sourceDir, packageName }
       throw new ReleaseToolsError(`npm pack must produce exactly one tarball in ${packDir}`);
     }
     const tarball = path.join(packDir, tarballs[0]);
-    const args = ['publish', tarball, '--access', 'public'];
+    const args = ['publish', tarball, '--access', 'public', '--provenance'];
     if (plan.distTag) args.push('--tag', plan.distTag);
     await runNpm(ctx, args, { cwd: sourceDir });
     ctx.log(`published npm ${packageName}@${version}${plan.distTag ? ` (dist-tag "${plan.distTag}" — newer latest preserved)` : ''}`);
@@ -579,6 +694,7 @@ export const ensureGitHubRelease = async (ctx, { tag, version, artifactDir, arti
         name: tag,
         draft: true,
         generate_release_notes: true,
+        body: await runNotes(ctx, version, artifactDir),
       },
       expected: [201],
     }));
@@ -608,7 +724,12 @@ export const ensureGitHubRelease = async (ctx, { tag, version, artifactDir, arti
       // Partial/corrupt upload from a failed run — replace it.
       await github.api('DELETE', `/releases/assets/${prior.id}`, { expected: [204] });
     }
-    await github.request('POST', `${uploadBase}?name=${encodeURIComponent(name)}`, {
+    const label = name.endsWith('-setup.exe') ? 'INSTALL — Windows desktop'
+      : name.endsWith('.dmg') ? 'INSTALL — macOS desktop (Intel + Apple Silicon)'
+        : name.endsWith('.AppImage') ? 'INSTALL — Linux desktop'
+          : name.endsWith('-cli-setup.zip') ? 'INSTALL — CLI, all operating systems'
+            : 'INTERNAL — updater/integrity, not an installer';
+    await github.request('POST', `${uploadBase}?name=${encodeURIComponent(name)}&label=${encodeURIComponent(label)}`, {
       body: fs.createReadStream(filePath),
       headers: { 'content-type': 'application/octet-stream', 'content-length': String(size) },
       expected: [201],
@@ -675,6 +796,23 @@ export const main = async (argv, overrides = {}) => {
       case 'verify': {
         if (args.length !== 2) throw new UsageError('verify requires <version> <artifact-dir>');
         await runVerify(ctx, normalizeVersion(args[0]), args[1]);
+        return 0;
+      }
+      case 'notes': {
+        if (args.length !== 2) throw new UsageError('notes requires <version> <artifact-dir>');
+        await runNotes(ctx, normalizeVersion(args[0]), args[1]);
+        return 0;
+      }
+      case 'guard-source': {
+        if (args.length !== 0) throw new UsageError('guard-source takes no arguments');
+        await verifyPublicationSource(ctx);
+        return 0;
+      }
+      case 'publish': {
+        if (args.length !== 2) throw new UsageError('publish requires <version> <artifact-dir>');
+        ctx.repository = env.GITHUB_REPOSITORY;
+        ctx.github = requireGithub(ctx);
+        await runPublish(ctx, normalizeVersion(args[0]), args[1]);
         return 0;
       }
       case 'source': {

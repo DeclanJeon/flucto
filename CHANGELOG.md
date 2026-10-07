@@ -1,15 +1,32 @@
 ## Unreleased
 
+### Security
+
+- Update `adm-zip`, `js-yaml`, and compatible transitive dependencies; select patched `shell-quote` for `concurrently`.
+- Raise Electron's minimum to 41.10.6 while preserving unsigned macOS notification compatibility.
+- Replace obsolete semantic-release dependencies with maintained release-it/conventional-changelog tooling and compatible transitive updates; the full dependency audit reports zero vulnerabilities.
+
 ### CI/CD
 
 - Gate releases on lint, renderer/Node type checks, regression tests, builds, and CLI smoke checks across Windows, macOS, and Linux.
 - Separate release version prediction from npm authentication and use lockfile-based npm installs.
 - Add existing-tag recovery from verified source-run artifacts without republishing successful npm versions or downgrading newer releases.
 - Retain new release artifacts for 14 days and fail when required installers or updater metadata are missing.
-- Validate Linux x64 targets using Electron Builder's format-specific `x86_64.AppImage` and `amd64.deb` artifact names.
+- Normalize new releases to Windows x64 NSIS, a universal macOS DMG, Linux x64 AppImage and one cross-platform CLI setup ZIP; retain internal updater files separately and preserve historical releases.
 - Preserve the actual GitHub Actions source identity in recovery provenance while packing application code from the validated original tag.
 - Create recovery releases against the existing validated tag without a redundant historical target that triggers GitHub workflow-write authorization.
 - Make executable and updater test fixtures portable to Windows; remove obsolete workflow source-text tests.
+- Move checkout/setup-node/upload-artifact/download-artifact to Node 24-based action releases.
+- Publish only after the release branch/tag are atomically pushed and remotely verified against the unchanged native build source; retain original Actions provenance and use OIDC without token fallback.
+- Validate actual private CLI installation, restricted-PowerShell launchers, native desktop startup, persisted settings and playable MP3 output on native OS runners.
+
+### Installation and downloads
+
+- Provision a checksum-verified private Node.js runtime and bundled CLI without requiring a preinstalled Node.js or administrator access; retain utilities across private-prefix CLI updates.
+- Bundle both macOS CPU slices and use explicit verified-DMG installation for unsigned macOS updates.
+- Return yt-dlp's final post-conversion file path from CLI and all desktop download handlers, rather than a deleted intermediate MP4 or output template.
+- Preserve existing verified downloads on checksum failure; validate FFmpeg with its supported `-version` argument and recognize extensionless ZIP downloads.
+
 
 # [1.17.0](https://github.com/DeclanJeon/flucto/compare/v1.16.4...v1.17.0) (2026-10-06)
 

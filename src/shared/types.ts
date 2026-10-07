@@ -237,6 +237,13 @@ export interface AppUpdateEvent {
   total?: number;
   message?: string;
   stack?: string;
+  /**
+   * How the downloaded update is applied. 'restart' means electron-updater
+   * installs on restart (Windows NSIS, Linux AppImage). 'installer' means the
+   * downloaded file is a manual installer (unsigned macOS DMG) the user opens
+   * and installs by hand — a restart alone never applies it.
+   */
+  installationMode?: 'restart' | 'installer';
 }
 
 export interface NetworkStatusEvent {

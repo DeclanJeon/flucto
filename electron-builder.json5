@@ -28,7 +28,6 @@
   win: {
     target: [
       { target: "nsis", arch: ["x64"] },
-      { target: "portable", arch: ["x64"] },
     ],
     icon: "assets/icon.ico",
     artifactName: "${productName}-${version}-${arch}-setup.${ext}",
@@ -47,15 +46,15 @@
     runAfterFinish: true,
   },
 
-  portable: {
-    artifactName: "${productName}-${version}-${arch}-portable.${ext}",
-  },
 
   // macOS configuration
   mac: {
+    // One universal build per format: the DMG is the user installer, the ZIP is
+    // the internal electron-updater payload. Both embed fat x86_64+arm64
+    // binaries provisioned by `node scripts/setup-binaries.mjs --universal`.
     target: [
-      { target: "dmg", arch: ["x64", "arm64"] },
-      { target: "zip", arch: ["x64", "arm64"] },
+      { target: "dmg", arch: ["universal"] },
+      { target: "zip", arch: ["universal"] },
     ],
     icon: "assets/icon.png",
     hardenedRuntime: true,
@@ -77,7 +76,6 @@
   linux: {
     target: [
       { target: "AppImage", arch: ["x64"] },
-      { target: "deb", arch: ["x64"] },
     ],
     category: "AudioVideo;Video;Utility",
     maintainer: "Flucto Team",
@@ -87,12 +85,6 @@
     icon: "assets/icons",
     artifactName: "${productName}-${version}-${arch}.${ext}",
   },
-
-  deb: {
-    priority: "optional",
-    compression: "xz",
-  },
-
   // Auto-update configuration (if using electron-updater)
   publish: {
     provider: "github",

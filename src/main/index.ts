@@ -12,7 +12,7 @@ import { settingsStore, getStoredDownloadSettings } from './store.js';
 import { appendHistoryEntry, clearHistory, getHistoryEntries } from './historyStore.js';
 import { getCommonYtDlpArgs, getRefererForUrl, parseLastJsonObjectFromStdout } from './media/ytDlp.js';
 import { createPlatformRegistry } from './platforms/index.js';
-import { runMediaDownload, getAudioQualityValue, getResolvedVideoFormatSelector, isInstagramUrl } from './services/mediaDownload.js';
+import { runMediaDownload } from './services/mediaDownload.js';
 import { setupUtilities, versionFor } from './services/binaryInstaller.js';
 import { checkAndRefreshBinaries } from './services/binaryRefresh.js';
 import type { BinaryResolver } from './services/binaryResolver.js';
@@ -498,16 +498,12 @@ ipcMain.handle(
       notifyPerItemInBatch?: boolean;
     },
   ) => {
-    const ytDlpPath = getBinaryPath("yt-dlp");
-    const ffmpegPath = getBinaryPath("ffmpeg");
     const settings = getStoredDownloadSettings();
     const selectedQuality = quality ?? settings.qualityPreferences;
     const resolvedOverrides = formatOverrides ?? settings.formatOverrides;
     const shouldNotifyPerItem = notifyPerItemInBatch ?? settings.notifyPerItemInBatch;
-    const outputTemplate = path.join(
-      settings.downloadsDirectory || config.paths.downloads,
-      "%(title)s.%(ext)s",
-    );
+    const outputDir = settings.downloadsDirectory || config.paths.downloads;
+    const binaries = getDesktopBinaries();
 
     showDesktopNotification('Batch Download Started', `${urls.length} media item(s) started.`);
 
@@ -515,165 +511,26 @@ ipcMain.handle(
       const requestId = `batch-${Date.now()}-${index}`;
       const mediaTitle = titles?.[index] ?? url;
       try {
-        event.sender.send("download-progress", {
-          requestId,
-          url,
-          status: "downloading",
-          progress: 0,
-          title: mediaTitle,
-        });
-
-        // Custom adapter check (e.g. Threads)
-        const adapter = registry.resolve(url);
-        if (adapter) {
-          const strategy = adapter.getStrategy(url);
-          if ((strategy === 'custom-api' || strategy === 'browser') && adapter.download) {
-            const result = await adapter.download(
-              { url, outputDir: settings.downloadsDirectory || config.paths.downloads, format, requestId, title: mediaTitle },
-              (progress) => event.sender.send("download-progress", progress),
-            );
-            if (result.filePath) {
-              appendHistoryEntry({ id: requestId, url, title: mediaTitle, timestamp: Date.now(), status: 'success', filePath: result.filePath, format });
-            } else {
-              appendHistoryEntry({ id: requestId, url, title: mediaTitle, timestamp: Date.now(), status: 'error', filePath: null, errorMessage: result.message, format });
-            }
-            if (result.success && shouldNotifyPerItem) {
-              showDesktopNotification('Download Complete', mediaTitle);
-            }
-            return;
-          }
-        }
-
-        const referer = getRefererForUrl(url) ?? "";
-
-        // 재시도 로직을 위한 함수
-        const tryDownload = async (retryCount = 0): Promise<void> => {
-          // 다운로드 인자 구성
-          const args = [
-            url,
-            "--output",
-            outputTemplate,
-            "--encoding",
-            "utf-8",
-            "--no-check-certificates",
-            "--no-warnings",
-            "--newline",
-            "--no-playlist",
-            "--force-overwrites",
-            ...(referer ? ["--add-header", `referer:${referer}`] : []),
-            "--ffmpeg-location",
-            path.dirname(ffmpegPath),
-            // [추가] 플랫폼별 특화 옵션 적용
-            ...getCommonYtDlpArgs(url),
-          ];
-
-          // Twitter/X의 경우 재시도 시 다른 API 옵션 시도
-          if (
-            (url.includes("x.com") || url.includes("twitter.com")) &&
-            retryCount > 0
-          ) {
-            args.push("--extractor-args", "twitter:api=graph");
-          }
-
-          if (format === "mp3") {
-            const resolvedAudioOverrideId = isInstagramUrl(url) ? null : resolvedOverrides.audioFormatId;
-            if (resolvedAudioOverrideId) {
-              args.push("--format", resolvedAudioOverrideId);
-            }
-            const resolvedAudioQuality = getAudioQualityValue(selectedQuality.audio);
-            args.push(
-              "--extract-audio",
-              "--audio-format",
-              "mp3",
-              "--audio-quality",
-              resolvedAudioQuality,
-            );
-            logger.info('Batch download audio selection', {
-              requestId,
-              url,
-              preset: selectedQuality.audio,
-              overrideFormatId: resolvedAudioOverrideId,
-              resolvedAudioQuality,
-            });
-          } else {
-            const resolvedVideoSelector = getResolvedVideoFormatSelector(
-              url,
-              selectedQuality.video,
-              resolvedOverrides.videoFormatId,
-            );
-            args.push(
-              "--format",
-              resolvedVideoSelector,
-              "--merge-output-format",
-              "mp4",
-            );
-            logger.info('Batch download video selection', {
-              requestId,
-              url,
-              preset: selectedQuality.video,
-              overrideFormatId: isInstagramUrl(url) ? null : resolvedOverrides.videoFormatId,
-              resolvedVideoSelector,
-            });
-          }
-
-          try {
-            const subprocess = execa(ytDlpPath, args);
-
-            subprocess.stdout?.on("data", (data) => {
-              const output = data.toString();
-              const progressMatch = output.match(
-                /(\d+\.?\d*)%.*?(\d+\.?\d*\w+\/s).*?ETA\s+(\d+:\d+)/,
-              );
-
-              if (progressMatch) {
-                event.sender.send("download-progress", {
-                  requestId,
-                  url,
-                  status: "downloading",
-                  progress: parseFloat(progressMatch[1]),
-                  speed: progressMatch[2],
-                  eta: progressMatch[3],
-                  title: mediaTitle,
-                });
-              }
-            });
-
-            await subprocess;
-          } catch (error: unknown) {
-            // Twitter/X의 경우 404/403 오류 시 재시도
-            if (
-              (url.includes("x.com") || url.includes("twitter.com")) &&
-              retryCount < 2
-            ) {
-              logger.warn(
-                `Retrying Twitter/X download (attempt ${retryCount + 1}) for ${url}`,
-              );
-              await sleep(1000 * (retryCount + 1)); // 지수 백오프
-              return tryDownload(retryCount + 1);
-            }
-            throw error;
-          }
-        };
-
-        await tryDownload();
+        const response = await runMediaDownload(
+          { url, format, outputDir, quality: selectedQuality, formatOverrides: resolvedOverrides, requestId, title: mediaTitle },
+          { binaries, onProgress: (progress) => event.sender.send('download-progress', progress) },
+        );
         appendHistoryEntry({
           id: requestId,
           url,
           title: mediaTitle,
           timestamp: Date.now(),
-          status: 'success',
-          filePath: outputTemplate,
+          status: response.success ? 'success' : 'error',
+          filePath: response.filePath ?? null,
+          errorMessage: response.success ? undefined : response.message,
           format,
         });
-        event.sender.send("download-progress", {
-          requestId,
-          url,
-          status: "completed",
-          progress: 100,
-          title: mediaTitle,
-        });
+        if (!response.success) logger.error(`Download Error for ${url}:`, { error: response.message });
         if (shouldNotifyPerItem) {
-          showDesktopNotification('Download Complete', mediaTitle);
+          showDesktopNotification(
+            response.success ? 'Download Complete' : 'Download Failed',
+            response.success ? mediaTitle : `${mediaTitle}: ${response.message}`,
+          );
         }
       } catch (error: unknown) {
         const errorMessage = getErrorMessage(error);
@@ -688,17 +545,8 @@ ipcMain.handle(
           errorMessage,
           format,
         });
-        event.sender.send("download-progress", {
-          requestId,
-          url,
-          status: "error",
-          progress: 0,
-          error: errorMessage,
-          title: mediaTitle,
-        });
-        if (shouldNotifyPerItem) {
-          showDesktopNotification('Download Failed', `${mediaTitle}: ${errorMessage}`);
-        }
+        event.sender.send('download-progress', { requestId, url, status: 'error', progress: 0, error: errorMessage, title: mediaTitle });
+        if (shouldNotifyPerItem) showDesktopNotification('Download Failed', `${mediaTitle}: ${errorMessage}`);
       }
     });
 
@@ -708,122 +556,34 @@ ipcMain.handle(
 );
 
 // 3. Download Video Handler (single)
-ipcMain.handle("download-video", async (_event, args: DownloadRequest) => {
-  const { url, format } = args;
+ipcMain.handle("download-video", async (event, args: DownloadRequest) => {
   const settings = getStoredDownloadSettings();
-  const quality = args.quality ?? settings.qualityPreferences;
-
-  // 다운로드 경로 설정
-  const outputTemplate = path.join(settings.downloadsDirectory || config.paths.downloads, "%(title)s.%(ext)s");
-
-  // 바이너리 경로 가져오기 (utils.ts 활용)
-  const ytDlpPath = getBinaryPath("yt-dlp");
-  const ffmpegPath = getBinaryPath("ffmpeg");
-
-  logger.info(`Starting download: ${url} (Format: ${format})`);
-  logger.debug(`Binaries - yt-dlp: ${ytDlpPath}, ffmpeg: ${ffmpegPath}`);
   showDesktopNotification('Download Started', 'Download has started.');
-
-  try {
-    // Custom adapter check (e.g. Threads)
-    const adapter = registry.resolve(url);
-    if (adapter) {
-      const strategy = adapter.getStrategy(url);
-      if ((strategy === 'custom-api' || strategy === 'browser') && adapter.download) {
-        const requestId = `custom-${Date.now()}`;
-        const result = await adapter.download(
-          { url, outputDir: settings.downloadsDirectory || config.paths.downloads, format, requestId, title: args.title },
-          (progress) => _event.sender.send("download-progress", progress),
-        );
-        if (result.filePath) {
-          appendHistoryEntry({ id: requestId, url, title: args.title ?? 'Downloaded Media', timestamp: Date.now(), status: 'success', filePath: result.filePath, format });
-        } else {
-          appendHistoryEntry({ id: requestId, url, title: args.title ?? 'Failed Download', timestamp: Date.now(), status: 'error', filePath: null, errorMessage: result.message, format });
-        }
-        return result;
-      }
-    }
-
-    const referer = getRefererForUrl(url) ?? "";
-
-    // 재시도 로직을 위한 함수
-    const tryDownload = async (retryCount = 0): Promise<void> => {
-      const downloadArgs = [
-        url,
-        "--output",
-        outputTemplate,
-        "--encoding",
-        "utf-8",
-        "--no-check-certificates",
-        "--no-warnings",
-        "--no-playlist",
-        "--force-overwrites",
-        ...(referer ? ["--add-header", `referer:${referer}`] : []),
-        "--ffmpeg-location",
-        path.dirname(ffmpegPath),
-        // [추가] 플랫폼별 특화 옵션 적용
-        ...getCommonYtDlpArgs(url),
-      ];
-
-      // Twitter/X의 경우 재시도 시 다른 API 옵션 시도
-      if (
-        (url.includes("x.com") || url.includes("twitter.com")) &&
-        retryCount > 0
-      ) {
-        downloadArgs.push("--extractor-args", "twitter:api=graph");
-      }
-
-      if (format === "mp3") {
-        downloadArgs.push(
-          "--extract-audio",
-          "--audio-format",
-          "mp3",
-          "--audio-quality",
-          getAudioQualityValue(quality.audio),
-        );
-      } else {
-        downloadArgs.push(
-          "--format",
-          getResolvedVideoFormatSelector(url, quality.video),
-          "--merge-output-format",
-          "mp4",
-        );
-      }
-
-      logger.debug(`Executing: ${ytDlpPath} ${downloadArgs.join(" ")}`);
-
-      try {
-        // 실행 (execa)
-        await execa(ytDlpPath, downloadArgs);
-      } catch (error: unknown) {
-        // Twitter/X의 경우 404/403 오류 시 재시도
-        if (
-          (url.includes("x.com") || url.includes("twitter.com")) &&
-          retryCount < 2
-        ) {
-          logger.warn(
-            `Retrying Twitter/X download (attempt ${retryCount + 1}) for ${url}`,
-          );
-          await sleep(1000 * (retryCount + 1)); // 지수 백오프
-          return tryDownload(retryCount + 1);
-        }
-        throw error;
-      }
-    };
-
-    await tryDownload();
-
-    return {
-      success: true,
-      message: "Download Complete!",
-      filePath: outputTemplate,
-    };
-  } catch (error: unknown) {
-    const errorMessage = getErrorMessage(error);
-    logger.error("Download Error:", { error: errorMessage });
-    showDesktopNotification('Download Failed', errorMessage);
-    return { success: false, message: errorMessage || "Process Failed" };
+  const response = await runMediaDownload(
+    {
+      url: args.url,
+      format: args.format,
+      outputDir: settings.downloadsDirectory || config.paths.downloads,
+      quality: args.quality ?? settings.qualityPreferences,
+      title: args.title,
+    },
+    { binaries: getDesktopBinaries(), onProgress: (progress) => event.sender.send('download-progress', progress) },
+  );
+  appendHistoryEntry({
+    id: response.requestId,
+    url: args.url,
+    title: args.title ?? 'Downloaded Media',
+    timestamp: Date.now(),
+    status: response.success ? 'success' : 'error',
+    filePath: response.filePath ?? null,
+    errorMessage: response.success ? undefined : response.message,
+    format: args.format,
+  });
+  if (!response.success) {
+    logger.error('Download Error:', { error: response.message });
+    showDesktopNotification('Download Failed', response.message);
   }
+  return response;
 });
 
 // 4. Read Batch File Handler

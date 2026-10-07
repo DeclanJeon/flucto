@@ -1,9 +1,12 @@
-import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { compareVersions, fetchLatestRelease, type GitHubReleaseAsset, type GitHubReleaseInfo } from './githubRelease.js';
-import { detectInstallMode, selectReleaseAsset, type InstallMode } from './platformAssets.js';
+import { detectInstallMode, selectCliSetupAsset, type InstallMode } from './platformAssets.js';
+import { downloadReleaseAsset, parseChecksumManifest, verifySha256, type ReleaseDownloadProgress } from './releaseDownload.js';
 import { execa } from '../spawn.js';
+
+export { parseChecksumManifest, verifySha256 };
 
 export interface CliUpdateCheckResult {
   currentVersion: string;
@@ -32,82 +35,84 @@ export interface CliUpdateApplyResult {
 export interface CliUpdateOptions {
   currentVersion: string;
   outputDir?: string;
-  assetPath?: string;
   env?: NodeJS.ProcessEnv;
   release?: GitHubReleaseInfo;
+  onProgress?: (progress: ReleaseDownloadProgress) => void;
   /** Overrides install-mode detection (tests, wrappers). */
   installMode?: InstallMode;
-  /** Overrides the `npm install -g flucto@latest` call for npm-mode applies. */
-  execNpmInstall?: () => Promise<{ failed: boolean; stderr?: string; stdout?: string }>;
+  /** Module path used to locate a private bootstrap install marker (tests). */
+  modulePath?: string;
 }
 
-export interface ChecksumManifest {
-  entries: Map<string, string>;
+/**
+ * A CLI installed by the Flucto-*-cli-setup.zip bootstrap. `root` is the user-scope
+ * install prefix; Node and npm live inside it so updates never touch global npm.
+ */
+export interface PrivateInstall {
+  root: string;
+  nodePath: string;
+  npmCliPath: string;
 }
 
-const CHECKSUM_ASSET_NAMES = new Set(['checksums-sha256.txt', 'sha256sums.txt', 'sha256sum.txt']);
 
-const downloadToFile = async (url: string, destination: string): Promise<void> => {
-  const response = await fetch(url, { headers: { 'user-agent': 'Flucto CLI updater' } });
-  if (!response.ok) throw new Error(`Download failed: HTTP ${response.status}`);
-  await fs.promises.mkdir(path.dirname(destination), { recursive: true });
-  await fs.promises.writeFile(destination, Buffer.from(await response.arrayBuffer()));
-};
-
-export const parseChecksumManifest = (content: string): ChecksumManifest => {
-  const entries = new Map<string, string>();
-  for (const line of content.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-    const match = /^(?<hash>[a-fA-F0-9]{64})\s+\*?(?<name>.+)$/.exec(trimmed);
-    if (match?.groups?.hash && match.groups.name) {
-      entries.set(path.basename(match.groups.name.trim()), match.groups.hash.toLowerCase());
-    }
-  }
-  return { entries };
-};
-
-export const verifySha256 = async (filePath: string, expected: string): Promise<boolean> => {
-  const hash = crypto.createHash('sha256');
-  const stream = fs.createReadStream(filePath);
-  for await (const chunk of stream) hash.update(chunk);
-  return hash.digest('hex') === expected.toLowerCase();
-};
-
-const findChecksumAsset = (release: GitHubReleaseInfo): GitHubReleaseAsset | null => {
-  return release.assets.find((asset) => CHECKSUM_ASSET_NAMES.has(asset.name.toLowerCase()))
-    ?? release.assets.find((asset) => asset.name.toLowerCase().includes('checksum'))
-    ?? null;
-};
+/** Marker the CLI bootstrap writes at the install root; also the updater's anchor for the private prefix. */
+export const PRIVATE_INSTALL_MARKER = 'flucto-cli-install.json';
 
 const releaseFor = async (options: CliUpdateOptions): Promise<GitHubReleaseInfo> => {
   return options.release ?? fetchLatestRelease('DeclanJeon/flucto', options.env);
 };
-
-const toCheckResult = (currentVersion: string, release: GitHubReleaseInfo, asset: GitHubReleaseAsset | null): CliUpdateCheckResult => ({
+const toCheckResult = (
+  currentVersion: string,
+  release: GitHubReleaseInfo,
+  asset: GitHubReleaseAsset | null,
+): CliUpdateCheckResult => ({
   currentVersion,
   latestVersion: release.version,
   updateAvailable: compareVersions(release.version, currentVersion) > 0,
   releaseUrl: release.url,
   publishedAt: release.publishedAt,
   recommendedAsset: asset?.name ?? null,
-  assets: release.assets.map((item) => item.name),
+  assets: release.assets.map((entry) => entry.name),
 });
 
 export const checkForCliUpdate = async (options: CliUpdateOptions): Promise<CliUpdateCheckResult> => {
   const release = await releaseFor(options);
-  return toCheckResult(options.currentVersion, release, selectReleaseAsset(release.assets));
+  return toCheckResult(options.currentVersion, release, selectCliSetupAsset(release));
 };
 
-const applyNpmUpdate = async (options: CliUpdateOptions, installMode: InstallMode): Promise<CliUpdateApplyResult> => {
+
+/** Locate the private prefix that owns this module, independently of shell/global npm state. */
+export const findPrivateInstallRoot = (modulePath: string): string | null => {
+  let directory = path.dirname(path.resolve(modulePath));
+  for (let depth = 0; depth < 12; depth += 1) {
+    if (fs.existsSync(path.join(directory, PRIVATE_INSTALL_MARKER))) return directory;
+    const parent = path.dirname(directory);
+    if (parent === directory) break;
+    directory = parent;
+  }
+  return null;
+};
+
+// Official Node archives unpack to <root>/bin/node + <root>/lib/node_modules/npm on
+// POSIX and <root>/node.exe + <root>/node_modules/npm on Windows.
+const PRIVATE_LAYOUTS: { nodePath: string; npmCliPath: string }[] = [
+  { nodePath: 'node.exe', npmCliPath: path.join('node_modules', 'npm', 'bin', 'npm-cli.js') },
+  { nodePath: path.join('bin', 'node'), npmCliPath: path.join('lib', 'node_modules', 'npm', 'bin', 'npm-cli.js') },
+];
+
+const resolvePrivateInstall = (root: string): PrivateInstall | null => {
+  for (const layout of PRIVATE_LAYOUTS) {
+    const nodePath = path.join(root, layout.nodePath);
+    const npmCliPath = path.join(root, layout.npmCliPath);
+    if (fs.existsSync(nodePath) && fs.existsSync(npmCliPath)) return { root, nodePath, npmCliPath };
+  }
+  return null;
+};
+
+const applyNpmUpdate = async (installMode: InstallMode): Promise<CliUpdateApplyResult> => {
   const next = 'Update applied. Restart your shell and run `flucto version` to confirm.';
-  const runInstall = options.execNpmInstall
-    ?? (async () => {
-      const result = await execa('npm', ['install', '-g', 'flucto@latest'], { reject: false });
-      return { failed: result.failed, stderr: result.stderr, stdout: result.stdout };
-    });
   try {
-    const result = await runInstall();
+    const result = await execa('npm', ['install', '-g', 'flucto@latest'], { reject: false });
     if (result.failed) {
       const reason = result.stderr?.trim() || result.stdout?.trim() || 'npm exited with a failure status.';
       return {
@@ -128,12 +133,61 @@ const applyNpmUpdate = async (options: CliUpdateOptions, installMode: InstallMod
   }
 };
 
-export const applyCliUpdate = async (options: CliUpdateOptions): Promise<CliUpdateApplyResult> => {
-  const installMode = options.installMode ?? detectInstallMode();
-
-  if (installMode === 'npm') {
-    return applyNpmUpdate(options, installMode);
+/**
+ * Private bootstrap installs keep their own Node/npm under the install prefix, so the
+ * update installs flucto@latest into the same prefix with the bundled npm CLI — the
+ * system PATH, global npm config, and any other Node installs are untouched.
+ */
+const applyPrivateUpdate = async (install: PrivateInstall): Promise<CliUpdateApplyResult> => {
+  try {
+    const result = await execa(
+      install.nodePath,
+      [install.npmCliPath, 'install', '-g', '--prefix', install.root, 'flucto@latest'],
+      { reject: false },
+    );
+    if (result.failed) {
+      const reason = result.stderr?.trim() || result.stdout?.trim() || 'npm exited with a failure status.';
+      return {
+        applied: false,
+        installMode: 'npm',
+        reason,
+        next: `Re-run the CLI setup archive or install into the same prefix manually: "${install.nodePath}" "${install.npmCliPath}" install -g --prefix "${install.root}" flucto@latest`,
+      };
+    }
+    if (process.platform === 'win32') {
+      await fs.promises.rm(path.join(install.root, 'flucto.ps1'), { force: true });
+      await fs.promises.rm(path.join(install.root, 'fl.ps1'), { force: true });
+    }
+    return {
+      applied: true,
+      installMode: 'npm',
+      next: 'Update applied in place. Run `flucto version` to confirm.',
+    };
+  } catch (error: unknown) {
+    return {
+      applied: false,
+      installMode: 'npm',
+      reason: error instanceof Error ? error.message : String(error),
+      next: 'Re-download the CLI setup archive for the latest release and run its installer again.',
+    };
   }
+};
+
+export const applyCliUpdate = async (options: CliUpdateOptions): Promise<CliUpdateApplyResult> => {
+  const modulePath = options.modulePath ?? fileURLToPath(import.meta.url);
+  const root = findPrivateInstallRoot(modulePath);
+  if (root) {
+    const privateInstall = resolvePrivateInstall(root);
+    if (privateInstall) return applyPrivateUpdate(privateInstall);
+    return {
+      applied: false,
+      installMode: 'npm',
+      reason: `Private install at ${root} is missing its bundled Node/npm runtime.`,
+      next: 'Re-run the installer from the CLI setup archive to repair this install.',
+    };
+  }
+  const installMode = options.installMode ?? detectInstallMode(modulePath);
+  if (installMode === 'npm') return applyNpmUpdate(installMode);
 
   if (installMode === 'source') {
     return {
@@ -144,57 +198,34 @@ export const applyCliUpdate = async (options: CliUpdateOptions): Promise<CliUpda
     };
   }
 
-  const assetPath = options.assetPath ? path.resolve(options.assetPath) : null;
-  if (!assetPath) {
-    return { applied: false, installMode, reason: 'No asset path was provided.', next: 'Run `flucto update download` first, then pass --asset PATH.' };
-  }
-  try {
-    await fs.promises.access(assetPath, fs.constants.R_OK);
-  } catch {
-    return { applied: false, installMode, reason: `Asset is not readable: ${assetPath}`, next: 'Download the update asset again.' };
-  }
-
   return {
     applied: false,
     installMode,
-    reason: `Automatic apply is not supported for ${installMode} installs yet.`,
-    next: `Install or run the downloaded asset manually: ${assetPath}`,
+    reason: 'This CLI installation has no identifiable npm or source prefix.',
+    next: 'Download the latest CLI setup ZIP, extract it, and run its installer.',
   };
 };
 
 export const downloadCliUpdate = async (options: CliUpdateOptions): Promise<CliUpdateDownloadResult> => {
   const release = await releaseFor(options);
-  const asset = selectReleaseAsset(release.assets);
+  const asset = selectCliSetupAsset(release);
   const base = toCheckResult(options.currentVersion, release, asset);
   if (!asset) {
-    return { ...base, downloaded: false, path: null, checksumVerified: null, next: 'No compatible release asset was found for this platform.' };
+    return { ...base, downloaded: false, path: null, checksumVerified: null, next: 'No CLI setup archive was found in this release.' };
   }
 
-  const outputDir = path.resolve(options.outputDir ?? process.cwd());
-  const destination = path.join(outputDir, asset.name);
-  await downloadToFile(asset.url, destination);
-
-  let checksumVerified: boolean | null = null;
-  const checksumAsset = findChecksumAsset(release);
-  if (checksumAsset) {
-    const checksumResponse = await fetch(checksumAsset.url, { headers: { 'user-agent': 'Flucto CLI updater' } });
-    if (!checksumResponse.ok) {
-      throw new Error(`Checksum manifest download failed: HTTP ${checksumResponse.status}`);
-    }
-    const manifest = parseChecksumManifest(await checksumResponse.text());
-    const expected = manifest.entries.get(asset.name);
-    if (!expected) {
-      throw new Error(`Checksum manifest does not include ${asset.name}`);
-    }
-    checksumVerified = await verifySha256(destination, expected);
-    if (!checksumVerified) throw new Error(`Checksum verification failed for ${asset.name}`);
-  }
+  const result = await downloadReleaseAsset({
+    release,
+    asset,
+    outputDir: options.outputDir ?? process.cwd(),
+    onProgress: options.onProgress,
+  });
 
   return {
     ...base,
     downloaded: true,
-    path: destination,
-    checksumVerified,
-    next: 'Run `flucto update apply --asset PATH` if your install mode supports automatic apply; otherwise install the asset manually.',
+    path: result.path,
+    checksumVerified: result.checksumVerified,
+    next: `Unpack ${asset.name} and run its installer (install.cmd / install.ps1 on Windows, install.sh on macOS/Linux).`,
   };
 };

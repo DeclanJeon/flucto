@@ -35,20 +35,18 @@ jobs:
     if: github.event_name == 'push'
     needs: checks
     permissions:
-      # semantic-release verifies push access to the repository even in the
-      # commit-analyzer/release-notes-generator-only dry run.
-      contents: write
+      contents: read
     outputs:
       has_release: ${{ steps.prepare.outputs.has_release }}
       version: ${{ steps.prepare.outputs.version }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '24'
           cache: 'npm'
@@ -62,8 +60,32 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node scripts/release-tools.mjs prepare
 
-  build:
+  cli:
+    name: Build Common CLI Archive
     needs: prepare
+    if: github.event_name == 'push' && needs.prepare.outputs.has_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - run: npm ci --ignore-scripts
+      - name: Update Version
+        env:
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: npm version "$RELEASE_VERSION" --no-git-tag-version --allow-same-version
+      - run: npm run build:cli-release
+      - uses: actions/upload-artifact@v6
+        with:
+          name: common-cli-setup
+          path: release/*-cli-setup.zip
+          retention-days: 14
+          if-no-files-found: error
+
+  build:
+    needs: [prepare, cli]
     if: github.event_name == 'push' && needs.prepare.outputs.has_release == 'true'
     name: Build ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
@@ -73,10 +95,10 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '24'
           cache: 'npm'
@@ -84,8 +106,9 @@ jobs:
       - name: Install Dependencies
         run: npm ci --ignore-scripts
 
-      - name: Setup Binaries
-        run: node scripts/setup-binaries.mjs
+      - name: Setup Native Binaries
+        shell: bash
+        run: node scripts/setup-binaries.mjs ${{ runner.os == 'macOS' && '--universal' || '' }}
 
       - name: Update Version
         shell: bash
@@ -98,73 +121,79 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Verify Windows bundled binaries
-        if: matrix.os == 'windows-latest'
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $yt = "release/win-unpacked/resources/bin/yt-dlp.exe"
-          $ff = "release/win-unpacked/resources/bin/ffmpeg.exe"
-          $appAsar = "release/win-unpacked/resources/app.asar"
-          if (!(Test-Path $yt)) { throw "Missing binary: $yt" }
-          if (!(Test-Path $ff)) { throw "Missing binary: $ff" }
-          if (!(Test-Path $appAsar)) { throw "Missing app archive: $appAsar" }
-          node -e "const asar=require('@electron/asar'); asar.statFile(process.argv[1], 'node_modules/ajv/dist/2020.js')" $appAsar
-          if ($LASTEXITCODE -ne 0) { throw "asar verification failed (exit $LASTEXITCODE)" }
-          & $yt --version | Out-Null
-          if ($LASTEXITCODE -ne 0) { throw "yt-dlp --version failed (exit $LASTEXITCODE)" }
-          & $ff -version | Out-Null
-          if ($LASTEXITCODE -ne 0) { throw "ffmpeg -version failed (exit $LASTEXITCODE)" }
-          Write-Host "Windows binaries verified"
+      - name: Download Common CLI Setup Archive
+        uses: actions/download-artifact@v8
+        with:
+          name: common-cli-setup
+          path: release
 
-      - name: Verify macOS bundled binaries
-        if: matrix.os == 'macos-latest'
-        shell: bash
-        run: |
-          set -euo pipefail
-          for app_asar in \
-            "release/mac/Flucto.app/Contents/Resources/app.asar" \
-            "release/mac-arm64/Flucto.app/Contents/Resources/app.asar"; do
-            app_dir="$(dirname "$app_asar")"
-            test -f "$app_dir/bin/yt-dlp"
-            test -f "$app_dir/bin/ffmpeg"
-            test -f "$app_asar"
-            node -e "const asar=require('@electron/asar'); asar.statFile(process.argv[1], 'node_modules/ajv/dist/2020.js')" "$app_asar"
-            "$app_dir/bin/yt-dlp" --version >/dev/null
-            "$app_dir/bin/ffmpeg" -version >/dev/null
-          done
-          echo "macOS x64 and arm64 bundles verified"
+      - name: Verify Installed CLI and Desktop
+        if: runner.os != 'Linux'
+        run: node scripts/package-smoke.mjs
 
-      - name: Verify Linux bundled binaries
-        if: matrix.os == 'ubuntu-latest'
-        shell: bash
-        run: |
-          set -euo pipefail
-          app_asar="release/linux-unpacked/resources/app.asar"
-          test -f "release/linux-unpacked/resources/bin/yt-dlp"
-          test -f "release/linux-unpacked/resources/bin/ffmpeg"
-          test -f "$app_asar"
-          node -e "const asar=require('@electron/asar'); asar.statFile(process.argv[1], 'node_modules/ajv/dist/2020.js')" "$app_asar"
-          "release/linux-unpacked/resources/bin/yt-dlp" --version >/dev/null
-          "release/linux-unpacked/resources/bin/ffmpeg" -version >/dev/null
+      - name: Verify Installed CLI and Desktop (Linux virtual display)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a node scripts/package-smoke.mjs
+
+      - name: Retain Native UI Proof
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: package-proof-${{ matrix.os }}
+          path: release/package-smoke-*.png
+          retention-days: 14
+          if-no-files-found: warn
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: artifacts-${{ matrix.os }}
           path: |
-            release/*.exe
-            release/*.dmg
-            release/*.zip
+            release/*-setup.exe
+            release/*-universal.dmg
+            release/*-universal.zip
             release/*.AppImage
-            release/*.deb
+            ${{ runner.os == 'Linux' && 'release/*-cli-setup.zip' || '' }}
             release/latest*.yml
             release/*.blockmap
           retention-days: 14
           if-no-files-found: error
 
+  mac-intel:
+    name: Verify macOS Intel
+    needs: [prepare, build, cli]
+    if: github.event_name == 'push' && needs.prepare.outputs.has_release == 'true'
+    runs-on: macos-15-intel
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - run: npm ci --ignore-scripts
+      - name: Update Version
+        env:
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: npm version "$RELEASE_VERSION" --no-git-tag-version --allow-same-version
+      - uses: actions/download-artifact@v8
+        with:
+          name: artifacts-macos-latest
+          path: release
+      - uses: actions/download-artifact@v8
+        with:
+          name: common-cli-setup
+          path: release
+      - run: node scripts/package-smoke.mjs
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: package-proof-macos-intel
+          path: release/package-smoke-*.png
+          retention-days: 14
+          if-no-files-found: warn
+
   release:
-    needs: [prepare, build]
+    needs: [prepare, build, mac-intel]
     if: github.event_name == 'push' && needs.prepare.outputs.has_release == 'true'
     runs-on: ubuntu-latest
     permissions:
@@ -174,53 +203,45 @@ jobs:
       id-token: write # npm trusted publishing (OIDC)
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '24'
           cache: 'npm'
 
-      - name: Install npm 11.17.0 (OIDC-capable)
-        run: npm install --global npm@11.17.0
+      - name: Install npm 12.2.0 (OIDC-capable)
+        run: npm install --global npm@12.2.0
 
       - name: Install Dependencies
         run: npm ci --ignore-scripts
 
       - name: Download Windows Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: artifacts-windows-latest
           path: release
 
       - name: Download macOS Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: artifacts-macos-latest
           path: release
 
       - name: Download Linux Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: artifacts-ubuntu-latest
           path: release
 
-      - name: Verify Release Artifacts
-        env:
-          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
-        run: node scripts/release-tools.mjs verify "$RELEASE_VERSION" release
-
-      - name: Compile CLI for package bin metadata
-        run: npm run build:electron
-
-      - name: Semantic Release
+      - name: Publish Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GIT_CREDENTIALS: ${{ secrets.GITHUB_TOKEN }}
-        run: npx semantic-release
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: npx release-it "$RELEASE_VERSION" --ci
 
   recover:
     if: github.event_name == 'workflow_dispatch'
@@ -231,18 +252,18 @@ jobs:
       id-token: write # npm trusted publishing (OIDC)
     steps:
       - name: Checkout control checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '24'
           cache: 'npm'
 
-      - name: Install npm 11.17.0 (OIDC-capable)
-        run: npm install --global npm@11.17.0
+      - name: Install npm 12.2.0 (OIDC-capable)
+        run: npm install --global npm@12.2.0
 
       - name: Install Dependencies
         run: npm ci --ignore-scripts
@@ -258,7 +279,7 @@ jobs:
         run: node scripts/release-tools.mjs source "$SOURCE_RUN_ID" "$RELEASE_VERSION"
 
       - name: Checkout pinned source at tag
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: recovery-source
           ref: ${{ steps.source.outputs.tag }}
@@ -269,7 +290,7 @@ jobs:
         run: npm ci --ignore-scripts
 
       - name: Download Windows Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: artifacts-windows-latest
           path: release
@@ -277,7 +298,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download macOS Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: artifacts-macos-latest
           path: release
@@ -285,7 +306,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download Linux Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: artifacts-ubuntu-latest
           path: release

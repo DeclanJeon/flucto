@@ -1,10 +1,13 @@
 import os from 'node:os';
 import path from 'node:path';
+import fs from 'node:fs';
 
-const root = path.join(os.tmpdir(), 'flucto-transcript-tests');
+const root = fs.mkdtempSync(path.join(os.tmpdir(), 'flucto-electron-tests-'));
+process.once('exit', () => fs.rmSync(root, { recursive: true, force: true }));
 
 export const app = {
   isPackaged: false,
+  getVersion() { return '1.0.0'; },
   getAppPath() {
     return process.cwd();
   },
@@ -30,7 +33,10 @@ export const dialog = {
 
 export const shell = {
   openExternal: async () => {},
+  openPath: async () => '',
 };
 
 export class BrowserWindow {}
 export class Notification {}
+
+export default { app, clipboard, ipcMain, dialog, shell, BrowserWindow, Notification };

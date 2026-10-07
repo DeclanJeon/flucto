@@ -42,7 +42,6 @@ export interface CliOptions {
   checkOnly: boolean;
   ytDlpOnly: boolean;
   updateAction: CliUpdateAction;
-  assetPath?: string;
   platform?: VideoSearchScope;
   cookies?: string;
   cookiesFromBrowser?: string;
@@ -186,7 +185,6 @@ export const parseCliArgs = (argv: string[]): CliOptions => {
       force: { type: 'boolean' },
       'check-only': { type: 'boolean' },
       'yt-dlp-only': { type: 'boolean' },
-      asset: { type: 'string' },
       platform: { type: 'string' },
     },
   });
@@ -255,7 +253,6 @@ const baseOptions = (
     checkOnly: booleanOption(values['check-only']),
     ytDlpOnly: booleanOption(values['yt-dlp-only']),
     updateAction: parseUpdateAction(command, positional),
-    assetPath: stringOption(values.asset),
     platform: parseSearchScope(values.platform),
     cookies: stringOption(values.cookies),
     cookiesFromBrowser: stringOption(values['cookies-from-browser']),

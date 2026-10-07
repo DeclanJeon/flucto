@@ -17,6 +17,15 @@ export function UpdateSettings() {
   const [saveMessage, setSaveMessage] = useState('');
   const [binaryCheckMessage, setBinaryCheckMessage] = useState('');
   const [isCheckingBinaries, setIsCheckingBinaries] = useState(false);
+  // Unsigned macOS builds install updates from a downloaded DMG, never via an
+  // automatic restart — label the notify toggle accordingly.
+  const isManualInstall = navigator.userAgent.includes('Mac');
+  const installLabel = isManualInstall
+    ? '업데이트 다운로드 완료 시 설치 안내 표시'
+    : '업데이트 다운로드 완료 시 재시작 안내';
+  const installDetail = isManualInstall
+    ? '새 버전 DMG 다운로드가 끝나면 설치 안내를 표시합니다. DMG를 열어 Flucto를 Applications으로 드래그하면 업데이트됩니다 (재시작만으로는 설치되지 않습니다).'
+    : '새 버전 다운로드가 끝나면 재시작 안내를 표시합니다';
 
   // 업데이트 설정 불러오기
   useEffect(() => {
@@ -144,10 +153,10 @@ export function UpdateSettings() {
                 onChange={(e) => setSettings({ ...settings, notifyOnUpdateReady: e.target.checked })}
                 className="w-5 h-5 accent-blue-600"
               />
-              <span className="text-sm font-medium">업데이트 다운로드 완료 시 재시작 안내</span>
+              <span className="text-sm font-medium">{installLabel}</span>
             </label>
             <p className="text-xs leading-6 text-gray-400">
-              새 버전 다운로드가 끝나면 재시작 안내를 표시합니다
+              {installDetail}
             </p>
           </div>
 
