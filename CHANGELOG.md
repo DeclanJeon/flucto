@@ -12,8 +12,6 @@
 * **packaging:** load interpreter-owned modules and validate native Mac Intel ([f144419](https://github.com/DeclanJeon/flucto/commit/f144419f70105836020f79ccc29014d1dea83519))
 * **setup:** support PowerShell ANSI decoding and canonical native prefixes ([68d4cc1](https://github.com/DeclanJeon/flucto/commit/68d4cc1aa6e73f730da4e22bf78bda372a2e03ec))
 
-## Unreleased
-
 ### Security
 
 - Update `adm-zip`, `js-yaml`, and compatible transitive dependencies; select patched `shell-quote` for `concurrently`.
@@ -32,7 +30,7 @@
 - Make executable and updater test fixtures portable to Windows; remove obsolete workflow source-text tests.
 - Move checkout/setup-node/upload-artifact/download-artifact to Node 24-based action releases.
 - Publish only after the release branch/tag are atomically pushed and remotely verified against the unchanged native build source; retain original Actions provenance and use OIDC without token fallback.
-- Validate actual private CLI installation, restricted-PowerShell launchers, native desktop startup, persisted settings and playable MP3 output on native OS runners.
+- Validate actual private CLI installation, restricted-PowerShell launchers, native desktop startup, persisted settings and playable MP3 output on native OS runners; install the same common CLI archive everywhere and execute the same universal DMG on both native Apple Silicon and Intel runners.
 
 ### Installation and downloads
 
