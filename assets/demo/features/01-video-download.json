@@ -1,0 +1,47 @@
+{
+  "id": "01-video-download",
+  "productVersion": "1.18.0",
+  "capture": "Actual Electron UI screenshots from an isolated owned profile; no mock UI, injected results or generated frames.",
+  "timing": "Frames remain chronological. Long wait/capture gaps capped at 1.25 seconds. Playback is not a speed benchmark.",
+  "sourceRights": "Media downloads/extraction use an original procedural video and authored WebVTT. Blender search/playlist recordings display public metadata only; no third-party video was downloaded.",
+  "durationSeconds": 29,
+  "distinctCapturedFrames": 93,
+  "assets": {
+    "mp4": {
+      "bytes": 371140,
+      "sha256": "60f452e7517a04a37d31d00cb7823bd20c103a4bf926c2dee955987440afe70e"
+    },
+    "gif": {
+      "bytes": 1589163,
+      "sha256": "25b2472867aed3e8db150496d5b348746ce7e4084f19d6c7267e6414b0fb76fe"
+    },
+    "png": {
+      "bytes": 254511,
+      "sha256": "8c6bf8c421aa239d2485d6a90f098419ceab6fe18db92391aaa1fb4d2eb9384b"
+    }
+  },
+  "sources": [
+    {
+      "part": "01-published",
+      "source": "http://127.0.0.1:49479/reference-a.html?published=1",
+      "rawFrames": 107,
+      "includedFrames": 107,
+      "originalDurationMs": 29296,
+      "evidence": {
+        "history": [
+          {
+            "id": "batch-1791377797255-0",
+            "url": "http://127.0.0.1:49479/reference-a.html?published=1",
+            "title": "Flucto Studio Reference 01 (1)",
+            "timestamp": 1791377802015,
+            "status": "success",
+            "filePath": "C:\\Users\\Declan\\AppData\\Local\\Temp\\flucto-demo-KWPDkF\\outputs\\Flucto Studio Reference 01 (1).mp4",
+            "format": "mp4"
+          }
+        ],
+        "surface": "Flucto\nCreator-First Media Downloader\n리뷰작성\n5\nSIGNAL-TO-SIGNAL MEDIA FLOW\nAny Platform.\nOne Downloader.\n\nDownload by URL, or search across 12 sites including YouTube, Threads, X, and Instagram.\n\nFlucto keeps each request auditable and visible: batch queueing, resilient format checks, and clean handoff into your download folder.\n\nAPP UPDATES\n\nYou are on the latest app version.\n\nCheck now\nMP4\nMP3\nMD\nBest Quality\nSearch videos\nAll sites (integrated)\nYouTube\nX / Twitter\nInstagram\nReddit\nBilibili\nDailymotion\nNiconico\nOK.ru\nVK Video\nThreads\nTikTok\nVimeo\nSearch\nDownload History(1)\nOpen Folder\nClear\n\nOctober 7, 2026\n\nFlucto Studio Reference 01 (1)\n\nC:\\Users\\Declan\\AppData\\Local\\Temp\\flucto-demo-KWPDkF\\outputs\\Flucto Studio Reference 01 (1).mp4\n\nJust now",
+        "runtime": "Authentic published Windows1.18.0 payload"
+      }
+    }
+  ]
+}

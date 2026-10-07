@@ -1,0 +1,44 @@
+{
+  "id": "05-captions-to-markdown",
+  "productVersion": "1.18.0",
+  "capture": "Actual Electron UI screenshots from an isolated owned profile; no mock UI, injected results or generated frames.",
+  "timing": "Frames remain chronological. Long wait/capture gaps capped at 1.25 seconds. Playback is not a speed benchmark.",
+  "sourceRights": "Media downloads/extraction use an original procedural video and authored WebVTT. Blender search/playlist recordings display public metadata only; no third-party video was downloaded.",
+  "durationSeconds": 25.84,
+  "distinctCapturedFrames": 87,
+  "assets": {
+    "mp4": {
+      "bytes": 418460,
+      "sha256": "3d0042d4263231ad855cdd2af04a48f2932677daa640d97553548187996640f2"
+    },
+    "gif": {
+      "bytes": 1603236,
+      "sha256": "791dec5f69ab4fc59e13481544e30e681f97a2d9fd9ec61ae430af70da4fd385"
+    },
+    "png": {
+      "bytes": 245481,
+      "sha256": "b2fd23e68c496c25b75e1a700700e9c51bdcb9c101828eb83da14920aac51270"
+    }
+  },
+  "sources": [
+    {
+      "part": "05-complete",
+      "source": "http://127.0.0.1:49479/reference-a.html?captions=2",
+      "rawFrames": 103,
+      "includedFrames": 103,
+      "originalDurationMs": 26000,
+      "evidence": {
+        "settings": {
+          "language": "en",
+          "includeTimestamps": true,
+          "includeMetadata": true,
+          "paragraphGapSeconds": 3,
+          "saveMarkdownFile": true,
+          "copyMarkdownToClipboard": true,
+          "network": null
+        },
+        "surface": "Flucto\nCreator-First Media Downloader\n리뷰작성\n5\nSIGNAL-TO-SIGNAL MEDIA FLOW\nAny Platform.\nOne Downloader.\n\nDownload by URL, or search across 12 sites including YouTube, Threads, X, and Instagram.\n\nFlucto keeps each request auditable and visible: batch queueing, resilient format checks, and clean handoff into your download folder.\n\nAPP UPDATES\n\nAuto-update checks GitHub releases for newer app versions.\n\nCheck now\nMP4\nMP3\nMD\nCaptions → Markdown\nSearch videos\nAll sites (integrated)\nYouTube\nX / Twitter\nInstagram\nReddit\nBilibili\nDailymotion\nNiconico\nOK.ru\nVK Video\nThreads\nTikTok\nVimeo\nSearch\n✅ All downloads started!\nMarkdown conversion finished: 1/1 ok. See status panel for per-item results.\n\nFlucto Studio Reference 01 (1)\n\nCompleted\n\nC:\\Users\\Declan\\AppData\\Local\\Temp\\flucto-demo-KWPDkF\\outputs\\Flucto_Studio_Reference_01_(1)_20261007.md\n\n100%"
+      }
+    }
+  ]
+}

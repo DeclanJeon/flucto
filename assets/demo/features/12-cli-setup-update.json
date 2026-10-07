@@ -1,0 +1,63 @@
+{
+  "id": "12-cli-setup-update",
+  "productVersion": "1.18.0",
+  "capture": "Deterministic replay of stdout/stderr captured from the real Flucto CLI (cmd /c, FORCE_COLOR=1), rendered in a terminal-styled viewer labeled \"actual CLI output\". No synthetic or typed output; every command was executed live by capture-transcript.mjs and exits are recorded in the transcript JSON.",
+  "timing": "Dwell-time compression only: 0–4.8s at 2x, the Node download/install segment (4.8–96s of source) at 12x, 96–122s at 1.5x; on-video badge \"time-compressed (up to 12x)\". Frames stay chronological, nothing cut.",
+  "sourceRights": "Official public release asset Flucto-1.18.0-cli-setup.zip from github.com/DeclanJeon/flucto/releases; sha256 verified (742d0f99…420ee). Install prefix C:\\flucto-cli is a private disposable prefix; -NoProfile leaves user PATH/profile untouched.",
+  "commands": [
+    "flucto --version",
+    "powershell -NoProfile -Command \"Get-FileHash Flucto-1.18.0-cli-setup.zip -Algorithm SHA256 | Format-List Hash\"",
+    "mkdir pkg & tar -xf Flucto-1.18.0-cli-setup.zip -C pkg & dir /b pkg",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File pkg\\install.ps1 -InstallDir C:\\flucto-cli -NoProfile",
+    "flucto doctor",
+    "flucto update check",
+    "flucto update apply",
+    "flucto --version"
+  ],
+  "observedResults": [
+    "ZIP sha256 verified against release checksums-sha256.txt",
+    "install.ps1: Node v24.21.0 private runtime, npm tarball install, yt-dlp 2026.09.27.232945 + ffmpeg 8.1.2 into C:\\flucto-cli\\bin, doctor {\"valid\":true}",
+    "update check: \"Flucto is up to date (1.18.0)\"; update apply: npm reinstall into same private prefix, \"Update applied in place\"",
+    "all exits 0; version banner 1.18.0 before and after"
+  ],
+  "durationSeconds": 34.6,
+  "transcriptEvents": 57,
+  "transcriptWallMs": 121206,
+  "transcriptExitCode": 0,
+  "transcriptSha256": "506050b1a2edcd19dbfa1bcdaaff616b4dffc5d5447fcb4246e3d5be2f64f979",
+  "assets": {
+    "mp4": {
+      "bytes": 1123073,
+      "sha256": "1452d0d6ad3ed430757ab8b05ec2a14c7f8ad6ad0b660f82720e9e9b3e065b74",
+      "width": 1040,
+      "height": 592
+    },
+    "gif": {
+      "bytes": 2595183,
+      "sha256": "833df8be55b3da05d5fa93965b9722b078ca9d6b9eabf70cd49b64a6a2988b14",
+      "frames": 346
+    },
+    "png": {
+      "bytes": 136079,
+      "sha256": "383f155c52747a1158d0adec5aed1fc79b3bb75ce3457ddeb3b7c170a70964f9"
+    }
+  },
+  "sources": [
+    {
+      "part": "12-cli-setup-update-complete",
+      "source": "flucto --version",
+      "commands": [
+        "flucto --version",
+        "powershell -NoProfile -Command \"Get-FileHash Flucto-1.18.0-cli-setup.zip -Algorithm SHA256 | Format-List Hash\"",
+        "mkdir pkg & tar -xf Flucto-1.18.0-cli-setup.zip -C pkg & dir /b pkg",
+        "powershell -NoProfile -ExecutionPolicy Bypass -File pkg\\install.ps1 -InstallDir C:\\flucto-cli -NoProfile",
+        "flucto doctor",
+        "flucto update check",
+        "flucto update apply",
+        "flucto --version"
+      ],
+      "transcript": "scripts/demo/captures/12-cli-setup-update.transcript.json",
+      "transcriptLog": "scripts/demo/captures/12-cli-setup-update.transcript.log"
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "id": "10-cli-media-markdown",
+  "productVersion": "1.18.0",
+  "capture": "Deterministic replay of stdout/stderr captured from the real Flucto CLI (cmd /c, FORCE_COLOR=1), rendered in a terminal-styled viewer labeled \"actual CLI output\". No synthetic or typed output; every command was executed live by capture-transcript.mjs and exits are recorded in the transcript JSON.",
+  "timing": "Native pacing; transcript fetch + markdown conversion in real time.",
+  "sourceRights": "Self-authored localhost fixture; English and Korean WebVTT tracks written by hand for this demo.",
+  "commands": [
+    "flucto md \"http://127.0.0.1:58080/reference-a.html\" -l ko --stdout",
+    "flucto md \"http://127.0.0.1:58080/reference-a.html\" -l en -o notes",
+    "dir /b notes"
+  ],
+  "observedResults": [
+    "Korean Markdown streamed to stdout from the real ko.vtt track (front-matter + timestamped sections), exit 0",
+    "English Markdown saved to notes\\Reference_Clip_A_—_Flucto_Demo_Fixture_(self-autho_20261007.md, exit 0"
+  ],
+  "durationSeconds": 38.733333,
+  "transcriptEvents": 9,
+  "transcriptWallMs": 27693,
+  "transcriptExitCode": 0,
+  "transcriptSha256": "33f6778d95a35c1c82a61d716246728817be9802f39210b08acbb1ce89a5773b",
+  "assets": {
+    "mp4": {
+      "bytes": 407455,
+      "sha256": "8571cf2c2641118fb00c57158c66ea2fefbd8d130ca6faa3d9944a3fabce0b43",
+      "width": 1040,
+      "height": 592
+    },
+    "gif": {
+      "bytes": 539326,
+      "sha256": "2d56bbb44238913d651a4b153a983c608f6ebeee74fd0b9c0b4665f65cb55e8c",
+      "frames": 387
+    },
+    "png": {
+      "bytes": 254106,
+      "sha256": "7b0db573c15a0cbbeb9f7df589d27470f45adc56c1dc0796036d7b034c5a4256"
+    }
+  },
+  "sources": [
+    {
+      "part": "10-cli-media-markdown-complete",
+      "source": "flucto md \"http://127.0.0.1:58080/reference-a.html\" -l ko --stdout",
+      "commands": [
+        "flucto md \"http://127.0.0.1:58080/reference-a.html\" -l ko --stdout",
+        "flucto md \"http://127.0.0.1:58080/reference-a.html\" -l en -o notes",
+        "dir /b notes"
+      ],
+      "transcript": "scripts/demo/captures/10-cli-media-markdown.transcript.json",
+      "transcriptLog": "scripts/demo/captures/10-cli-media-markdown.transcript.log"
+    }
+  ]
+}

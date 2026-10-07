@@ -1,0 +1,55 @@
+{
+  "id": "08-cli-inspect",
+  "productVersion": "1.18.0",
+  "capture": "Deterministic replay of stdout/stderr captured from the real Flucto CLI (cmd /c, FORCE_COLOR=1), rendered in a terminal-styled viewer labeled \"actual CLI output\". No synthetic or typed output; every command was executed live by capture-transcript.mjs and exits are recorded in the transcript JSON.",
+  "timing": "Native pacing from the real command timestamps; waits left intact.",
+  "sourceRights": "Localhost fixture (self-authored ffmpeg lavfi MP4 + hand-written WebVTT) served by scripts/demo/serve-fixture.mjs; Big Buck Bunny (Blender Foundation, CC-BY) used for `formats`/`search` metadata display only — nothing downloaded.",
+  "commands": [
+    "flucto info \"http://127.0.0.1:58080/reference-a.html\" -j",
+    "flucto search \"blender tutorial\" --platform youtube --limit 5",
+    "flucto languages \"http://127.0.0.1:58080/reference-a.html\"",
+    "flucto formats \"https://www.youtube.com/watch?v=YE7VzlLtp-4\""
+  ],
+  "observedResults": [
+    "info JSON: id \"reference-a-1\", self-authored localhost title, thumbnail, exit 0",
+    "search: 5 real YouTube native results + \"YouTube (native): 5 results\" line, exit 0",
+    "languages: en + ko tracks of the localhost fixture, exit 0",
+    "formats: real yt-dlp format table for Big Buck Bunny (video+audio variants), exit 0"
+  ],
+  "durationSeconds": 36.766667,
+  "transcriptEvents": 13,
+  "transcriptWallMs": 25729,
+  "transcriptExitCode": 0,
+  "transcriptSha256": "21bcac13681e3580f832f4ade280030b9417a23ff22d340bb9cf1ac71db401a3",
+  "assets": {
+    "mp4": {
+      "bytes": 547170,
+      "sha256": "214d8aa6bd4ff42c443805cd83f025df914e81b586b21a8358fe6c57271689ff",
+      "width": 1040,
+      "height": 592
+    },
+    "gif": {
+      "bytes": 953421,
+      "sha256": "6309474325f8da4bf6b4e817bdb0002defd60d705c6dd643f41c749bb4428768",
+      "frames": 368
+    },
+    "png": {
+      "bytes": 221305,
+      "sha256": "82a3967bf1e748f63947368909e45d8206ef2091f2927e9596a7c5d67110b911"
+    }
+  },
+  "sources": [
+    {
+      "part": "08-cli-inspect-complete",
+      "source": "flucto info \"http://127.0.0.1:58080/reference-a.html\" -j",
+      "commands": [
+        "flucto info \"http://127.0.0.1:58080/reference-a.html\" -j",
+        "flucto search \"blender tutorial\" --platform youtube --limit 5",
+        "flucto languages \"http://127.0.0.1:58080/reference-a.html\"",
+        "flucto formats \"https://www.youtube.com/watch?v=YE7VzlLtp-4\""
+      ],
+      "transcript": "scripts/demo/captures/08-cli-inspect.transcript.json",
+      "transcriptLog": "scripts/demo/captures/08-cli-inspect.transcript.log"
+    }
+  ]
+}

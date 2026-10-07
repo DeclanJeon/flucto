@@ -1,0 +1,49 @@
+{
+  "id": "11-cli-channel-archive",
+  "productVersion": "1.18.0",
+  "capture": "Deterministic replay of stdout/stderr captured from the real Flucto CLI (cmd /c, FORCE_COLOR=1), rendered in a terminal-styled viewer labeled \"actual CLI output\". No synthetic or typed output; every command was executed live by capture-transcript.mjs and exits are recorded in the transcript JSON.",
+  "timing": "Native pacing; real channel listing + two caption extractions (~27s).",
+  "sourceRights": "Blender Foundation YouTube channel @BlenderOfficial — public videos with captions; only caption text converted to Markdown (no video downloaded). Localhost feed cannot produce channel listing because yt-dlp generic extractor emits no per-item ids for RSS/HTML link lists — recorded limitation, real channel used instead.",
+  "commands": [
+    "flucto channel to-md \"@BlenderOfficial\" --limit 2 -o notes",
+    "dir /b /o-d notes"
+  ],
+  "observedResults": [
+    "channel \"Blender\" resolved; dedicated folder C:\\flucto-demo\\notes\\Blender-channel-md-20261007-221703",
+    "001_The_Future_of_Rendering_—_BCON26_20261007.md + 002_Subject_Extraction_for_Scene_Reconstruction_in_VFX_20261007.md in listing order; 2/2 succeeded, exit 0"
+  ],
+  "durationSeconds": 37.6,
+  "transcriptEvents": 16,
+  "transcriptWallMs": 26550,
+  "transcriptExitCode": 0,
+  "transcriptSha256": "bc107047692aa6fce64da79a1c5bba8001cbade8dd817080f31f60ce1942bc21",
+  "assets": {
+    "mp4": {
+      "bytes": 399813,
+      "sha256": "1f44b139ee67ab30ae106f64ecad81412602008edc6ce056d40a9c526cdaec6b",
+      "width": 1040,
+      "height": 592
+    },
+    "gif": {
+      "bytes": 429782,
+      "sha256": "e2033bc33454e7e87d6da0848bac15299334d790c0b0a26c2167d24255eed75e",
+      "frames": 376
+    },
+    "png": {
+      "bytes": 198509,
+      "sha256": "b90b6b34584c674180977a7758c72a276ca44644fe9448361c65097a9f8330b3"
+    }
+  },
+  "sources": [
+    {
+      "part": "11-cli-channel-archive-complete",
+      "source": "flucto channel to-md \"@BlenderOfficial\" --limit 2 -o notes",
+      "commands": [
+        "flucto channel to-md \"@BlenderOfficial\" --limit 2 -o notes",
+        "dir /b /o-d notes"
+      ],
+      "transcript": "scripts/demo/captures/11-cli-channel-archive.transcript.json",
+      "transcriptLog": "scripts/demo/captures/11-cli-channel-archive.transcript.log"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+WEBVTT - Reference clip B (self-authored demo fixture)
+
+00:00.000 --> 00:04.000
+This is reference clip B, the second item
+in the Flucto self-authored playlist.
+
+00:04.000 --> 00:08.000
+Clip B plays a different test pattern
+with its own sine-wave audio bed.
+
+00:08.000 --> 00:12.000
+Batch and channel commands process both
+clips into organized Markdown output.

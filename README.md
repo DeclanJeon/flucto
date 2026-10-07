@@ -1,14 +1,14 @@
 # 🌊 Flucto
 
 <p align="center">
-  Flucto - creator-first desktop media downloader and caption-to-Markdown exporter for short-form and long-form captures.
+  Flucto - prepare reference video, audio tracks and caption notes for your AI video workflow. Desktop app + CLI.
 </p>
 
 <p align="center">
   <a href="https://github.com/DeclanJeon/flucto/releases"><img src="https://img.shields.io/github/v/release/DeclanJeon/flucto?style=flat&color=5865F2&label=Download&logo=github" alt="Download"></a>
   <a href="#"><img src="https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-007ACC?style=flat&logo=linux&logoColor=white" alt="Platform"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-10B981?style=flat" alt="License"></a>
-  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-100%25-3178C6?style=flat&logo=typescript&logoColor=white" alt="TypeScript"></a>
+  <a href="https://github.com/DeclanJeon/flucto"><img src="https://img.shields.io/badge/Code-Public-10B981?style=flat" alt="Public source code"></a>
+  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-Typed%20core-3178C6?style=flat&logo=typescript&logoColor=white" alt="TypeScript core"></a>
 </p>
 
 <p align="center">
@@ -16,22 +16,22 @@
 </p>
 
 
-> Flucto is an open-source desktop application for creators and curators who want one flowing way to capture media and turn available captions into Markdown notes from YouTube, X, Reddit, Bilibili, Dailymotion, Niconico, OK.ru, VK Video, Instagram, Threads, TikTok, and Vimeo.
+> Flucto is a source-available source-preparation tool for creators: search references, save permitted media as MP4/MP3, and turn available captions into Markdown notes. It does not generate or edit video. Continue with your editor or generation tool after collection.
 
-- ✨ **Stunning UI**: Apple-inspired dark mode with glassmorphism & smooth animations
-- 🌍 **Platform Support**: URL downloads from YouTube, X, Reddit, Bilibili, Dailymotion, Niconico, OK.ru, VK Video, Instagram, Threads, TikTok, and Vimeo
+- **Desktop + CLI:** Use the visual queue or automate the same media service with `flucto` / `fl`.
+- **12 registered search sites:** Search together or choose one source; access, sessions, format availability and caption support vary by site and video.
 - 📝 **Caption to Markdown**: Convert available subtitles/captions into clean `.md` files with metadata and timestamps
 - 📦 **Batch Processing**: Import `.txt` lists to download media or convert caption queues automatically
 - ⚡ **Auto-Setup**: Automatically fetches and configures `yt-dlp` and `ffmpeg` binaries
 - 🔒 **Anonymous Search Sessions**: Media processing stays local; keyword searches contact site APIs/public indexes without reusing your logged-in browser profile
 - 🎵 **Format Choice**: Save video (MP4), audio extraction (MP3), or Markdown transcript output
-- 🛡️ **Type Safe**: Built with 100% TypeScript for stability and reliability
+- **Typed core:** Desktop and CLI share TypeScript media services.
 
 <p align="center">
-  <img src="assets/demo/flucto-channel-to-md.gif" width="100%" alt="Flucto CLI demo: channel to Markdown" />
+  <img src="assets/demo/features/03-search-and-queue.gif" width="100%" alt="Actual Flucto 1.18 search, source attribution and reference queue demo" />
 </p>
 
-<p align="center"><em>CLI demo — one channel → many Markdown notes in a dedicated job folder</em></p>
+<p align="center"><a href="https://flucto.ponslink.com">Interactive demos & installation</a> · <a href="#real-feature-demos">All 12 feature demos</a> · <a href="https://github.com/DeclanJeon/flucto/releases/latest">Latest release</a></p>
 
 - [Report Bug](https://github.com/DeclanJeon/flucto/issues)
 
@@ -42,10 +42,128 @@
 - **Extensible Platform Architecture:** Plugin-based `PlatformAdapter` system — adding a new platform is one file. Supports yt-dlp-based platforms, custom API extraction, and browser-based fallback strategies.
 - **Caption-to-Markdown Conversion:** Uses `yt-dlp` subtitle/caption output when available, parses JSON3, XML/SRV3, and VTT captions, cleans caption markup, groups nearby captions into readable paragraphs, and writes filesystem-safe `.md` files.
 - **Transcript Options:** Default new Markdown conversions to English captions (`en`) while still allowing `Auto` or a concrete caption language, include/exclude timestamps and metadata, choose paragraph gap rules, save Markdown files, and optionally copy generated Markdown to the clipboard.
-- **Batch Queue System:** Supports loading hundreds of URLs via text files. Batch media downloads and batch transcript conversions both use bounded concurrency so large queues remain responsive.
+- **Batch Queue System:** Import text URL lists and expand YouTube playlists. CLI batch/channel jobs use bounded concurrency and dedicated job folders; desktop media batches save files in the selected output directory.
 - **Download History:** Records output type (`mp4`, `mp3`, or `md`) so media downloads and Markdown conversions stay visible in history.
 - **Zero Configuration:** Unlike other GUI wrappers, Flucto includes a `setup-binaries` script that automatically downloads the correct version of `yt-dlp` and `ffmpeg` for your OS upon installation.
 - **Network Resilience:** Implements retry logic, updater metadata checks, and transcript circuit-breaker behavior for unstable connections, rate limits, and unavailable caption sources.
+
+## Real feature demos
+
+These **12 feature groups** were exercised with Flucto **1.18.0**. Each GIF is paired with an MP4, a still poster and capture evidence in [`assets/demo/features`](assets/demo/features). The [homepage](https://flucto.ponslink.com/#demos) plays the same recordings on demand instead of autoplaying every GIF.
+
+Downloaded/extracted media is an original 12-second procedural clip with authored English WebVTT captions. Public Blender search, playlist and channel metadata is shown separately; it is not evidence of a third-party media download or a guarantee that every URL works. The integrated search recording retains actual blocked-source errors. Some waits are trimmed; playback duration is **not** a speed benchmark. Desktop capture records the app webview; native file/folder chooser selections were exercised but their OS surfaces are outside that view. Profiles, output folders and CLI installs used for filming were isolated.
+
+| Feature group | Actual action and observable result |
+| --- | --- |
+| [Video download](#video-download) | URL analysis → MP4 download → saved file path in history |
+| [Audio extraction](#audio-extraction) | MP3 output → extracted audio file → history |
+| [Search and queue](#search-and-queue) | Single-site/all-12 search, native/index attribution, partial failures, Add, grid/list views |
+| [TXT batches and playlists](#txt-batches-and-playlists) | Native `.txt` selection, two downloads, real playlist expansion, queue removal |
+| [Captions to Markdown](#captions-to-markdown) | Caption language, timestamps/metadata, paragraph gap, save/copy options, actual `.md` completion |
+| [Settings and history](#settings-and-history) | Output directory, video/audio quality, exact format selectors, notifications, individual download, isolated history clear |
+| [Update center](#update-center) | Published Windows app checks the live release, saves preferences and checks binary status |
+| [CLI inspection and search](#cli-inspection-and-search) | `info`, `formats`, `languages`, keyword search and source metadata |
+| [CLI download and batch JSON](#cli-download-and-batch-json) | Direct download, URL-list batch, concurrency, stdout JSON / stderr NDJSON |
+| [CLI transcript and media Markdown](#cli-transcript-and-media-markdown) | Caption `.md` and combined media/Markdown output, actual generated file text |
+| [CLI channel archive](#cli-channel-archive) | Capped channel collection → ordered Markdown files in a dedicated job folder |
+| [CLI setup and updates](#cli-setup-and-updates) | Private installation, version/help, binary setup, doctor, update check/download/apply |
+
+### Video download
+
+Paste an original video URL, select MP4, run the queue, and inspect the real saved file path. The recording uses the published Windows 1.18.0 app, not a recreated interface.
+
+![Actual video URL to saved MP4](assets/demo/features/01-video-download.gif)
+
+[MP4](assets/demo/features/01-video-download.mp4) · [Capture evidence](assets/demo/features/01-video-download.json)
+
+### Audio extraction
+
+Select MP3 for the same media workflow. The original clip's audio is extracted into a real `.mp3` file and recorded in history.
+
+![Actual MP3 extraction and history](assets/demo/features/02-audio-extraction.gif)
+
+[MP4](assets/demo/features/02-audio-extraction.mp4) · [Capture evidence](assets/demo/features/02-audio-extraction.json)
+
+### Search and queue
+
+Search YouTube, add a result and switch grid/list views. Then inspect all 12 registered search sources: the recording shows successful native/index results **and** the actual source failures, without hiding blocked indexes or inventing access.
+
+![Actual search, attribution, partial errors and queue controls](assets/demo/features/03-search-and-queue.gif)
+
+[MP4](assets/demo/features/03-search-and-queue.mp4) · [Capture evidence](assets/demo/features/03-search-and-queue.json)
+
+### TXT batches and playlists
+
+Import a real two-URL `.txt` file through the native picker and download both original clips. The second segment expands the official Blender Studio Logs playlist and removes a queue item; that segment is **metadata-only**.
+
+![Actual TXT batch download and playlist queue](assets/demo/features/04-batch-and-playlist.gif)
+
+[MP4](assets/demo/features/04-batch-and-playlist.mp4) · [Capture evidence](assets/demo/features/04-batch-and-playlist.json)
+
+### Captions to Markdown
+
+Use available English captions, timestamps, metadata and paragraph grouping. The Save `.md` and Copy-to-clipboard checkboxes control the output; the status panel shows the actual saved file. Advanced cookies/proxy controls are shown without using private credentials. There is no in-app Markdown editor or silent speech-to-text fallback.
+
+![Actual caption settings and completed Markdown file](assets/demo/features/05-captions-to-markdown.gif)
+
+[MP4](assets/demo/features/05-captions-to-markdown.mp4) · [Capture evidence](assets/demo/features/05-captions-to-markdown.json)
+
+### Settings and history
+
+Choose a native output directory, change quality and per-item notification preferences, then perform an individual download. Inspect and clear **only the filming profile's history**. A second segment exercises real video/audio format-ID selectors against an original HLS fixture and saves the resulting MP4.
+
+![Actual output settings, format selection and isolated history](assets/demo/features/06-settings-and-history.gif)
+
+[MP4](assets/demo/features/06-settings-and-history.mp4) · [Capture evidence](assets/demo/features/06-settings-and-history.json)
+
+### Update center
+
+The actual published Windows 1.18.0 payload queries the live release and reports that it is current. The recording also saves a check interval and checks yt-dlp/FFmpeg status. It does **not** fabricate a newer app update; unsigned macOS uses the verified-DMG/manual-install flow described below.
+
+![Actual published app update and binary status checks](assets/demo/features/07-update-center.gif)
+
+[MP4](assets/demo/features/07-update-center.mp4) · [Capture evidence](assets/demo/features/07-update-center.json)
+
+### CLI inspection and search
+
+Read metadata, format IDs and available caption languages before downloading. Keyword search exposes source attribution rather than treating every result as guaranteed downloadable media.
+
+![Actual CLI metadata, formats, languages and search](assets/demo/features/08-cli-inspect.gif)
+
+[MP4](assets/demo/features/08-cli-inspect.mp4) · [Capture evidence](assets/demo/features/08-cli-inspect.json)
+
+### CLI download and batch JSON
+
+Run a direct download and a bounded-concurrency URL-list batch. Actual output files, final stdout JSON and progress NDJSON on stderr are suitable for scripts and agents; they are not simulated terminal responses.
+
+![Actual CLI download and concurrent batch JSON output](assets/demo/features/09-cli-batch-json.gif)
+
+[MP4](assets/demo/features/09-cli-batch-json.mp4) · [Capture evidence](assets/demo/features/09-cli-batch-json.json)
+
+### CLI transcript and media Markdown
+
+Generate frontmatter Markdown from the hand-authored Korean and English caption tracks — first to stdout, then into `notes/`. The recording shows the real generated filename so the output contract is visible.
+
+![Actual CLI transcript and media Markdown files](assets/demo/features/10-cli-media-markdown.gif)
+
+[MP4](assets/demo/features/10-cli-media-markdown.mp4) · [Capture evidence](assets/demo/features/10-cli-media-markdown.json)
+
+### CLI channel archive
+
+Use `channel to-md` with a limit to resolve the real Blender YouTube channel into a dedicated `Blender-channel-md-*` folder of numbered caption notes. Channel metadata remains distinguishable from a media download; no video files are downloaded.
+
+![Actual CLI channel metadata to ordered Markdown archive](assets/demo/features/11-cli-channel-archive.gif)
+
+[MP4](assets/demo/features/11-cli-channel-archive.mp4) · [Capture evidence](assets/demo/features/11-cli-channel-archive.json)
+
+### CLI setup and updates
+
+Install the real release ZIP under a private prefix without changing the filming machine's shell profile, inspect version/doctor output and run update operations. The release bootstrap provisions its own Node.js 24; consumers do not need a preinstalled Node runtime. The Node download/install wait is visibly labeled as time-compressed.
+
+![Actual private CLI install, setup, diagnostics and updates](assets/demo/features/12-cli-setup-update.gif)
+
+[MP4](assets/demo/features/12-cli-setup-update.mp4) · [Capture evidence](assets/demo/features/12-cli-setup-update.json)
+
 
 ## Brand
 
@@ -147,18 +265,10 @@ No existing Node.js installation or administrator access is required. The bootst
 Use `-InstallDir DIR -NoProfile` with `install.ps1`, or `--install-dir DIR --no-profile` with `install.sh`, for an isolated installation without persistent PATH changes. Windows bootstrap execution policy is process-scoped; it does not change the user's policy. CLI launchers use `.cmd`, so subsequent commands work in restricted PowerShell. PowerShell reserves `fl` for `Format-List`: use `flucto` or `fl.cmd` there; `fl` works in cmd.exe and POSIX shells.
 
 
-### Demo: channel → Markdown
+### CLI demos
 
-![flucto channel to-md demo](assets/demo/flucto-channel-to-md.gif)
+See the actual recordings above for [inspection/search](#cli-inspection-and-search), [download/batch JSON](#cli-download-and-batch-json), [transcript/media Markdown](#cli-transcript-and-media-markdown), [channel archives](#cli-channel-archive), and [private setup/updates](#cli-setup-and-updates).
 
-```bash
-# Real command (creates a dedicated job folder under --out)
-flucto channel to-md "@LIFECODEofficial" --limit 100 --out ./notes
-# → ./notes/<channel>-channel-md-<timestamp>/001_….md …
-```
-
-Demo assets: `assets/demo/flucto-channel-to-md.gif`, `assets/demo/flucto-channel-to-md.mp4`  
-(MP4 is used for Threads / social video posts; GIF for README embeds.)
 
 ### Build and run locally
 
@@ -181,12 +291,14 @@ Packaged releases expose both commands through `package.json`'s `bin` entry. Sho
 | `flucto doctor` | `fl doc` | Verify `yt-dlp` and `ffmpeg` discovery | Binary paths and versions |
 | `flucto setup` | `fl s` | Provision missing managed `yt-dlp` and `ffmpeg` binaries | Setup status, paths, versions, and fix guidance |
 | `flucto info <url>` | `fl i <url>` | Read media metadata | id, title, thumbnail, duration, uploader, view count |
-| `flucto search "<keyword>" --platform <site>` | — | Search the five supported video sites | Video metadata and original download URLs |
+| `flucto search "<keyword>" --platform <site>` | — | Search all 12 registered video sites or one selected site | Annotated video metadata, original URLs and per-source status |
 | `flucto formats <url>` | `fl f <url>` | List downloadable formats | format id, extension, resolution, note |
 | `flucto download <url>` | `fl d <url>` | Download MP4 video or MP3 audio | Generated media file |
 | `flucto languages <url>` | `fl l <url>` | List available caption languages | language code/name and auto/manual flag |
 | `flucto transcript <url>` | `fl t <url>` | Convert available captions/subtitles to Markdown | `.md` file or stdout Markdown |
 | `flucto md <url>` | `fl md <url>` | Download media and convert to Markdown in one step | `.md` file with metadata + transcript |
+| `flucto batch urls.txt` | `fl b urls.txt` | Process URL lists with bounded concurrency | Dedicated job folder, per-item results and progress |
+| `flucto channel to-md <channel>` | — | Export a capped channel to numbered Markdown notes | Dedicated channel job folder and ordered `.md` files |
 | `flucto update check` | `fl u check` | Check GitHub releases for a newer Flucto version | Current/latest version and recommended asset |
 | `flucto update download` | `fl u download` | Download the recommended GitHub release asset | Downloaded asset path and checksum status |
 | `flucto update apply` | `fl u apply` | Update the CLI in its existing private/npm prefix | Update result or source-install instructions |
@@ -495,9 +607,9 @@ Contributions are welcome! Whether it's fixing bugs, improving the documentation
 4. Push to the Branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
-## License
+## Source code
 
-Distributed under the MIT License. See `LICENSE` for more information.
+The source is publicly available on GitHub. This repository currently has no `LICENSE` file; do not infer redistribution terms from its public visibility.
 
 <p align="center">
 <strong>Made with ❤️ by Flucto Team</strong>

@@ -1,0 +1,5 @@
+#EXTM3U
+#EXTINF:12,Reference Clip A
+http://127.0.0.1:58080/reference-a.html
+#EXTINF:12,Reference Clip B
+http://127.0.0.1:58080/reference-b.html
