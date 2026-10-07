@@ -60,4 +60,5 @@ git commit -m "docs: README.md에 사용 가이드 추가"
 
 - Commit 메시지는 한국어로 작성해도 됩니다
 - `[skip ci]`를 메시지에 포함하면 CI/CD가 스킵됩니다
-- main/master 브랜치로 push될 때 자동으로 release가 생성됩니다
+- main/master 브랜치로 push되면 모든 OS에서 lint/typecheck/test/build를 검증하며, 릴리스 대상 커밋이 있을 때만 release를 생성합니다.
+- 태그 생성 후 배포가 실패하면 태그를 삭제하거나 새 릴리스 커밋을 추가하지 말고, README의 고정 버전 수동 복구 절차를 사용합니다.

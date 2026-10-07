@@ -1,3 +1,13 @@
+## Unreleased
+
+### CI/CD
+
+- Gate releases on lint, renderer/Node type checks, regression tests, builds, and CLI smoke checks across Windows, macOS, and Linux.
+- Separate release version prediction from npm authentication and use lockfile-based npm installs.
+- Add existing-tag recovery from verified source-run artifacts without republishing successful npm versions or downgrading newer releases.
+- Retain new release artifacts for 14 days and fail when required installers or updater metadata are missing.
+- Make executable and updater test fixtures portable to Windows; remove obsolete workflow source-text tests.
+
 # [1.17.0](https://github.com/DeclanJeon/flucto/compare/v1.16.4...v1.17.0) (2026-10-06)
 
 
