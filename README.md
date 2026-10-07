@@ -343,6 +343,8 @@ npm publishing uses GitHub Actions OIDC trusted publishing, not `NPM_TOKEN`. Reg
 
 Publishing jobs use Node.js 24, npm 11.17.0, and semantic-release 25. Keep `id-token: write` enabled on these jobs; provenance is generated automatically by trusted publishing. No npm token secret is required. An OIDC exchange error or npm `403` requires checking the package's actual Trusted Publisher configuration; adding permissions to GitHub alone cannot fix npm-side authorization.
 
+Preserve GitHub's `GITHUB_SHA` and `GITHUB_REF` when publishing: npm verifies provenance against the actual Actions execution identity. Recovery still builds the package from the separately validated original tag checkout; automatic npm provenance identifies the executing control workflow commit, not that secondary checkout. Overriding these environment fields to the recovered tag causes npm `422` provenance verification failures.
+
 Local AI-agent metadata under `.commandcode/` is ignored and must not be committed; generated paths can be incompatible with Windows.
 
 ### Recover a partially published release

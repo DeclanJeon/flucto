@@ -545,9 +545,6 @@ export const publishNpmPackage = async (ctx, { version, sourceDir, packageName }
     ctx.log(plan.reason);
     return plan;
   }
-  const sourceSha = (await git(ctx, ['rev-parse', 'HEAD'], { cwd: sourceDir })).stdout;
-  // Correct npm's resolved source dependency without changing the executing workflow or OIDC identity.
-  const publishEnv = { ...ctx.env, GITHUB_SHA: sourceSha, GITHUB_REF: `refs/tags/v${version}` };
   // npm pack runs prepack (npm run build:electron) so the published tarball is
   // compiled from the tag source, not from the control checkout.
   const packDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'release-tools-pack-'));
@@ -560,7 +557,7 @@ export const publishNpmPackage = async (ctx, { version, sourceDir, packageName }
     const tarball = path.join(packDir, tarballs[0]);
     const args = ['publish', tarball, '--access', 'public'];
     if (plan.distTag) args.push('--tag', plan.distTag);
-    await runNpm(ctx, args, { cwd: sourceDir, env: publishEnv });
+    await runNpm(ctx, args, { cwd: sourceDir });
     ctx.log(`published npm ${packageName}@${version}${plan.distTag ? ` (dist-tag "${plan.distTag}" — newer latest preserved)` : ''}`);
     return { ...plan, tarball: path.basename(tarball) };
   } finally {
