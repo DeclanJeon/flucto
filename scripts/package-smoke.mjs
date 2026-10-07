@@ -27,7 +27,6 @@ let socket;
 let server;
 let mounted = false;
 const mount = path.join(root, 'dmg');
-const screenshotPath = path.join(releaseDir, `package-smoke-${process.platform}.png`);
 
 const run = async (file, args, options = {}) => {
   const result = await exec(file, args, { maxBuffer: 4 * 1024 * 1024, timeout: 180000, ...options });
@@ -49,6 +48,17 @@ const waitFor = async (probe, description, timeout = 60000) => {
     await new Promise((resolve) => setTimeout(resolve, 200));
   }
   throw new Error(`Timed out waiting for ${description}: ${lastError?.message ?? 'not ready'}`);
+};
+
+const stopDesktop = async () => {
+  socket?.close();
+  socket = undefined;
+  if (desktop && desktop.exitCode === null) {
+    if (process.platform === 'win32') desktop.kill();
+    else process.kill(-desktop.pid, 'SIGTERM');
+    await desktopExit;
+  }
+  desktop = undefined;
 };
 
 try {
@@ -120,6 +130,9 @@ try {
       const ffmpegArch = await run('lipo', ['-archs', path.join(resources, 'bin/ffmpeg')]);
       assert.match(ffmpegArch, /x86_64/);
       assert.match(ffmpegArch, /arm64/);
+      const executableArch = await run('lipo', ['-archs', executable]);
+      assert.match(executableArch, /x86_64/);
+      assert.match(executableArch, /arm64/);
     } else {
       const appImage = await findFile(`-${version}-x86_64.AppImage`);
       await fs.chmod(appImage, 0o755);
@@ -134,10 +147,15 @@ try {
     await run(bundledYt, ['--version']);
     await run(bundledFfmpeg, ['-version']);
     asar.statFile(path.join(resources, 'app.asar'), 'node_modules/ajv/dist/2020.js');
-    const port = 38147;
+    const cpuModes = process.platform === 'darwin' && process.arch === 'arm64' ? ['arm64', 'x64'] : [process.arch];
+    for (const [index, cpu] of cpuModes.entries()) {
+    const port = 38147 + index;
+    const screenshotPath = path.join(releaseDir, `package-smoke-${process.platform}-${cpu}.png`);
+    const desktopUrl = (name) => mediaUrl(`${cpu}-${name}`);
     // CI Linux lacks a configured interactive desktop sandbox; production switches are unchanged.
-    const args = [...(process.platform === 'linux' ? ['--appimage-extract-and-run'] : []), `--remote-debugging-port=${port}`, '--disable-gpu', ...(process.platform === 'linux' ? ['--no-sandbox'] : [])];
-    desktop = spawn(executable, args, { stdio: ['ignore', 'pipe', 'pipe'], detached: process.platform !== 'win32' });
+    const args = [...(process.platform === 'linux' ? ['--appimage-extract-and-run'] : []), `--remote-debugging-port=${port}`, `--user-data-dir=${path.join(root, `desktop-profile-${cpu}`)}`, '--disable-gpu', ...(process.platform === 'linux' ? ['--no-sandbox'] : [])];
+    const rosetta = process.platform === 'darwin' && cpu === 'x64' && process.arch === 'arm64';
+    desktop = spawn(rosetta ? 'arch' : executable, rosetta ? ['-x86_64', executable, ...args] : args, { stdio: ['ignore', 'pipe', 'pipe'], detached: process.platform !== 'win32' });
     desktopExit = new Promise((resolve) => desktop.once('exit', resolve));
     let launchOutput = '';
     desktop.stdout.on('data', (data) => { launchOutput += data; });
@@ -178,11 +196,11 @@ try {
     await cdp('Page.reload');
     await waitFor(() => evaluate(`Boolean(window.api && document.querySelector("button") && performance.timeOrigin !== ${previousOrigin})`), 'reloaded UI');
     assert.equal((await evaluate('window.api.getDownloadSettings()')).notifyPerItemInBatch, !previous.notifyPerItemInBatch);
-    const single = await evaluate(`window.api.downloadSingle(${JSON.stringify({ url: mediaUrl('desktop-single'), format: 'mp3', requestId: 'package-single' })})`);
+    const single = await evaluate(`window.api.downloadSingle(${JSON.stringify({ url: desktopUrl('desktop-single'), format: 'mp3', requestId: 'package-single' })})`);
     await assertMedia(single);
-    const legacy = await evaluate(`window.api.downloadVideo(${JSON.stringify({ url: mediaUrl('desktop-single-hook'), format: 'mp3' })})`);
+    const legacy = await evaluate(`window.api.downloadVideo(${JSON.stringify({ url: desktopUrl('desktop-single-hook'), format: 'mp3' })})`);
     await assertMedia(legacy);
-    const batchUrls = [mediaUrl('desktop-batch-a'), mediaUrl('desktop-batch-b')];
+    const batchUrls = [desktopUrl('desktop-batch-a'), desktopUrl('desktop-batch-b')];
     await evaluate(`window.api.downloadMultiple(${JSON.stringify(batchUrls)},'mp3')`);
     const history = await evaluate('window.api.getDownloadHistory()');
     for (const url of batchUrls) {
@@ -193,16 +211,13 @@ try {
     await evaluate('document.fonts.ready');
     const screenshot = await cdp('Page.captureScreenshot', { format: 'png' });
     await fs.writeFile(screenshotPath, Buffer.from(screenshot.data, 'base64'));
-    console.log(`Installed desktop main/preload/UI, persisted settings, single/batch playable MP3 paths verified: ${version}`);
+    console.log(`Installed desktop ${cpu} main/preload/UI, persisted settings, single/batch playable MP3 paths verified: ${version}`);
     console.log(`Native screenshot: ${screenshotPath}`);
+    await stopDesktop();
+    }
   }
 } finally {
-  socket?.close();
-  if (desktop && desktop.exitCode === null) {
-    if (process.platform === 'win32') desktop.kill();
-    else process.kill(-desktop.pid, 'SIGTERM');
-    await desktopExit;
-  }
+  await stopDesktop();
   if (server) await new Promise((resolve) => server.close(resolve));
   if (mounted) await run('hdiutil', ['detach', mount]);
   await fs.rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
