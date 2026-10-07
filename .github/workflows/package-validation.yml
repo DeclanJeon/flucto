@@ -13,7 +13,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  cli:
+    name: Build Common CLI Archive
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - run: npm ci --ignore-scripts
+      - run: npm run build:cli-release
+      - uses: actions/upload-artifact@v6
+        with:
+          name: common-cli-setup
+          path: release/*-cli-setup.zip
+          retention-days: 14
+          if-no-files-found: error
+
   package:
+    needs: cli
     name: Package ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
@@ -43,8 +62,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build CLI Setup Archive
-        run: npm run build:cli-release
+      - name: Download Common CLI Setup Archive
+        uses: actions/download-artifact@v8
+        with:
+          name: common-cli-setup
+          path: release
 
       - name: Verify Installed CLI and Desktop
         if: runner.os != 'Linux'
