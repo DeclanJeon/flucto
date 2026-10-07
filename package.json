@@ -103,7 +103,7 @@
     "react-dom": "^19.2.0",
     "react-hook-form": "^7.67.0",
     "react-router-dom": "^7.13.1",
-    "semantic-release": "^24.2.1",
+    "semantic-release": "^25.0.9",
     "tailwind-merge": "^3.4.0",
     "tailwindcss": "^4.2.4",
     "typescript": "~5.9.3",

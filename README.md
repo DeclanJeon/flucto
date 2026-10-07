@@ -327,6 +327,19 @@ Flucto uses GitHub Actions and semantic-release for automated CI/CD:
 
 The workflow first predicts the next version from commits, builds Windows/macOS/Linux packages with that version, then publishes through semantic-release. CI updates `package.json`, `package-lock.json`, and `CHANGELOG.md`, creates the version tag, and publishes the npm package and GitHub release assets. A `feat` commit triggers a minor release; do not manually create a competing release tag.
 
+npm publishing uses GitHub Actions OIDC trusted publishing, not `NPM_TOKEN`. Register the publisher in the npm package's **Settings → Trusted Publisher** section:
+
+| Setting | Value |
+| --- | --- |
+| Provider | GitHub Actions |
+| Organization or user | `DeclanJeon` |
+| Repository | `flucto` |
+| Workflow filename | `release.yml` (filename only) |
+| Environment name | Leave empty; the release job does not use a GitHub environment |
+| Allowed actions | Allow direct publishing with `npm publish`; stage-only permission is insufficient |
+
+Release jobs use Node.js 22 and semantic-release 25 with an OIDC-capable npm plugin. Keep `id-token: write` enabled; provenance is generated automatically by trusted publishing. No npm token secret is required.
+
 Local AI-agent metadata under `.commandcode/` is ignored and must not be committed; generated paths can be incompatible with Windows.
 
 ### Commit Conventions

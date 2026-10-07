@@ -29,7 +29,7 @@ permissions:
   contents: write
   issues: write
   pull-requests: write
-  id-token: write # npm provenance for semantic-release publish
+  id-token: write # npm trusted publishing (OIDC)
 
 jobs:
   prepare:
@@ -42,14 +42,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
       - name: Semantic Release (Dry Run)
         id: semantic
-        uses: cycjimmy/semantic-release-action@v4
+        uses: cycjimmy/semantic-release-action@v6
         with:
+          semantic_version: '25'
           dry_run: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   build:
     needs: prepare
@@ -196,12 +201,12 @@ jobs:
           sha256sum * > checksums-sha256.txt
 
       - name: Semantic Release
-        uses: cycjimmy/semantic-release-action@v4
+        uses: cycjimmy/semantic-release-action@v6
+        with:
+          semantic_version: '25'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GIT_CREDENTIALS: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_CONFIG_PROVENANCE: true
 
   release_retry:
     needs: [prepare, release]
