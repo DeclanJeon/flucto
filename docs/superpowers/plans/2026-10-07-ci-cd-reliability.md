@@ -15,7 +15,7 @@
 - npm으로 통일한다. 저장소 설치는 `npm ci`; pnpm latest 활성화 및 npm에서 지원하지 않는 `.npmrc` 설정을 제거한다.
 - Linux, Windows, macOS에서 기존 회귀 테스트를 실행한다. 테스트를 skip하거나 production 동작을 Windows에서 다르게 만들어 통과시키지 않는다.
 - 새 검증은 실제 동작/경계/오류를 검사한다. workflow 소스 문자열 일치 검사는 삭제한다.
-- user 작업은 보존한다. 커밋, push, 태그 삭제/이동, 실제 npm/GitHub 재발행은 이 작업에서 수행하지 않는다.
+- user 작업은 보존한다. 초기 구현 단계에서는 커밋, push 및 실제 publication을 수행하지 않는다. 이후 사용자의 “남은 단계를 진행해” 지시로 commit/push, CI 통합 및 기존 버전 복구 실행이 승인되었다. 기존 태그는 삭제·이동하지 않는다.
 - npm Trusted Publisher 등록은 계정 소유자의 외부 운영 선행조건이다. 토큰을 요청하거나 OIDC를 우회하는 fallback을 추가하지 않는다.
 - native 프로세스 fixture 문제는 테스트 경계에서 해결한다. updater asset fixture는 실행 플랫폼과 일치해야 한다.
 - artifacts는 14일 보관하며 누락된 필수 산출물은 실패로 처리한다.
@@ -107,7 +107,7 @@
 
 ### Implemented
 
-- 작업 브랜치: `fix/ci-cd-reliability`. commit/push, 태그 삭제·이동, npm/GitHub publication은 수행하지 않았다.
+- 초기 작업 브랜치: `fix/ci-cd-reliability`. 초기 구현·검증 단계에서는 commit/push 및 publication을 수행하지 않았다. 후속 운영 결과는 아래 별도 절에 기록한다.
 - `.github/workflows/ci.yml`에 재사용 3-OS 검증을 추가하고, `release.yml`을 push 검증·정상 배포·독립 수동 복구로 분리했다.
 - `scripts/release-tools.mjs`에 버전 예측, source/tag 검증, installer/manifest/hash 검증 및 부분 publication 복구를 구현했다. 소스 문자열 테스트는 동작 기반 `tests/release-tools.test.mjs`로 교체했다.
 - review에서 발견한 세 경계 오류를 회귀 테스트와 함께 수정했다: AppImage의 embedded blockmap 허용, 성공한 Checks로 실패한 Build를 덮어쓰지 않는 정확한 job 이름 검사, 크기가 같아도 digest가 다른 기존 asset 재업로드.
@@ -133,10 +133,21 @@
 
 세 review 회귀 시나리오는 수정 전 실패 / 수정 후 성공을 확인했다. 전체 테스트는 최종 통합 상태에서 다시 통과했다.
 
-### Remaining External Prerequisites / Verification Limits
+### Initial Verification Limits
 
 - npm 계정은 이 세션에서 미인증(`npm whoami` → `ENEEDAUTH`)이다. Trusted Publisher UI 등록 및 실제 OIDC token exchange는 확인하지 못했다.
 - 새 workflow의 Linux/macOS runner 실행과 실제 installer packaging/publication은 GitHub Actions에서 검증해야 한다. 로컬 통합 실행 환경은 Windows였다.
 - 기존 source run artifacts는 각각 **2026-10-07 18:07–18:09 UTC**에 만료된다. 이번 14일 retention 변경은 기존 artifacts의 만료를 연장하지 않는다.
 - 변경 push 및 npm 설정 등록 후, 기존 artifacts가 유효할 때만 README의 고정 버전 수동 복구를 실행한다. 만료된 경우 원본 태그 소스의 3-OS 산출물을 재생성·검증하기 전에는 복구를 진행하지 않는다.
 - 실 npm 게시와 GitHub Release 생성·업로드는 수행하지 않았다. 운영 완료 여부는 외부 운영 단계 1–4의 실제 결과로 판단한다.
+
+### Follow-up Operations — 2026-10-07
+
+- 사용자 승인 후 commit `00a2d9680d98bb4cb5f6dd98a6d0619b56443048`을 push하고 [PR #1](https://github.com/DeclanJeon/flucto/pull/1)을 생성했다.
+- branch push 및 PR의 Linux/Windows/macOS CI 총 6개 job이 성공했다. PR을 `master`에 squash merge했다: `7f8a62fd993cdc4f9a2b7a17e326095f3379cf26`.
+- [기본 브랜치 Release run 37577178444](https://github.com/DeclanJeon/flucto/actions/runs/37577178444)의 3-OS checks 및 prepare가 모두 성공했다. `ci:` commit은 새 버전을 만들지 않아 build/publish는 정상적으로 skipped되었다.
+- [첫 복구 run 37577211277](https://github.com/DeclanJeon/flucto/actions/runs/37577211277)은 source/tag 검증과 원본 3-OS artifact 다운로드를 완료했지만, Linux 파일명 검사에서 publication 전에 실패했다.
+- 원본 build 로그의 실제 파일명은 `Flucto-1.17.0-x86_64.AppImage` 및 `Flucto-1.17.0-amd64.deb`이다. Electron Builder는 x64 target의 `${arch}`를 형식별로 변환한다. 검증기와 fixture의 잘못된 공통 `x64` 가정을 수정했다.
+- 실제 이름을 반영한 기존 acceptance test가 수정 전 실패하는 것을 확인했다. 수정 후 실제 verify CLI는 fixture 기반 16개 산출물을 검증하고 checksum manifest를 생성했다.
+- Linux 이름 수정 후 lint/typecheck/109개 전체 테스트/build/compiled CLI 버전 확인이 모두 성공했다. 동일 acceptance test는 실패 전/통과 후 회귀 증거를 갖는다.
+- npm 설정 페이지는 계정 로그인이 필요했다. 제출된 로그인은 `username or password was invalid`를 반환했다. 계정 로그인·Trusted Publisher UI 설정을 우회하지 않으며, 현재 설정의 유효성은 실제 OIDC 복구 결과로 확인한다.
