@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.0](https://github.com/DeclanJeon/flucto/compare/v1.18.0...v1.19.0) (2026-10-10)
+
+### Features
+
+* add general AI video discovery ([e48fc43](https://github.com/DeclanJeon/flucto/commit/e48fc43ab08c3ccc524877a2bf2f4d9644a9d98c))
+
 ## Unreleased
 
 ### Features
