@@ -149,8 +149,70 @@ export interface VideoInfo {
   uploader: string;
   view_count?: number;
   originalUrl?: string; // Store original URL with parameters
+  aiDisclosures?: AiVideoDisclosure[];
+  aiDisclosureMetadataAvailable?: boolean;
 }
 
+export type AiMediaStatus = 'confirmed' | 'likely' | 'uncertain' | 'not_ai' | 'unavailable';
+export type AiAssistedStatus = 'indicated' | 'not_indicated' | 'unknown';
+export type AiEvidenceGrade = 'direct' | 'indirect' | 'conflicting' | 'none' | 'unavailable';
+export type AiDisclosureSource = 'platform_label' | 'creator_disclosure' | 'creator_title' | 'creator_description';
+export type AiEvidenceReasonCode =
+  | 'platform_ai_label'
+  | 'creator_media_disclosure'
+  | 'multiple_indirect_disclosures'
+  | 'conflicting_media_disclosures'
+  | 'indirect_media_disclosure'
+  | 'no_media_disclosure'
+  | 'ai_assisted_only'
+  | 'ai_assistance_indicated'
+  | 'metadata_unavailable';
+
+export interface AiVideoDisclosure {
+  source: AiDisclosureSource;
+  text: string;
+  url?: string;
+}
+
+export interface AiVideoEvidenceResult {
+  aiMediaStatus: AiMediaStatus;
+  aiAssistedStatus: AiAssistedStatus;
+  evidence: AiVideoDisclosure[];
+  reasonCodes: AiEvidenceReasonCode[];
+  classificationMethod: 'public-metadata-rules-v1';
+  evidenceGrade: AiEvidenceGrade;
+}
+
+export type AiVideoDiscoverySort = 'relevance' | 'popularity';
+
+export interface AiVideoDiscoveryRequest {
+  query?: string;
+  platform?: VideoSearchScope;
+  limit: number;
+  status?: AiMediaStatus;
+  sort?: AiVideoDiscoverySort;
+}
+
+export interface AiVideoDiscoveryCandidate extends VideoSearchVideo, AiVideoEvidenceResult {
+  canonicalUrl: string;
+  matchedQueries: string[];
+  popularityScore?: number;
+  popularityBasis: 'view_count_percentile' | 'unknown';
+  discoveryRank: number;
+}
+
+export interface AiVideoDiscoverySourceReport extends VideoSearchSource {
+  query: string;
+}
+
+export interface AiVideoDiscoveryResponse {
+  query?: string;
+  platform: VideoSearchScope;
+  candidates: AiVideoDiscoveryCandidate[];
+  sourceReports: AiVideoDiscoverySourceReport[];
+  partialFailure: boolean;
+  error?: string;
+}
 export type VideoSearchPlatform =
   | 'youtube' | 'twitter' | 'instagram' | 'reddit' | 'threads' | 'tiktok' | 'vimeo'
   | 'bilibili' | 'dailymotion' | 'nicovideo' | 'ok' | 'vkvideo';
@@ -323,6 +385,7 @@ export interface IElectronAPI {
   getVideoInfo: (url: string) => Promise<VideoInfo>;
   getPlaylistInfo: (url: string) => Promise<VideoInfo[]>;
   searchVideos: (request: VideoSearchRequest) => Promise<VideoSearchResponse>;
+  discoverAiVideos: (request: AiVideoDiscoveryRequest) => Promise<AiVideoDiscoveryResponse>;
   getAvailableFormats: (url: string) => Promise<FormatOption[]>;
   openDownloadsFolder: () => Promise<void>;
   onDownloadProgress: (callback: (progress: DownloadProgress) => void) => void;

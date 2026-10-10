@@ -7,7 +7,7 @@ import { getBinaryPath, checkSystemHealth } from "./utils.js";
 import { logger } from "./logger.js";
 import { config } from "./config.js";
 import { initializeAutoUpdater } from "./updater.js";
-import type { DownloadRequest, DownloadQualityPreferences, DownloadSettings, FormatOption } from "../shared/types.js";
+import type { AiVideoDiscoveryRequest, DownloadRequest, DownloadQualityPreferences, DownloadSettings, FormatOption, VideoSearchRequest } from "../shared/types.js";
 import { settingsStore, getStoredDownloadSettings } from './store.js';
 import { appendHistoryEntry, clearHistory, getHistoryEntries } from './historyStore.js';
 import { getCommonYtDlpArgs, getRefererForUrl, parseLastJsonObjectFromStdout } from './media/ytDlp.js';
@@ -17,7 +17,7 @@ import { setupUtilities, versionFor } from './services/binaryInstaller.js';
 import { checkAndRefreshBinaries } from './services/binaryRefresh.js';
 import type { BinaryResolver } from './services/binaryResolver.js';
 import { searchVideos } from './services/videoSearch.js';
-import type { VideoSearchRequest } from '../shared/types.js';
+import { discoverAiVideos } from "./services/aiVideoDiscovery.js";
 import './handlers.js';
 import './transcript/transcriptHandlers.js';
 const registry = createPlatformRegistry();
@@ -306,6 +306,7 @@ ipcMain.handle("get-playlist-info", async (_event, url: string) => {
 });
 
 ipcMain.handle('search-videos', async (_event, request: VideoSearchRequest) => searchVideos(request));
+ipcMain.handle('discover-ai-videos', async (_event, request: AiVideoDiscoveryRequest) => discoverAiVideos(request));
 
 // 2. Get Video Info Handler [수정됨: SNS 지원 및 에러 방지 강화]
 ipcMain.handle("get-video-info", async (_event, url: string) => {

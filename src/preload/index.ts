@@ -1,6 +1,7 @@
 import type { IpcRendererEvent } from 'electron';
 import { contextBridge, ipcRenderer } from 'electron';
 import type {
+  AiVideoDiscoveryRequest,
   AppUpdateEvent,
   DownloadProgress,
   TranscriptProgress,
@@ -36,6 +37,7 @@ const api: IElectronAPI = {
   getVideoInfo: (url: string) => ipcRenderer.invoke('get-video-info', url),
   getPlaylistInfo: (url: string) => ipcRenderer.invoke('get-playlist-info', url),
   searchVideos: (request) => ipcRenderer.invoke('search-videos', request),
+  discoverAiVideos: (request: AiVideoDiscoveryRequest) => ipcRenderer.invoke('discover-ai-videos', request),
   openDownloadsFolder: () => ipcRenderer.invoke('open-downloads-folder'),
   readBatchFile: () => ipcRenderer.invoke('read-batch-file'),
   onDownloadProgress: (callback: (progress: DownloadProgress) => void) => {

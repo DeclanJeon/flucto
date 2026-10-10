@@ -9,7 +9,7 @@ const MAX_PAGES = 2;
 const MAX_LIMIT = 50;
 const USER_AGENT = 'flucto-video-search/1.0 (https://www.dailymotion.com)';
 
-const SEARCH_FIELDS = 'id,title,thumbnail_url,duration,owner.screenname,views_total';
+const SEARCH_FIELDS = 'id,title,thumbnail_url,duration,owner.screenname,views_total,description';
 
 interface DailymotionVideoItem {
   id?: string;
@@ -18,6 +18,7 @@ interface DailymotionVideoItem {
   duration?: number;
   'owner.screenname'?: string;
   views_total?: number;
+  description?: string;
 }
 
 interface DailymotionListResponse {
@@ -48,6 +49,10 @@ function mapDailymotionItem(item: DailymotionVideoItem): VideoInfo | null {
       : 'unknown',
     view_count: typeof item.views_total === 'number' ? item.views_total : undefined,
     originalUrl: url,
+    aiDisclosures: typeof item.description === 'string' && item.description.trim()
+      ? [{ source: 'creator_description', text: item.description, url }]
+      : undefined,
+    aiDisclosureMetadataAvailable: typeof item.description === 'string',
   };
 }
 

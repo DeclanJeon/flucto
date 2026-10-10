@@ -137,3 +137,13 @@ Public-index/Threads work shares a temporary Chrome browser with two admitted pa
 
 Downloads remain independent of search transport: explicit adapters in `createRegistry.ts` select `yt-dlp` options, and `mediaDownload.ts` reuses those options plus authorized cookie/proxy overrides. A search result is not a guarantee that the upstream video remains downloadable.
 
+## AI Video Discovery
+
+`src/main/services/aiVideoDiscovery.ts` expands an optional free-text query into three AI-video retrieval phrases; without one, it searches three general AI-video phrases. The query is never evidence. Searches run at most four phrases concurrently through `searchVideos`; discovery does not register parallel platform providers. A global 1–50 candidate limit, canonical-URL deduplication, matched-query provenance, and per-query/platform source reports bound and explain the merged result set. Relevance ranking prioritizes public AI-media disclosure evidence; popularity sorting remains a platform-relative view-count percentile among candidates on the same platform and run. Missing views remain missing and unknown.
+
+`aiVideoEvidence.ts` classifies only public platform-label or creator-disclosure metadata carried by provider results. Query text and titles are not evidence. Direct generated-media disclosures can be `confirmed`; AI-assisted plans/scripts remain separate, conflicting evidence stays `uncertain`, and unavailable metadata remains `unavailable`. Dailymotion search requests include its public description field; other provider disclosure mappings remain empty unless their existing search response exposes reliable metadata. No page scraping, media upload, video/audio detector, or external LLM inference is used.
+
+Creator descriptions must contain an explicit statement tying the media itself to AI generation to qualify as direct evidence; generic AI hashtags or fragments are weak evidence only and can never yield `confirmed` or `likely`. Providers that omit disclosure fields are classified `unavailable`, distinct from an available field with no disclosure.
+
+The `flucto discover` CLI and Electron's `discover-ai-videos` IPC call the same service. The renderer shows source/evidence and observed metrics; discovery only adds explicitly selected original URLs to the existing download queue. Queuing never starts a download. Public search visibility is not a reuse license.
+

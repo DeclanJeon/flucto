@@ -212,6 +212,20 @@ flucto download "<originalUrl from a search result>" --format mp4 --output-dir .
 
 `--limit` is a **total** result cap of 1–50 (default 20), not a per-site output quota. Integrated search interleaves source ranks and removes duplicate original URLs. Search does not provision media binaries. JSON contains `platform`, `query`, annotated `videos` (`platform`, `searchMethod`), and `sources` (`platform`, `method`, `count`, `searchUrl`, optional `error` and `nativeError`). Source counts describe fetched results before the integrated cap, so their sum can exceed the displayed total. Single-site responses also include `searchUrl`. Partial failures and successful empty searches exit 0; an entirely failed search includes top-level `error` and exits 4.
 
+### AI video discovery
+
+`flucto discover` searches existing providers for public AI-video disclosures, then classifies only public disclosure metadata returned by a supported search provider. An optional free-text query narrows retrieval but never counts as evidence; titles and search phrases are not classification evidence. With no query, discovery uses general AI-video phrases. Examples:
+
+```bash
+flucto discover --platform dailymotion --limit 10 --sort popularity --json
+flucto discover "AI animation" --platform all --status confirmed
+```
+
+JSON includes the optional normalized query, candidate classification/evidence, original and canonical URLs, matched queries, available view counts, platform-relative popularity basis, and per-query/source reports. `--limit` caps the entire result set at 1–50 (default 20); `--status` accepts `confirmed`, `likely`, `uncertain`, `not_ai`, or `unavailable`; `--sort` accepts `relevance` or `popularity`. Missing metadata stays unavailable and missing views stay absent. The current Dailymotion search mapping exposes public descriptions for direct creator disclosures; most registered providers do not expose such disclosure metadata in their search results, so search alone may yield no confirmed candidates. This feature does not fetch individual video pages, analyze video/audio, or prove provenance. It does not download candidates.
+[ docs/architecture-extensible-platforms.md#B484]
+
+Only an explicit creator statement identifying the media as AI-generated, or an authoritative platform AI label, can yield `confirmed`. Generic AI hashtags or fragments remain `uncertain` at most; a title or search phrase never counts as evidence. Sources that do not return disclosure metadata are marked `unavailable`, not `not_ai`.
+
 | Site | Search method | Download method / restrictions |
 | --- | --- | --- |
 | YouTube | Public results page and Innertube continuation; public video index fallback | Existing `yt-dlp` adapter; captions/transcripts and authorized download settings remain supported. |

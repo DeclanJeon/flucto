@@ -37,6 +37,7 @@ import { detectInstallMode } from '../main/services/platformAssets.js';
 import { execa } from '../main/spawn.js';
 import { resolveCaptionNetworkOptions } from '../main/net/captionNetwork.js';
 import { searchVideos } from '../main/services/videoSearch.js';
+import { discoverAiVideos } from '../main/services/aiVideoDiscovery.js';
 import type { TranscriptMarkdownResponse, TranscriptRequest } from '../shared/types.js';
 import { VIDEO_SEARCH_SITES } from '../shared/videoSearchPlatforms.js';
 
@@ -606,6 +607,45 @@ const runChannelToMd = async (options: CliOptions): Promise<number> => {
   return failed.length === 0 ? 0 : 7;
 };
 
+const runDiscovery = async (options: CliOptions): Promise<number> => {
+  const result = await discoverAiVideos({
+    query: options.positional[0],
+    platform: options.platform ?? 'all',
+    limit: options.limit,
+    status: options.status,
+    sort: options.sort,
+  });
+  if (options.json) {
+    writeJson(result);
+  } else {
+    writeHuman(`Discovery query: ${result.query || 'AI videos (general)'}\n`);
+    for (const candidate of result.candidates) {
+      const views = candidate.view_count === undefined ? 'views unavailable' : `${candidate.view_count} views`;
+      const popularity = candidate.popularityScore === undefined
+        ? 'popularity unknown'
+        : `platform-relative views percentile ${Math.round(candidate.popularityScore)}`;
+      const evidence = candidate.evidence.length
+        ? candidate.evidence.map((item) => `  Evidence (${item.source}): ${item.text}`).join('\n')
+        : candidate.aiMediaStatus === 'unavailable'
+          ? '  Evidence: required disclosure metadata unavailable'
+          : '  Evidence: no direct public media-generation disclosure found';
+      writeHuman(`[${candidate.platform} · ${candidate.searchMethod}] ${candidate.title}\n`
+        + `${candidate.aiMediaStatus} · ${candidate.aiAssistedStatus} · ${views} · ${popularity}\n`
+        + `Reason: ${candidate.reasonCodes.join(', ')}\n${candidate.originalUrl}\n`
+        + `Queries: ${candidate.matchedQueries.join(' | ')}\n${evidence}\n`);
+    }
+    for (const source of result.sourceReports) {
+      const line = `[${source.platform} · ${source.method}] ${source.query}: ${source.count} result(s) — ${source.searchUrl}`;
+      if (source.error) writeError(`${line}: ${source.error}`);
+      else info(line);
+    }
+    if (result.error) writeError(result.error);
+    else if (result.candidates.length === 0) writeHuman('No discovery candidates found.');
+    info('AI-media classifications use public text disclosures, not video analysis. Public availability does not grant reuse rights.');
+  }
+  return result.error ? 4 : 0;
+};
+
 const dispatch = async (options: CliOptions): Promise<number> => {
   const binaryDependentCommands = new Set(['download', 'batch', 'transcript', 'md', 'channel-to-md', 'info', 'formats', 'languages']);
   if (binaryDependentCommands.has(options.command)) {
@@ -661,6 +701,8 @@ const dispatch = async (options: CliOptions): Promise<number> => {
       }
       return result.error ? 4 : 0;
     }
+    case 'discover':
+      return runDiscovery(options);
     case 'download':
       return runDownload(options);
     case 'batch':

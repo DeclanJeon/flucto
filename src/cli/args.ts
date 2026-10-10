@@ -1,5 +1,5 @@
 import { parseArgs } from 'util';
-import type { AudioQualityPreset, MediaOutputMode, VideoQualityPreset, VideoSearchScope } from '../shared/types.js';
+import type { AiMediaStatus, AiVideoDiscoverySort, AudioQualityPreset, MediaOutputMode, VideoQualityPreset, VideoSearchScope } from '../shared/types.js';
 import { VIDEO_SEARCH_PLATFORM_IDS } from '../shared/videoSearchPlatforms.js';
 
 export type CliCommand =
@@ -10,6 +10,7 @@ export type CliCommand =
   | 'channel-to-md'
   | 'info'
   | 'search'
+  | 'discover'
   | 'formats'
   | 'languages'
   | 'doctor'
@@ -43,6 +44,8 @@ export interface CliOptions {
   ytDlpOnly: boolean;
   updateAction: CliUpdateAction;
   platform?: VideoSearchScope;
+  status?: AiMediaStatus;
+  sort?: AiVideoDiscoverySort;
   cookies?: string;
   cookiesFromBrowser?: string;
   proxy?: string;
@@ -66,8 +69,8 @@ const commandAliases: Record<string, CliCommand | 'channel'> = {
   info: 'info',
   i: 'info',
   search: 'search',
+  discover: 'discover',
   formats: 'formats',
-  f: 'formats',
   languages: 'languages',
   l: 'languages',
   doctor: 'doctor',
@@ -151,6 +154,23 @@ const parseSearchScope = (value: string | boolean | undefined): VideoSearchScope
   }
   return raw as VideoSearchScope;
 };
+const aiMediaStatuses: Record<string, true> = {
+  confirmed: true, likely: true, uncertain: true, not_ai: true, unavailable: true,
+};
+
+const parseDiscoveryStatus = (value: string | boolean | undefined): AiMediaStatus | undefined => {
+  const raw = stringOption(value);
+  if (!raw) return undefined;
+  if (!aiMediaStatuses[raw]) throw new CliUsageError('--status must be one of confirmed, likely, uncertain, not_ai, unavailable.');
+  return raw as AiMediaStatus;
+};
+
+const parseDiscoverySort = (value: string | boolean | undefined): AiVideoDiscoverySort | undefined => {
+  const raw = stringOption(value);
+  if (!raw) return undefined;
+  if (raw !== 'relevance' && raw !== 'popularity') throw new CliUsageError('--sort must be relevance or popularity.');
+  return raw;
+};
 
 
 export const parseCliArgs = (argv: string[]): CliOptions => {
@@ -184,8 +204,9 @@ export const parseCliArgs = (argv: string[]): CliOptions => {
       limit: { type: 'string' },
       force: { type: 'boolean' },
       'check-only': { type: 'boolean' },
-      'yt-dlp-only': { type: 'boolean' },
       platform: { type: 'string' },
+      status: { type: 'string' },
+      sort: { type: 'string' },
     },
   });
 
@@ -248,7 +269,9 @@ const baseOptions = (
     metadata: booleanOption(values.metadata) ? true : booleanOption(values['no-metadata']) ? false : undefined,
     stdout: booleanOption(values.stdout),
     concurrency: parseConcurrency(values.concurrency, concurrencyFallback),
-    limit: parseLimit(values.limit, command === 'search' ? 20 : 100),
+    limit: parseLimit(values.limit, command === 'search' || command === 'discover' ? 20 : 100),
+    status: parseDiscoveryStatus(values.status),
+    sort: parseDiscoverySort(values.sort),
     force: booleanOption(values.force),
     checkOnly: booleanOption(values['check-only']),
     ytDlpOnly: booleanOption(values['yt-dlp-only']),
@@ -273,6 +296,12 @@ const validateCommand = (options: CliOptions): void => {
       throw new CliUsageError('search requires exactly one quoted keyword.');
     }
     if (options.limit > 50) throw new CliUsageError('Search --limit must be from 1 to 50.');
+  }
+  if (options.command === 'discover') {
+    if (options.positional.length > 1) {
+      throw new CliUsageError('discover accepts at most one quoted search query.');
+    }
+    if (options.limit > 50) throw new CliUsageError('Discover --limit must be from 1 to 50.');
   }
   if (['download', 'transcript', 'md', 'info', 'formats', 'languages'].includes(options.command) && options.positional.length !== 1) {
     throw new CliUsageError(`${options.command} requires exactly one URL.`);

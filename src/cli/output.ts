@@ -16,6 +16,8 @@ ${c.bold('Usage')}
   flucto info <url> [--json]
   flucto search "<keyword>" [--platform SITE|all] [--limit 20] [--json]
       ${c.dim('(default --platform all searches every supported site; --limit is the total result cap)')}
+  flucto discover ["query"] [--platform SITE|all] [--limit 20] [--status STATUS] [--sort relevance|popularity] [--json]
+      ${c.dim('(optional query scopes general AI-video discovery; public-metadata only; never downloads candidates)')}
   flucto formats <url> [--json]
   flucto languages <url> [--json]
   flucto doctor [--json]
@@ -43,6 +45,7 @@ ${c.bold('Short form')}
 ${c.bold('Examples')}
   ${c.cyan('flucto channel to-md "@LIFECODEofficial" --limit 100 --out ./notes')}
   ${c.cyan('flucto channel to-md "https://youtube.com/@learn-ai-lab" --limit 20 -o ./notes -l ko')}
+  ${c.cyan('flucto discover workout --platform youtube --limit 10 --sort popularity --json')}
 
 ${c.bold('Global options')}
   --json, -j             Emit final result as JSON to stdout
@@ -60,6 +63,8 @@ ${c.bold('Global options')}
                          channel videos (default: 100, max: 5000)
                          Results tagged "index" come from public web indexes and may need a
                          site session or be unavailable for download.
+  --status STATUS       Discovery AI-media filter: confirmed, likely, uncertain, not_ai, unavailable
+  --sort ORDER          Discovery order: relevance or platform-relative popularity
   --bin-dir DIR          Directory containing yt-dlp and ffmpeg
   --yt-dlp PATH          Explicit yt-dlp binary path
   --ffmpeg PATH          Explicit ffmpeg binary path

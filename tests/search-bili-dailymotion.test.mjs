@@ -30,3 +30,36 @@ test('Dailymotion does not confuse malformed data with a legitimate zero-result 
     assert.deepEqual(await searchDailymotion('no-match', 5), []);
   });
 });
+
+test('Dailymotion public descriptions are retained as creator-disclosure evidence', async () => {
+  const description = 'The animation in this video was generated with AI.';
+  const originalFetch = globalThis.fetch;
+  let fetchedUrl = '';
+  globalThis.fetch = async (input) => {
+    fetchedUrl = String(input);
+    return Response.json({
+      list: [{ id: 'ai1', title: 'Animated routine', description, views_total: 23 }],
+      has_more: false,
+    });
+  };
+  try {
+    const [video] = await searchDailymotion('routine', 5);
+    assert.ok(new URL(fetchedUrl).searchParams.get('fields').split(',').includes('description'));
+    assert.deepEqual(video.aiDisclosures, [{
+      source: 'creator_description',
+      text: description,
+      url: 'https://www.dailymotion.com/video/ai1',
+    }]);
+    assert.equal(video.aiDisclosureMetadataAvailable, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('Dailymotion missing description metadata remains distinguishable from an empty description', async () => {
+  await withResponse({ list: [{ id: 'no-description', title: 'Routine' }], has_more: false }, 200, async () => {
+    const [video] = await searchDailymotion('routine', 5);
+    assert.equal(video.aiDisclosureMetadataAvailable, false);
+    assert.equal(video.aiDisclosures, undefined);
+  });
+});

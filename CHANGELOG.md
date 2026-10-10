@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- Add general AI-video discovery with optional free-text retrieval, public-disclosure evidence classification, evidence-aware relevance ranking, source diagnostics, platform-relative popularity, CLI JSON output, and explicit renderer queue selection.
+
 ## [1.18.0](https://github.com/DeclanJeon/flucto/compare/v1.17.0...v1.18.0) (2026-10-07)
 
 ### Features

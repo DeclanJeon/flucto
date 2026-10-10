@@ -27,6 +27,7 @@ import { TranscriptSettings } from './TranscriptSettings';
 import { GitHubStarButton } from './GitHubStarButton';
 import { useDownloadMonitor } from '../hooks/useDownloadMonitor';
 import { VideoSearch } from './VideoSearch';
+import { AiVideoDiscovery } from './AiVideoDiscovery';
 import type { AppUpdateEvent, DownloadSettings as DownloadSettingsType, FormatOption, MediaOutputMode, TranscriptProgress as TranscriptProgressType, TranscriptSettings as TranscriptSettingsType, VideoInfo } from '../../../shared/types';
 
 // [수정] 범용 URL 클리너 (YouTube ID 추출 로직 제거 및 범용화)
@@ -91,7 +92,8 @@ export const MainDownloader: React.FC = () => {
   const [url, setUrl] = useState('');
   const [outputMode, setOutputMode] = useState<MediaOutputMode>('mp4');
   const [videos, setVideos] = useState<VideoInfo[]>([]);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('list'); // 뷰어 모드 상태 추가 (기본값: 리스트)
+  const [searchMode, setSearchMode] = useState<'search' | 'discovery'>('search');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -317,6 +319,11 @@ export const MainDownloader: React.FC = () => {
     } finally {
       setIsAnalyzing(false);
     }
+  };
+
+  const handleAddSearchResult = (video: VideoInfo) => {
+    setVideos((previous) => previous.some((item) => item.originalUrl === video.originalUrl)
+      ? previous : [...previous, video]);
   };
 
   const handleBatchFile = async () => {
@@ -746,14 +753,31 @@ export const MainDownloader: React.FC = () => {
           </div>
         </motion.div>
 
-        <VideoSearch
-          disabled={isLoading || isDownloading}
-          queuedUrls={new Set(videos.map((video) => video.originalUrl ?? ''))}
-          onAdd={(video) => {
-            setVideos((previous) => previous.some((item) => item.originalUrl === video.originalUrl)
-              ? previous : [...previous, video]);
-          }}
-        />
+        <div className="w-full max-w-2xl">
+          <div className="mt-6 flex gap-2" role="tablist" aria-label="Video search mode">
+            <button type="button" role="tab" aria-selected={searchMode === 'search'} onClick={() => setSearchMode('search')}
+              className={`rounded-lg px-3 py-2 text-sm ${searchMode === 'search' ? 'bg-blue-600 text-white' : 'bg-white/10 text-gray-300'}`}>
+              Search videos
+            </button>
+            <button type="button" role="tab" aria-selected={searchMode === 'discovery'} onClick={() => setSearchMode('discovery')}
+              className={`rounded-lg px-3 py-2 text-sm ${searchMode === 'discovery' ? 'bg-blue-600 text-white' : 'bg-white/10 text-gray-300'}`}>
+              AI video discovery
+            </button>
+          </div>
+          {searchMode === 'search' ? (
+            <VideoSearch
+              disabled={isLoading || isDownloading}
+              queuedUrls={new Set(videos.map((video) => video.originalUrl ?? ''))}
+              onAdd={handleAddSearchResult}
+            />
+          ) : (
+            <AiVideoDiscovery
+              disabled={isLoading || isDownloading}
+              queuedUrls={new Set(videos.map((video) => video.originalUrl ?? ''))}
+              onAdd={handleAddSearchResult}
+            />
+          )}
+        </div>
 
         <div className="w-full max-w-2xl mt-6 space-y-4">
           <AnimatePresence>
