@@ -280,6 +280,11 @@ export const MainDownloader: React.FC = () => {
     const cleanUrl = cleanMediaUrl(rawUrl);
     if (!cleanUrl) throw new Error('Invalid URL');
 
+    if (outputMode === 'images') {
+      const images = await window.api.getPostImages(cleanUrl);
+      return images.map((image) => ({ id: image.imageUrl, title: image.title, thumbnail: image.thumbnail, duration: 0, uploader: '', originalUrl: image.imageUrl }));
+    }
+
     // YouTube Playlist만 특별 취급 (list 파라미터 확인)
     const isYoutubePlaylist = (cleanUrl.includes('youtube.com') || cleanUrl.includes('youtu.be')) && cleanUrl.includes('list=');
 
@@ -378,13 +383,21 @@ export const MainDownloader: React.FC = () => {
     if (videos.length === 0) return;
 
     setIsDownloading(true);
-    setStatusMessage(outputMode === 'md' ? '📝 Initializing Markdown conversion...' : '🚀 Initializing downloads...');
+    setStatusMessage(outputMode === 'md' ? '📝 Initializing Markdown conversion...' : outputMode === 'images' ? '🖼️ Downloading images...' : '🚀 Initializing downloads...');
 
     try {
       // id가 없는 경우(일부 사이트) 대비 안전장치
       const downloadUrls = videos.map((v) => v.originalUrl || `https://www.youtube.com/watch?v=${v.id}`);
       const downloadTitles = videos.map((v) => v.title || (v.originalUrl || v.id));
-      if (outputMode === 'md') {
+      if (outputMode === 'images') {
+        const result = await window.api.downloadImages(videos.map((video) => ({ url: video.originalUrl || '', title: video.title })));
+        setAppliedSummary('Images saved: ' + result.succeeded.length + '/' + result.total + '; ' + result.failed.length + ' failed.');
+        if (result.failed.length) {
+          const failedUrls = new Set(result.failed.map((item) => item.url));
+          setVideos((items) => items.filter((item) => failedUrls.has(item.originalUrl || '')));
+          setStatusMessage('Saved ' + result.succeeded.length + '/' + result.total + ' images; failures remain queued.');
+        } else { setVideos([]); setStatusMessage('Saved all ' + result.succeeded.length + ' images.'); }
+      } else if (outputMode === 'md') {
         const summary = await window.api.convertMultipleTranscriptsToMarkdown(
           videos.map((video) => ({
             url: video.originalUrl || `https://www.youtube.com/watch?v=${video.id}`,
@@ -412,9 +425,11 @@ export const MainDownloader: React.FC = () => {
           downloadSettings.notifyPerItemInBatch,
         );
       }
-      setStatusMessage('✅ All downloads started!');
-      setVideos([]);
-      setTimeout(() => setStatusMessage(null), 3000);
+      if (outputMode !== 'images') {
+        setStatusMessage('✅ All downloads started!');
+        setVideos([]);
+        setTimeout(() => setStatusMessage(null), 3000);
+      }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       setStatusMessage(`❌ Download failed: ${message}`);
@@ -453,6 +468,12 @@ export const MainDownloader: React.FC = () => {
       : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
     try {
+      if (outputMode === 'images') {
+        const response = await window.api.downloadImages([{ url: targetUrl, title: video.title }]);
+        if (response.failed.length) throw new Error(response.failed[0].message);
+        setAppliedSummary('Image saved: ' + (response.succeeded[0]?.filePath || 'download complete'));
+        return;
+      }
       if (outputMode === 'md') {
         const response = await window.api.convertTranscriptToMarkdown({
           url: targetUrl,
@@ -731,7 +752,7 @@ export const MainDownloader: React.FC = () => {
           {/* Format Selection */}
           <div className="flex justify-center mt-6 gap-4">
              <div className="bg-[#1c1c1e] p-1 rounded-full border border-white/10 flex items-center">
-                {(['mp4', 'mp3', 'md'] as const).map((mode) => (
+                {(['mp4', 'mp3', 'images', 'md'] as const).map((mode) => (
                   <button
                     type="button"
                     key={mode}
@@ -742,13 +763,13 @@ export const MainDownloader: React.FC = () => {
                         : 'text-gray-400 hover:text-white'
                     }`}
                   >
-                    {mode.toUpperCase()}
+                    {mode === 'images' ? 'Images' : mode.toUpperCase()}
                   </button>
                 ))}
              </div>
              <div className="flex items-center gap-2 text-xs text-gray-500 px-2">
                 <Settings2 size={14} />
-                <span>{outputMode === 'md' ? 'Captions → Markdown' : 'Best Quality'}</span>
+                <span>{outputMode === 'md' ? 'Captions → Markdown' : outputMode === 'images' ? 'All post images' : 'Best Quality'}</span>
              </div>
           </div>
         </motion.div>
@@ -781,7 +802,7 @@ export const MainDownloader: React.FC = () => {
 
         <div className="w-full max-w-2xl mt-6 space-y-4">
           <AnimatePresence>
-            {showSettings && outputMode !== 'md' && (
+            {showSettings && outputMode !== 'md' && outputMode !== 'images' && (
               <DownloadSettings
                 settings={downloadSettings}
                 onClose={() => setShowSettings(false)}

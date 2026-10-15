@@ -39,11 +39,12 @@
 
 - **Smart Media Engine:** Flucto parses single video, playlist, and social-media URLs while sharing platform-specific `yt-dlp` headers, referers, and retry behavior across preview, download, and transcript flows.
 - **Integrated Video Search:** Search all 12 registered sites together or select one site, see native/index source attribution and partial failures, then add results to the existing MP4/MP3 download queue. Desktop and CLI share the same service.
+- **Post image downloads:** In the desktop app, choose **Images** to preview and save image URLs exposed by supported post extractors, including Threads. Partial failures remain in the queue; image coverage depends on the platform extractor.
 - **Extensible Platform Architecture:** Plugin-based `PlatformAdapter` system — adding a new platform is one file. Supports yt-dlp-based platforms, custom API extraction, and browser-based fallback strategies.
 - **Caption-to-Markdown Conversion:** Uses `yt-dlp` subtitle/caption output when available, parses JSON3, XML/SRV3, and VTT captions, cleans caption markup, groups nearby captions into readable paragraphs, and writes filesystem-safe `.md` files.
 - **Transcript Options:** Default new Markdown conversions to English captions (`en`) while still allowing `Auto` or a concrete caption language, include/exclude timestamps and metadata, choose paragraph gap rules, save Markdown files, and optionally copy generated Markdown to the clipboard.
 - **Batch Queue System:** Import text URL lists and expand YouTube playlists. CLI batch/channel jobs use bounded concurrency and dedicated job folders; desktop media batches save files in the selected output directory.
-- **Download History:** Records output type (`mp4`, `mp3`, or `md`) so media downloads and Markdown conversions stay visible in history.
+- **Download History:** Records output type (`mp4`, `mp3`, `images`, or `md`) so media downloads, image downloads, and Markdown conversions stay visible in history.
 - **Zero Configuration:** Unlike other GUI wrappers, Flucto includes a `setup-binaries` script that automatically downloads the correct version of `yt-dlp` and `ffmpeg` for your OS upon installation.
 - **Network Resilience:** Implements retry logic, updater metadata checks, and transcript circuit-breaker behavior for unstable connections, rate limits, and unavailable caption sources.
 
@@ -188,6 +189,9 @@ Brand assets live in:
 | `MP4` | Video files from supported URLs | Archiving videos, clips, playlists, and social media posts |
 | `MP3` | Extracted audio files | Podcasts, lectures, music, and offline listening |
 | `MD` | Markdown transcript files from available captions/subtitles | Research notes, summaries, quote extraction, and searchable archives |
+| `Images` | Available image files from supported posts | Saving image posts and carousels |
+
+To download post images, paste a supported post URL, select **Images**, review the extracted image list, then run the queue. Files are saved in the configured downloads directory with sanitized post-title names and an index. Extraction uses image URLs exposed by the installed `yt-dlp` extractor or the Threads adapter; platforms or posts that expose no image URLs are unsupported. Flucto does not scrape logged-in pages or bypass access controls. Failed images remain queued for retry, and successful images are removed from the queue.
 
 Markdown conversion is caption-based. If a platform or video does not expose captions/subtitles through `yt-dlp`, Flucto reports the transcript as unavailable instead of silently falling back to speech-to-text. No Python/FastAPI server, Whisper runtime, or external transcription service is embedded.
 

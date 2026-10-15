@@ -12,7 +12,8 @@ import { settingsStore, getStoredDownloadSettings } from './store.js';
 import { appendHistoryEntry, clearHistory, getHistoryEntries } from './historyStore.js';
 import { getCommonYtDlpArgs, getRefererForUrl, parseLastJsonObjectFromStdout } from './media/ytDlp.js';
 import { createPlatformRegistry } from './platforms/index.js';
-import { runMediaDownload } from './services/mediaDownload.js';
+import { runMediaDownload, downloadImageUrls } from './services/mediaDownload.js';
+import { extractPostImages } from './services/mediaInfo.js';
 import { setupUtilities, versionFor } from './services/binaryInstaller.js';
 import { checkAndRefreshBinaries } from './services/binaryRefresh.js';
 import type { BinaryResolver } from './services/binaryResolver.js';
@@ -303,6 +304,33 @@ ipcMain.handle("get-playlist-info", async (_event, url: string) => {
     });
     throw new Error(`Failed to fetch playlist info: ${errorMessage}`);
   }
+});
+
+ipcMain.handle('get-post-images', async (_event, url: string) => {
+  const adapter = registry.resolve(url);
+  if (!adapter || adapter.id === 'generic') throw new Error('Image extraction is not available for this platform.');
+  if (adapter?.extractImages) {
+    const images = await adapter.extractImages(url);
+    if (!images.length) throw new Error('No downloadable images were found in this post.');
+    return images;
+  }
+  if (adapter && adapter.getStrategy(url) !== 'yt-dlp') throw new Error('Image extraction is not available for this platform.');
+  const args = [url, '--dump-single-json', '--no-warnings', '--skip-download', '--ignore-errors', ...(adapter?.getYtDlpArgs?.(url) ?? getCommonYtDlpArgs(url))];
+  const result = await execa(getBinaryPath('yt-dlp'), args, { reject: false });
+  if (result.failed && !result.stdout.trim()) throw new Error(result.stderr || 'Could not read images from this post.');
+  const metadata = parseLastJsonObjectFromStdout(result.stdout) as YtDlpMetadata;
+  const images = extractPostImages(metadata);
+  if (!images.length) throw new Error('No downloadable images were found in this post.');
+  return images.map((image, index) => ({ id: String(index), title: image.title + ' (' + (index + 1) + ')', imageUrl: image.url, thumbnail: image.url, originalUrl: image.url }));
+});
+
+ipcMain.handle('download-images', async (_event, items: Array<{ url: string; title: string }>) => {
+  if (!Array.isArray(items) || !items.length) throw new Error('No images to download.');
+  const settings = getStoredDownloadSettings();
+  const outputDir = settings.downloadsDirectory || config.paths.downloads;
+  const result = await downloadImageUrls(items.map((item) => item.url), outputDir, items[0]?.title || 'Post image');
+  if (!result.succeeded.length) throw new Error(result.failed.map((item) => item.message).join('; ') || 'No images were downloaded.');
+  return { total: items.length, ...result };
 });
 
 ipcMain.handle('search-videos', async (_event, request: VideoSearchRequest) => searchVideos(request));

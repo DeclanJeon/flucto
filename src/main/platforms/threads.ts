@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import type { VideoInfo, DownloadResponse } from '../../shared/types.js';
+import type { VideoInfo, DownloadResponse, PostImageInfo } from '../../shared/types.js';
 import type { PlatformAdapter, DownloadOptions, ProgressCallback } from './types.js';
 import { PlatformError } from './errors.js';
 
@@ -93,6 +93,23 @@ export function createThreadsAdapter(): PlatformAdapter {
     getStrategy: () => 'custom-api',
 
     getReferer: () => 'https://www.threads.com/',
+
+    extractImages: async (url: string, signal?: AbortSignal): Promise<PostImageInfo[]> => {
+      try {
+        const data = await fetchThreadsApi(url, signal);
+        const images = data.medias.filter((media) => media.mediaType === 1).flatMap((media) => media.images ?? []);
+        return images.map((image, index) => ({
+          id: String(index + 1),
+          title: (data.text?.slice(0, 100) || "Threads post") + ' (' + (index + 1) + ')',
+          imageUrl: image.url,
+          thumbnail: image.url,
+          originalUrl: image.url,
+        }));
+      } catch (error: unknown) {
+        if (error instanceof PlatformError) throw error;
+        throw new PlatformError('EXTRACTION_FAILED', "Failed to extract Threads images: " + (error instanceof Error ? error.message : String(error)), 'threads', error);
+      }
+    },
 
     extractInfo: async (url: string, signal?: AbortSignal): Promise<VideoInfo> => {
       try {

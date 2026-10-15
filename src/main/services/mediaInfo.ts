@@ -285,3 +285,37 @@ export const getAvailableFormats = async (url: string, binaries: BinaryResolver)
 
   return formats;
 };
+
+
+const isImageMetadata = (value: YtDlpMetadata): boolean => {
+  const ext = toStringValue(value.ext)?.toLowerCase();
+  const mime = toStringValue(value.mime_type)?.toLowerCase();
+  if (mime?.startsWith('image/')) return true;
+  if (ext && ['jpg', 'jpeg', 'png', 'webp', 'gif', 'avif', 'bmp', 'tiff'].includes(ext)) return true;
+  const url = toStringValue(value.url);
+  return !!url && /\.(?:jpe?g|png|webp|gif|avif|bmp|tiff)(?:$|[?#])/i.test(url);
+};
+
+export const extractPostImages = (metadata: YtDlpMetadata): Array<{ url: string; title: string }> => {
+  const images: Array<{ url: string; title: string }> = [];
+  const seen = new Set<string>();
+  const add = (item: YtDlpMetadata, parentTitle?: string): void => {
+    if (!isImageMetadata(item)) return;
+    const url = toStringValue(item.url);
+    if (!url || !/^https?:\/\//i.test(url) || seen.has(url)) return;
+    seen.add(url);
+    images.push({ url, title: toStringValue(item.title) ?? parentTitle ?? toStringValue(metadata.title) ?? 'Post image' });
+  };
+  const entries = Array.isArray(metadata.entries) ? metadata.entries : [];
+  for (const raw of entries) {
+    const entry = toMetadata(raw);
+    if (!entry) continue;
+    add(entry, toStringValue(entry.title) ?? undefined);
+    const formats = Array.isArray(entry.formats) ? entry.formats : [];
+    for (const format of formats) { const item = toMetadata(format); if (item) add(item, toStringValue(entry.title) ?? undefined); }
+    const requested = Array.isArray(entry.requested_downloads) ? entry.requested_downloads : [];
+    for (const download of requested) { const item = toMetadata(download); if (item) add(item, toStringValue(entry.title) ?? undefined); }
+  }
+  add(metadata);
+  return images;
+};

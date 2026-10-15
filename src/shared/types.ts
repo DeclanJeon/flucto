@@ -9,7 +9,7 @@ export type VideoQualityPreset = '4k' | '1440p' | '1080p' | '720p' | '480p' | '3
 export type AudioQualityPreset = '320kbps' | '256kbps' | '192kbps' | '128kbps' | '64kbps' | 'worst';
 
 export type MediaDownloadFormat = 'mp4' | 'mp3';
-export type MediaOutputMode = MediaDownloadFormat | 'md';
+export type MediaOutputMode = MediaDownloadFormat | 'md' | 'images';
 export type HistoryOutputFormat = MediaOutputMode;
 
 export type TranscriptErrorCode =
@@ -141,6 +141,10 @@ export interface DownloadResponse {
 /**
  * Video information from yt-dlp
  */
+export interface PostImageInfo { id: string; title: string; imageUrl: string; thumbnail: string; originalUrl: string; }
+
+export interface ImageDownloadSummary { total: number; succeeded: Array<{ url: string; filePath: string }>; failed: Array<{ url: string; message: string }>; }
+
 export interface VideoInfo {
   id: string;
   title: string;
@@ -383,6 +387,8 @@ export interface IElectronAPI {
   ) => Promise<void>;
   downloadSingle: (data: SingleDownloadRequest) => Promise<void>;
   getVideoInfo: (url: string) => Promise<VideoInfo>;
+  getPostImages: (url: string) => Promise<PostImageInfo[]>;
+  downloadImages: (items: Array<{ url: string; title: string }>) => Promise<ImageDownloadSummary>;
   getPlaylistInfo: (url: string) => Promise<VideoInfo[]>;
   searchVideos: (request: VideoSearchRequest) => Promise<VideoSearchResponse>;
   discoverAiVideos: (request: AiVideoDiscoveryRequest) => Promise<AiVideoDiscoveryResponse>;

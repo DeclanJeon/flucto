@@ -10,6 +10,8 @@
 
 ### Features
 
+- Add an Images output mode for supported post URLs, using yt-dlp image metadata and the Threads adapter to queue and save available post images, with partial-failure reporting.
+
 - Add general AI-video discovery with optional free-text retrieval, public-disclosure evidence classification, evidence-aware relevance ranking, source diagnostics, platform-relative popularity, CLI JSON output, and explicit renderer queue selection.
 
 ## [1.18.0](https://github.com/DeclanJeon/flucto/compare/v1.17.0...v1.18.0) (2026-10-07)

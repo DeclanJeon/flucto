@@ -1,4 +1,5 @@
 import path from 'path';
+import fs from 'fs/promises';
 import { randomUUID } from 'crypto';
 import type { DownloadProgress, DownloadQualityPreferences, DownloadResponse, MediaDownloadFormat, SingleDownloadRequest } from '../../shared/types.js';
 import { execa } from '../spawn.js';
@@ -286,3 +287,45 @@ export const singleDownloadRequestToOptions = (
   requestId: request.requestId,
   title: request.title,
 });
+
+
+export interface ImageDownloadItem { url: string; filePath: string }
+export interface ImageDownloadBatchResult { succeeded: ImageDownloadItem[]; failed: Array<{ url: string; message: string }> }
+
+const safeImageStem = (value: string): string => {
+  const stem = value.normalize('NFKC').split(String.fromCharCode(92)).join('_').replace(/[\/:*?"<>| -]/g, '_').replace(/\s+/g, ' ').trim().replace(/[. ]+$/g, '');
+  return stem.slice(0, 100) || 'image';
+};
+
+const imageExtension = (url: string, contentType: string | null): string => {
+  const fromType = contentType?.toLowerCase().match(/^image\/([a-z0-9.+-]+)/)?.[1];
+  const typeExtension = fromType === 'jpeg' ? 'jpg' : fromType === 'svg+xml' ? 'svg' : fromType;
+  if (typeExtension && ['jpg', 'png', 'webp', 'gif', 'avif', 'bmp', 'tiff', 'svg'].includes(typeExtension)) return typeExtension;
+  try {
+    const ext = path.extname(new URL(url).pathname).slice(1).toLowerCase();
+    return ['jpg', 'jpeg', 'png', 'webp', 'gif', 'avif', 'bmp', 'tiff'].includes(ext) ? (ext === 'jpeg' ? 'jpg' : ext) : 'jpg';
+  } catch { return 'jpg'; }
+};
+
+export const downloadImageUrls = async (urls: string[], outputDir: string, title: string): Promise<ImageDownloadBatchResult> => {
+  await fs.mkdir(outputDir, { recursive: true });
+  const result: ImageDownloadBatchResult = { succeeded: [], failed: [] };
+  const stem = safeImageStem(title);
+  for (const [index, url] of urls.entries()) {
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') throw new Error('Image URL must use HTTP or HTTPS.');
+      const response = await fetch(url, { redirect: 'follow' });
+      if (!response.ok) throw new Error("Image request failed (" + response.status + " " + response.statusText + ").");
+      const bytes = Buffer.from(await response.arrayBuffer());
+      if (!bytes.length) throw new Error('Image response was empty.');
+      const ext = imageExtension(url, response.headers.get('content-type'));
+      const filePath = path.join(outputDir, stem + "-" + String(index + 1).padStart(2, "0") + "." + ext);
+      await fs.writeFile(filePath, bytes, { flag: 'w' });
+      result.succeeded.push({ url, filePath });
+    } catch (error) {
+      result.failed.push({ url, message: error instanceof Error ? error.message : String(error) });
+    }
+  }
+  return result;
+};

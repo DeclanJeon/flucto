@@ -147,3 +147,8 @@ Creator descriptions must contain an explicit statement tying the media itself t
 
 The `flucto discover` CLI and Electron's `discover-ai-videos` IPC call the same service. The renderer shows source/evidence and observed metrics; discovery only adds explicitly selected original URLs to the existing download queue. Queuing never starts a download. Public search visibility is not a reuse license.
 
+
+
+## Image post downloads
+
+The desktop Images mode asks the existing platform adapter or yt-dlp for image media URLs exposed in public post metadata. It does not scrape authenticated pages or bypass platform access controls. The renderer queues each discovered image; the main process writes image bytes to the configured downloads directory using indexed, sanitized filenames. Posts with no exposed image URLs fail with a clear message, and batches report successful and failed image URLs separately. Coverage is limited to image URLs exposed by the installed platform extractor (plus the existing Threads API adapter).

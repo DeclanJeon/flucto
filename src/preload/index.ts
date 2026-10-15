@@ -3,6 +3,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type {
   AiVideoDiscoveryRequest,
   AppUpdateEvent,
+  ImageDownloadSummary, PostImageInfo,
   DownloadProgress,
   TranscriptProgress,
   TranscriptRequest,
@@ -35,6 +36,8 @@ const api: IElectronAPI = {
   }),
   downloadSingle: (data) => ipcRenderer.invoke('download-single', data),
   getVideoInfo: (url: string) => ipcRenderer.invoke('get-video-info', url),
+  getPostImages: (url: string) => ipcRenderer.invoke('get-post-images', url),
+  downloadImages: (items) => ipcRenderer.invoke('download-images', items) as Promise<ImageDownloadSummary>,
   getPlaylistInfo: (url: string) => ipcRenderer.invoke('get-playlist-info', url),
   searchVideos: (request) => ipcRenderer.invoke('search-videos', request),
   discoverAiVideos: (request: AiVideoDiscoveryRequest) => ipcRenderer.invoke('discover-ai-videos', request),

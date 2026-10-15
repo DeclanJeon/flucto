@@ -1,4 +1,4 @@
-import type { VideoInfo, DownloadProgress, DownloadResponse } from '../../shared/types.js';
+import type { VideoInfo, DownloadProgress, DownloadResponse, PostImageInfo } from '../../shared/types.js';
 
 export type ExtractionStrategy = 'yt-dlp' | 'custom-api' | 'browser' | 'hybrid';
 
@@ -56,6 +56,7 @@ export interface PlatformAdapter {
   getReferer?(url: string): string | null;
 
   extractInfo?(url: string, signal?: AbortSignal): Promise<VideoInfo>;
+  extractImages?(url: string, signal?: AbortSignal): Promise<PostImageInfo[]>;
   download?(options: DownloadOptions, onProgress?: ProgressCallback): Promise<DownloadResponse>;
   extractTranscript?(url: string, signal?: AbortSignal): Promise<TranscriptResult | null>;
   extractBatch?(url: string, signal?: AbortSignal): Promise<BatchResult>;
