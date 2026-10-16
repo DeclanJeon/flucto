@@ -315,7 +315,7 @@ Packaged releases expose both commands through `package.json`'s `bin` entry. Sho
 | `flucto languages <url>` | `fl l <url>` | List available caption languages | language code/name and auto/manual flag |
 | `flucto transcript <url>` | `fl t <url>` | Convert available captions/subtitles to Markdown | `.md` file or stdout Markdown |
 | `flucto md <url>` | `fl md <url>` | Download media and convert to Markdown in one step | `.md` file with metadata + transcript |
-| `flucto batch urls.txt` | `fl b urls.txt` | Process URL lists with bounded concurrency | Dedicated job folder, per-item results and progress |
+| `flucto batch urls.txt` or `flucto batch <Threads-profile-url>` | `fl b <source>` | Process URL lists or enumerate public video posts from a Threads profile, with bounded concurrency | Caller-selected output directory, per-item results and progress |
 | `flucto channel to-md <channel>` | — | Export a capped channel to numbered Markdown notes | Dedicated channel job folder and ordered `.md` files |
 | `flucto update check` | `fl u check` | Check GitHub releases for a newer Flucto version | Current/latest version and recommended asset |
 | `flucto update download` | `fl u download` | Download the recommended GitHub release asset | Downloaded asset path and checksum status |

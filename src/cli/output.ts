@@ -7,7 +7,7 @@ ${c.dim('Capture media · convert captions to Markdown · agent-friendly automat
 
 ${c.bold('Usage')}
   flucto download <url> [--format mp4|mp3] [--output-dir DIR] [--json]
-  flucto batch <file> [--format mp4|mp3|md] [--concurrency N] [--cookies PATH] [--proxy URL] [--output-dir DIR] [--json]
+  flucto batch <file|threads-profile-url> [--format mp4|mp3|md] [--concurrency N] [--cookies PATH] [--proxy URL] [--output-dir DIR] [--json]
   flucto transcript <url> [--language en|ko|ja|zh|auto] [--cookies PATH] [--cookies-from-browser BROWSER] [--proxy URL] [--stdout] [--json]
   flucto md <url> [--language en|ko|ja|zh|auto] [--cookies PATH] [--cookies-from-browser BROWSER] [--proxy URL] [--stdout] [--json]
   flucto channel to-md <channel-url|@handle> [--limit N] [--concurrency N] [--cookies PATH] [--proxy URL] [--out DIR] [--language en|ko|auto] [--json]

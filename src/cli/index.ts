@@ -324,16 +324,30 @@ const runMd = async (options: CliOptions): Promise<number> => {
 };
 
 const runBatch = async (options: CliOptions): Promise<number> => {
-  const filePath = path.resolve(options.positional[0]);
-  const urls = parseBatchFileContent(fs.readFileSync(filePath, 'utf8'));
+  const source = options.positional[0];
+  const profileUrl = /^https?:\/\/(?:www\.)?threads\.(?:com|net)\/@[^/]+(?:\/media)?\/?(?:\?.*)?$/.test(source);
+  const filePath = profileUrl ? undefined : path.resolve(source);
+  const batchRegistry = profileUrl ? createPlatformRegistry() : undefined;
+  const adapter = profileUrl ? batchRegistry!.resolve(source) : undefined;
+  if (profileUrl && !adapter?.extractBatch) {
+    throw new Error('Threads profile batch extraction is unavailable.');
+  }
+  const batch = profileUrl
+    ? await adapter!.extractBatch!(source)
+    : undefined;
+  const urls = batch
+    ? batch.entries.map((entry) => typeof entry === 'string' ? entry : entry.originalUrl ?? '')
+      .filter(Boolean)
+    : parseBatchFileContent(fs.readFileSync(filePath!, 'utf8'));
+  if (urls.length === 0) throw new Error('No video posts found in Threads profile.');
   const formatKind = options.format === 'md' ? 'batch-md' : options.format === 'mp3' ? 'batch-mp3' : 'batch-mp4';
-  const batchLabel = path.parse(filePath).name || 'batch';
+  const batchLabel = batch?.channelTitle ?? (filePath ? path.parse(filePath).name || 'batch' : 'threads');
   const jobDir = createMultiJobOutputDir(outputBaseDir(options), formatKind, batchLabel);
   const startedAt = Date.now();
 
   if (!options.json) {
     banner(`batch · ${options.format.toUpperCase()} · ${urls.length} items`, readPackageVersion());
-    step(`source  ${filePath}`);
+    step(`source  ${filePath ?? source}`);
     ok(`job folder  ${jobDir}`);
     step(`running with concurrency ${options.concurrency}`);
   }

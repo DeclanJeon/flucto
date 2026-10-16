@@ -1,8 +1,9 @@
 import fs from 'fs';
 import path from 'path';
 import type { VideoInfo, DownloadResponse, PostImageInfo } from '../../shared/types.js';
-import type { PlatformAdapter, DownloadOptions, ProgressCallback } from './types.js';
+import type { PlatformAdapter, DownloadOptions, ProgressCallback, BatchResult } from './types.js';
 import { PlatformError } from './errors.js';
+import { withAnonymousPage } from '../search/webIndexSearch.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -78,6 +79,87 @@ const extractPostId = (url: string): string => {
   return shortcodeMatch?.[1] ?? 'unknown';
 };
 
+interface ThreadsProfileCandidate {
+  url: string;
+  hasVideo: boolean;
+  title: string;
+  thumbnail: string;
+  duration: number;
+}
+
+export const mapThreadsProfilePosts = (candidates: ThreadsProfileCandidate[]): VideoInfo[] => {
+  const posts = new Map<string, VideoInfo>();
+  for (const candidate of candidates) {
+    if (!candidate.hasVideo) continue;
+    const id = extractPostId(candidate.url);
+    if (id === 'unknown' || posts.has(id)) continue;
+    posts.set(id, {
+      id,
+      title: candidate.title.trim() || 'Threads video',
+      thumbnail: candidate.thumbnail,
+      duration: candidate.duration,
+      uploader: new URL(candidate.url).pathname.split('/')[1]?.replace(/^@/, '') ?? '',
+      originalUrl: candidate.url,
+    });
+  }
+  return [...posts.values()];
+};
+
+const extractProfileVideos = async (url: string, signal?: AbortSignal): Promise<BatchResult> => {
+  const profile = new URL(url);
+  const username = profile.pathname.split('/').filter(Boolean)[0];
+  if (!username?.startsWith('@')) {
+    throw new PlatformError('UNSUPPORTED_URL', 'Expected a Threads profile URL', 'threads');
+  }
+
+  const candidates = await withAnonymousPage(async (page) => {
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20_000 });
+    const seen = new Map<string, ThreadsProfileCandidate>();
+    let quietPasses = 0;
+    let previousCount = 0;
+
+    for (let pass = 0; pass < 500 && quietPasses < 10; pass += 1) {
+      if (signal?.aborted) throw signal.reason ?? new Error('Threads profile extraction cancelled');
+      const visible = await page.evaluate(() => Array.from(document.querySelectorAll('a[href]'))
+        .map((anchor) => {
+          const link = anchor as HTMLAnchorElement;
+          const card = link.closest('[data-pressable-container="true"]');
+          const video = card?.querySelector('video');
+          const title = Array.from(card?.querySelectorAll('[dir="auto"]') ?? [])
+            .filter((element) =>
+              !element.contains(link)
+              && !element.closest('a, button, [role="button"]')
+              && !element.querySelector('[dir="auto"]'))
+            .map((element) => element.textContent?.trim() ?? '')
+            .find(Boolean) ?? '';
+          return {
+            url: link.href,
+            hasVideo: Boolean(video),
+            title,
+            thumbnail: video?.getAttribute('poster') ?? '',
+            duration: Number.isFinite(video?.duration) ? video!.duration : 0,
+          };
+        })
+        .filter((item) => /^https?:\/\/(?:www\.)?threads\.(?:com|net)\/@[^/]+\/(?:post|tv)\//.test(item.url)));
+      for (const post of visible) {
+        const canonicalUrl = post.url.replace(/\/media\/?$/, '');
+        if (!seen.has(canonicalUrl)) seen.set(canonicalUrl, { ...post, url: canonicalUrl });
+        else if (post.hasVideo) seen.set(canonicalUrl, { ...post, url: canonicalUrl });
+      }
+      quietPasses = seen.size === previousCount ? quietPasses + 1 : 0;
+      previousCount = seen.size;
+      await page.evaluate(() => window.scrollBy(0, Math.floor(window.innerHeight * 0.8)));
+      await page.waitForTimeout(400);
+    }
+    return [...seen.values()];
+  });
+
+  return {
+    channelTitle: username,
+    entries: mapThreadsProfilePosts(candidates),
+  };
+};
+
 // ---------------------------------------------------------------------------
 // Threads adapter
 // ---------------------------------------------------------------------------
@@ -93,6 +175,9 @@ export function createThreadsAdapter(): PlatformAdapter {
     getStrategy: () => 'custom-api',
 
     getReferer: () => 'https://www.threads.com/',
+    extractBatch: async (url: string, signal?: AbortSignal): Promise<BatchResult> =>
+      extractProfileVideos(url, signal),
+
 
     extractImages: async (url: string, signal?: AbortSignal): Promise<PostImageInfo[]> => {
       try {
@@ -202,7 +287,9 @@ export function createThreadsAdapter(): PlatformAdapter {
 
           const cleanTitle = resolvedTitle.replace(/[\r\n]+/g, ' ').trim();
           const safeTitle = cleanTitle.replace(/[^a-zA-Z0-9가-힣ㄱ-ㅎㅏ-ㅣ\s._-]/g, '').slice(0, 80) || 'threads_video';
-          const filePath = path.join(options.outputDir, `${safeTitle}.mp4`);
+          const postId = extractPostId(options.url);
+          const uniqueSuffix = postId === 'unknown' ? requestId : postId;
+          const filePath = path.join(options.outputDir, `${safeTitle} [${uniqueSuffix}].mp4`);
 
           const buffer = Buffer.concat(chunks);
           fs.writeFileSync(filePath, buffer);
@@ -223,22 +310,19 @@ export function createThreadsAdapter(): PlatformAdapter {
         }
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
+        const failureMessage = error instanceof PlatformError
+          ? error.message
+          : `Threads download failed: ${message}`;
         onProgress?.({
           requestId,
           url: options.url,
           status: 'error',
           progress: 0,
-          error: message,
+          error: failureMessage,
           title,
         });
 
-        if (error instanceof PlatformError) throw error;
-        throw new PlatformError(
-          'EXTRACTION_FAILED',
-          `Threads download failed: ${message}`,
-          'threads',
-          error,
-        );
+        return { success: false, message: failureMessage };
       }
     },
   };
