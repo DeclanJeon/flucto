@@ -16,7 +16,7 @@ test('Linux analysis output honors XDG_DOCUMENTS_DIR and falls back when missing
     const config = path.join(root, 'config');
     fs.mkdirSync(config);
     fs.writeFileSync(path.join(config, 'user-dirs.dirs'), 'XDG_DOCUMENTS_DIR="$HOME/Meine Dokumente"\n');
-    assert.equal(resolveDocumentsDirectory('/home/tester', 'linux', config), path.join('/home/tester', 'Meine Dokumente'));
+    assert.equal(resolveDocumentsDirectory('/home/tester', 'linux', config), '/home/tester/Meine Dokumente');
     assert.equal(resolveDocumentsDirectory('/home/tester', 'linux', path.join(root, 'missing')), path.join('/home/tester', 'Documents'));
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
