@@ -292,8 +292,14 @@ export const singleDownloadRequestToOptions = (
 export interface ImageDownloadItem { url: string; filePath: string }
 export interface ImageDownloadBatchResult { succeeded: ImageDownloadItem[]; failed: Array<{ url: string; message: string }> }
 
+const unsafeImageStemChars = '\\\\/:*?"<>|';
 const safeImageStem = (value: string): string => {
-  const stem = value.normalize('NFKC').split(String.fromCharCode(92)).join('_').replace(/[\/:*?"<>| -]/g, '_').replace(/\s+/g, ' ').trim().replace(/[. ]+$/g, '');
+  const stem = Array.from(value.normalize('NFKC'))
+    .map((char) => (char >= ' ' && !unsafeImageStemChars.includes(char) ? char : '_'))
+    .join('')
+    .replace(/ {2,}/g, ' ')
+    .trim()
+    .replace(/[. ]+$/g, '');
   return stem.slice(0, 100) || 'image';
 };
 
