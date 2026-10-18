@@ -261,7 +261,7 @@ test('structured report emits evidence-linked JSON and CSVs without persisting f
       labels: { shotSize: 'medium', confidence: 0.8 }, matchedTechniqueIds: [technique.techniqueId],
       matchedEvidence: ['scene observation'], unmatchedAnchors: [], analysisStatus: 'labeled',
     };
-    const secondObservation = { ...observation, shotId: 'S002', index: 1, startS: 2, endS: 4, durationS: 2, startTimecode: '00:00:02.000', endTimecode: '00:00:04.000' };
+    const secondObservation = { ...observation, shotId: 'S002', index: 1, startS: 2, endS: 4, durationS: 2, startTimecode: '00:00:02.000', endTimecode: '00:00:04.000', labels: {} };
     const result = await writeStructuredAnalysisReport({
       request: { videoPath, sourceUrl: 'https://www.youtube.com/watch?v=test&list=private-list&token=secret#fragment', craftDir: tempDir, outputDir, budget: { maxFramesPerShot: 3, maxApiCalls: 1 }, vision: { enabled: true, provider: { provider: 'opencode-local', providerID: 'opencode', baseURL: 'http://127.0.0.1:1', model: 'vision-free', apiKey: '' } }, sceneThreshold: 0.3 },
       probe: { path: videoPath, durationS: 4, width: 640, height: 360, fps: 30, hasAudio: false },
@@ -276,7 +276,15 @@ test('structured report emits evidence-linked JSON and CSVs without persisting f
     assert.equal(data.source.kind, 'url');
     assert.equal(data.source.canonicalUrl, 'https://www.youtube.com/watch?v=test');
     assert.equal(data.shots[0].claims.shotSize.evidenceLevel, 'INFERRED');
+    assert.equal(data.shots[0].claims.shotSize.confidence, 0.8);
+    assert.match(data.shots[0].claims.shotSize.reason, /model-reported score, uncalibrated/);
+    assert.equal(data.shots[1].claims.shotSize.evidenceLevel, 'UNKNOWN');
+    assert.equal(data.shots[1].claims.shotSize.confidence, null);
     assert.equal(data.shots[0].claims.motion.evidenceLevel, 'UNKNOWN');
+    const shotRows = parseCsvWithColumns(fs.readFileSync(path.join(outputDir, 'shots.csv'), 'utf8'));
+    assert.equal(JSON.parse(shotRows[0].claims).shotSize.confidence, 0.8);
+    assert.equal(JSON.parse(shotRows[1].claims).shotSize.evidenceLevel, 'UNKNOWN');
+    assert.equal(JSON.parse(shotRows[1].claims).shotSize.confidence, null);
     assert.equal(data.techniqueApplications.length, 2);
     assert.ok(data.productionPlan.length >= 6);
     assert.equal(data.toolRecommendations.length, 1);
@@ -330,6 +338,29 @@ test('matchTechniques joins signal hints and requires anchors only when labeled'
   assert.deepEqual(anchorMiss.unmatchedAnchors, ['on-the-nose cut']);
   const anchorHit = matchTechniques('HARD-CUT', signals, { composition: 'on-the-nose cut' }, [anchored]);
   assert.deepEqual(anchorHit.matchedIds, ['CTX-TST-00000002']);
+});
+
+test('matchTechniques rejects duplicated generic anchors and substring-only matches', () => {
+  const signals = { motion: 0.1, cutScoreMax: 0, lumaMean: 90, lumaStddev: 2, brightnessTrend: 0, audioRmsMean: null, silenceRatio: null };
+  const generic = taxonomyRow({
+    techniqueId: 'CTX-PRE-421a6e75',
+    anchorTermsEn: ['Production', 'Production', 'post-production', 'distribution', 'cinematic', 'camera', 'edit'],
+  });
+  const genericResult = matchTechniques('UNKNOWN', signals, { composition: 'Production' }, [generic]);
+  assert.deepEqual(genericResult.matchedIds, []);
+  assert.deepEqual(genericResult.matchedEvidence, []);
+
+  const substring = taxonomyRow({ techniqueId: 'CTX-TST-SUBSTRING', anchorTermsEn: ['edit'] });
+  assert.deepEqual(matchTechniques('UNKNOWN', signals, { composition: 'credit sequence' }, [substring]).matchedIds, []);
+
+  const casedDuplicates = taxonomyRow({
+    techniqueId: 'CTX-TST-CASE-DUP',
+    anchorTermsEn: ['on-the-nose cut', 'ON-THE-NOSE CUT'],
+  });
+  const specificMatch = matchTechniques('UNKNOWN', signals, { composition: 'on-the-nose cut' }, [casedDuplicates]);
+  assert.deepEqual(specificMatch.matchedIds, ['CTX-TST-CASE-DUP']);
+  assert.equal(specificMatch.matchedEvidence.length, 1);
+  assert.equal((specificMatch.matchedEvidence[0].match(/anchor '/g) ?? []).length, 1);
 });
 
 test('aggregateTechniqueUsage counts hits, keeps taxonomy rows, and sorts deterministically', () => {

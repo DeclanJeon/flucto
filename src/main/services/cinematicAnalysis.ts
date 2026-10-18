@@ -144,11 +144,16 @@ export const matchTechniques = (
   labels: ShotSemanticLabels,
   rows: CraftTaxonomyRow[],
 ): ShotMatchOutcome => {
-  const labelText = Object.entries(labels)
-    .filter(([, value]) => typeof value === 'string')
-    .map(([key, value]) => `${key} ${String(value).toLowerCase()}`)
+  const labelText = Object.values(labels)
+    .filter((value): value is string => typeof value === 'string')
+    .map((value) => value.toLowerCase())
     .join(' ');
   const hasLabels = labelText.trim().length > 0;
+  const genericAnchors = new Set(['production', 'post-production', 'distribution', 'cinematic', 'camera', 'edit']);
+  const anchorMatchesLabel = (anchor: string): boolean => {
+    const escaped = anchor.toLowerCase().trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
+    return escaped.length > 0 && new RegExp(`(?<![\\p{L}\\p{N}])${escaped}(?![\\p{L}\\p{N}])`, 'u').test(labelText);
+  };
   const matchedIds: string[] = [];
   const matchedEvidence: string[] = [];
   const unmatchedAnchors: string[] = [];
@@ -157,11 +162,16 @@ export const matchTechniques = (
     const hintRequired = hintEvaluations.length > 0;
     if (hintRequired && hintEvaluations.some((evaluation) => !evaluation.hit)) continue;
 
-    const anchors = [...row.anchorTermsKo, ...row.anchorTermsEn].filter(Boolean);
-    const anchorRequired = anchors.length > 0;
+    const rawAnchors = Array.from(new Map([...row.anchorTermsKo, ...row.anchorTermsEn]
+      .map((anchor) => anchor.trim())
+      .filter(Boolean)
+      .map((anchor) => [anchor.toLowerCase(), anchor])).values());
+    const anchors = rawAnchors.filter((anchor) => !genericAnchors.has(anchor.toLowerCase()));
+    const anchorRequired = rawAnchors.length > 0;
     const hintHits = hintEvaluations.filter((evaluation) => evaluation.evidence !== null);
+    if (anchorRequired && anchors.length === 0 && hintHits.length === 0) continue;
     const anchorHits = anchorRequired && hasLabels
-      ? anchors.filter((anchor) => labelText.includes(anchor.toLowerCase()))
+      ? anchors.filter(anchorMatchesLabel)
       : [];
     if (anchorRequired && anchorHits.length === 0) {
       if (hintHits.length > 0 && unmatchedAnchors.length < MAX_UNMATCHED_ANCHORS) {

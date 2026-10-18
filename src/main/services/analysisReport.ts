@@ -40,10 +40,10 @@ const fileSha256 = async (filePath: string): Promise<string> => {
   });
   return hash.digest('hex');
 };
-const claim = (value: unknown, evidenceLevel: 'OBSERVED' | 'SOURCE_CONFIRMED' | 'INFERRED' | 'UNKNOWN', evidenceIds: string[] = [], reason: string | null = null) => ({
+const claim = (value: unknown, evidenceLevel: 'OBSERVED' | 'SOURCE_CONFIRMED' | 'INFERRED' | 'UNKNOWN', evidenceIds: string[] = [], reason: string | null = null, modelReportedConfidence: number | null = null) => ({
   value,
   evidenceLevel,
-  confidence: evidenceLevel === 'UNKNOWN' ? null : evidenceLevel === 'OBSERVED' || evidenceLevel === 'SOURCE_CONFIRMED' ? 1 : null,
+  confidence: evidenceLevel === 'UNKNOWN' ? null : evidenceLevel === 'OBSERVED' || evidenceLevel === 'SOURCE_CONFIRMED' ? 1 : modelReportedConfidence,
   evidenceIds,
   alternatives: [],
   reason,
@@ -197,7 +197,7 @@ export const writeStructuredAnalysisReport = async (input: {
     for (const key of labelKeys) {
       const value = observation.labels[key];
       labelClaims[key] = value
-        ? claim(value, 'INFERRED', [frameEvidenceId], 'Vision model interpretation; not a verified production fact.')
+        ? claim(value, 'INFERRED', [frameEvidenceId], 'Vision model interpretation; confidence is the model-reported score, uncalibrated and not a verified production fact.', typeof observation.labels.confidence === 'number' && Number.isFinite(observation.labels.confidence) && observation.labels.confidence >= 0 && observation.labels.confidence <= 1 ? observation.labels.confidence : null)
         : claim(null, 'UNKNOWN', [], 'No sufficiently confident value was returned.');
     }
     const signalClaims = {
