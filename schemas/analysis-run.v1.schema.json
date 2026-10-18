@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://flucto.ponslink.com/schemas/analysis-run.v1.schema.json",
+  "title": "Flucto cinematic analysis run",
+  "description": "Evidence-linked analysis and reproducible production plan. Machine-generated claims must never be promoted to source-confirmed facts.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "runId", "status", "source", "coverage", "evidence", "scenes", "shots", "techniqueApplications", "productionPlan", "toolRecommendations", "limitations", "provenance"],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "runId": { "$ref": "#/$defs/id" },
+    "status": { "enum": ["completed", "partial", "failed", "cancelled"] },
+    "source": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "displayName", "durationSeconds"],
+      "properties": {
+        "kind": { "enum": ["local-file", "url", "history"] },
+        "displayName": { "type": "string", "minLength": 1 },
+        "canonicalUrl": { "type": ["string", "null"], "format": "uri" },
+        "sha256": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+        "durationSeconds": { "type": "number", "minimum": 0 },
+        "width": { "type": ["integer", "null"], "minimum": 1 },
+        "height": { "type": ["integer", "null"], "minimum": 1 },
+        "frameRate": { "type": ["number", "null"], "exclusiveMinimum": 0 }
+      }
+    },
+    "coverage": {
+      "type": "object", "additionalProperties": false,
+      "required": ["mode", "analyzedRanges", "omittedRanges"],
+      "properties": {
+        "mode": { "enum": ["full", "sampled", "partial", "unknown"] },
+        "analyzedRanges": { "type": "array", "items": { "$ref": "#/$defs/timeRange" } },
+        "omittedRanges": { "type": "array", "items": { "$ref": "#/$defs/timeRange" } },
+        "reason": { "type": ["string", "null"] }
+      }
+    },
+    "evidence": { "type": "array", "items": { "$ref": "#/$defs/evidence" } },
+    "scenes": { "type": "array", "items": { "$ref": "#/$defs/scene" } },
+    "shots": { "type": "array", "items": { "$ref": "#/$defs/shot" } },
+    "techniqueApplications": { "type": "array", "items": { "$ref": "#/$defs/techniqueApplication" } },
+    "productionPlan": { "type": "array", "items": { "$ref": "#/$defs/productionTask" } },
+    "toolRecommendations": { "type": "array", "items": { "$ref": "#/$defs/toolRecommendation" } },
+    "limitations": { "type": "array", "items": { "type": "string" } },
+    "provenance": {
+      "type": "object", "additionalProperties": false,
+      "required": ["startedAt", "generators"],
+      "properties": {
+        "startedAt": { "type": "string", "format": "date-time" },
+        "completedAt": { "type": ["string", "null"], "format": "date-time" },
+        "generators": { "type": "array", "items": { "type": "object", "additionalProperties": false, "required": ["name", "version"], "properties": { "name": { "type": "string" }, "version": { "type": "string" }, "model": { "type": ["string", "null"] } } } }
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$" },
+    "timeRange": { "type": "object", "additionalProperties": false, "required": ["startSeconds", "endSeconds"], "properties": { "startSeconds": { "type": "number", "minimum": 0 }, "endSeconds": { "type": "number", "minimum": 0 } } },
+    "claim": { "type": "object", "additionalProperties": false, "required": ["value", "evidenceLevel", "evidenceIds"], "properties": { "value": {}, "evidenceLevel": { "enum": ["OBSERVED", "SOURCE_CONFIRMED", "INFERRED", "UNKNOWN"] }, "confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }, "evidenceIds": { "type": "array", "items": { "$ref": "#/$defs/id" } }, "alternatives": { "type": "array", "items": { "type": "string" } }, "reason": { "type": ["string", "null"] } } },
+    "evidence": { "type": "object", "additionalProperties": false, "required": ["id", "kind", "evidenceLevel", "summary", "generator"], "properties": { "id": { "$ref": "#/$defs/id" }, "kind": { "enum": ["frame", "audio", "caption", "credit", "external-source", "metadata", "manual-review"] }, "range": { "$ref": "#/$defs/timeRange" }, "sourceUrl": { "type": ["string", "null"], "format": "uri" }, "evidenceLevel": { "enum": ["OBSERVED", "SOURCE_CONFIRMED"] }, "summary": { "type": "string" }, "generator": { "type": "string" }, "modelVersion": { "type": ["string", "null"] }, "transmittedExternally": { "type": "boolean" } } },
+    "scene": { "type": "object", "additionalProperties": false, "required": ["id", "range", "shotIds", "claims"], "properties": { "id": { "$ref": "#/$defs/id" }, "range": { "$ref": "#/$defs/timeRange" }, "shotIds": { "type": "array", "items": { "$ref": "#/$defs/id" } }, "claims": { "type": "object", "additionalProperties": { "$ref": "#/$defs/claim" } } } },
+    "shot": { "type": "object", "additionalProperties": false, "required": ["id", "sceneId", "range", "boundaryType", "claims"], "properties": { "id": { "$ref": "#/$defs/id" }, "sceneId": { "$ref": "#/$defs/id" }, "range": { "$ref": "#/$defs/timeRange" }, "boundaryType": { "enum": ["hard-cut", "fade", "dissolve", "wipe", "other", "unknown"] }, "boundaryConfidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }, "claims": { "type": "object", "additionalProperties": { "$ref": "#/$defs/claim" } }, "techniqueApplicationIds": { "type": "array", "items": { "$ref": "#/$defs/id" } } } },
+    "techniqueApplication": { "type": "object", "additionalProperties": false, "required": ["id", "techniqueId", "shotIds", "claim", "reproductionNotes"], "properties": { "id": { "$ref": "#/$defs/id" }, "techniqueId": { "$ref": "#/$defs/id" }, "shotIds": { "type": "array", "items": { "$ref": "#/$defs/id" } }, "claim": { "$ref": "#/$defs/claim" }, "reproductionNotes": { "type": "string" }, "failureModes": { "type": "array", "items": { "type": "string" } } } },
+    "productionTask": { "type": "object", "additionalProperties": false, "required": ["id", "stage", "instruction", "input", "output", "acceptanceCriteria", "evidenceIds"], "properties": { "id": { "$ref": "#/$defs/id" }, "stage": { "enum": ["development", "pre-production", "production", "post-production", "delivery"] }, "dependsOn": { "type": "array", "items": { "$ref": "#/$defs/id" } }, "instruction": { "type": "string" }, "input": { "type": "array", "items": { "type": "string" } }, "output": { "type": "string" }, "acceptanceCriteria": { "type": "array", "items": { "type": "string" } }, "promptDraft": { "type": ["string", "null"] }, "evidenceIds": { "type": "array", "items": { "$ref": "#/$defs/id" } }, "limitations": { "type": "array", "items": { "type": "string" } }, "toolRecommendationIds": { "type": "array", "items": { "$ref": "#/$defs/id" } } } },
+    "toolRecommendation": { "type": "object", "additionalProperties": false, "required": ["id", "taskId", "category", "name", "claim", "evidenceIds", "alternatives"], "properties": { "id": { "$ref": "#/$defs/id" }, "taskId": { "$ref": "#/$defs/id" }, "category": { "enum": ["camera", "editing", "compositing", "color", "audio", "video-generation", "other"] }, "name": { "type": "string" }, "version": { "type": ["string", "null"] }, "catalogVersion": { "type": ["string", "null"] }, "pricingStatus": { "enum": ["free", "paid", "free-tier", "unknown"] }, "licenseStatus": { "enum": ["open-source", "proprietary", "unknown"] }, "capability": { "type": "string" }, "claim": { "$ref": "#/$defs/claim" }, "evidenceIds": { "type": "array", "items": { "$ref": "#/$defs/id" } }, "sourceUrl": { "type": ["string", "null"], "format": "uri" }, "checkedAt": { "type": ["string", "null"], "format": "date-time" }, "alternatives": { "type": "array", "items": { "type": "string" } } } }
+  }
+}

@@ -26,6 +26,27 @@ const managedRefreshedPath = (binaryName: string): string | null => {
   return isExecutable(candidate) ? candidate : null;
 };
 
+export const getOpenCodeBinaryPath = (): string => {
+  const executableName = process.platform === 'win32' ? 'opencode.exe' : 'opencode';
+  const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
+  const candidates = app.isPackaged
+    ? [
+        path.join(process.resourcesPath, 'bin', 'opencode', arch, executableName),
+        path.join(getManagedBinDir(), 'opencode', arch, executableName),
+      ]
+    : [
+        path.join(app.getAppPath(), 'bin', 'opencode', arch, executableName),
+        path.join(getManagedBinDir(), 'opencode', arch, executableName),
+      ];
+  const found = candidates.find(isExecutable);
+  if (found) return found;
+  if (!app.isPackaged && process.env.NODE_ENV === 'development') {
+    const pathExecutable = (process.env.PATH ?? '').split(path.delimiter).map((directory) => path.join(directory, executableName)).find(isExecutable);
+    if (pathExecutable) return pathExecutable;
+  }
+  throw new Error(`Bundled OpenCode executable is missing for ${process.platform}/${arch}. Run the binary setup step or reinstall Flucto.`);
+};
+
 export const getBinaryPath = (binaryName: string): string => {
   const isProd = app.isPackaged;
   const platform = process.platform === 'win32' ? '.exe' : '';

@@ -1,3 +1,5 @@
+import type { AnalysisProgress, AnalysisResult } from './analysisTypes.js';
+
 /**
  * Video quality presets for download
  */
@@ -277,6 +279,22 @@ export interface DownloadProgress {
 
 
 
+export interface OpenCodeFreeVisionModel {
+  providerID: string;
+  modelID: string;
+  name: string;
+  free: true;
+  acceptsImages: true;
+  contextLimit: number | null;
+}
+
+export interface OpenCodeVisionSettings {
+  providerID: string;
+  modelID: string;
+  variant: 'low' | 'medium' | 'high';
+  hasApiKey: boolean;
+}
+
 export interface UpdateSettings {
   autoUpdate: boolean;
   checkInterval: number;
@@ -407,6 +425,15 @@ export interface IElectronAPI {
   onTranscriptProgress: (callback: (progress: TranscriptProgress) => void) => void;
   offTranscriptProgress?: (callback: (progress: TranscriptProgress) => void) => void;
   readBatchFile: () => Promise<string[] | null>;
+  getOpenCodeVisionSettings: () => Promise<OpenCodeVisionSettings>;
+  saveOpenCodeVisionSettings: (settings: { providerID: string; modelID: string; variant: 'low' | 'medium' | 'high'; apiKey?: string; clearApiKey?: boolean }) => Promise<void>;
+  listOpenCodeFreeVisionModels: () => Promise<OpenCodeFreeVisionModel[]>;
+  pickAnalysisVideo: () => Promise<string | null>;
+  pickAnalysisCraftDirectory: () => Promise<string | null>;
+  pickAnalysisOutputDirectory: () => Promise<string | null>;
+  startCraftAnalysis: (request: { videoPath?: string; videoUrl?: string; confirmDownload?: boolean; craftDir: string; outputBaseDir: string; allowVision: boolean; maxApiCalls: number }) => Promise<AnalysisResult>;
+  onCraftAnalysisProgress: (callback: (progress: AnalysisProgress) => void) => void;
+  offCraftAnalysisProgress: (callback: (progress: AnalysisProgress) => void) => void;
   getUpdateSettings: () => Promise<UpdateSettings>;
   saveUpdateSettings: (settings: UpdateSettings) => Promise<void>;
   getAppUpdateState: () => Promise<AppUpdateEvent>;

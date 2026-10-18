@@ -100,6 +100,15 @@ test('CLI parser rejects unknown commands and invalid download formats', () => {
   assert.throws(() => parseCliArgs(['download', 'https://example.test/video', '--format', 'md']), /download supports only mp4 or mp3/);
 });
 
+test('CLI analyze URL requires explicit download consent while local-file analysis does not', () => {
+  const local = parseCliArgs(['analyze', './reference.mp4', '--craft', './craft']);
+  assert.equal(local.allowDownload, false);
+  assert.equal(local.craftDir, './craft');
+  assert.throws(() => parseCliArgs(['analyze', 'https://www.youtube.com/watch?v=abc', '--craft', './craft']), /--allow-download/);
+  const remote = parseCliArgs(['analyze', 'https://www.youtube.com/watch?v=abc', '--craft', './craft', '--allow-download']);
+  assert.equal(remote.allowDownload, true);
+});
+
 test('CLI parser handles setup and update commands', () => {
   const setup = parseCliArgs(['setup', '--check-only', '--force', '--bin-dir', '/tmp/flucto-bin', '--json']);
   assert.equal(setup.command, 'setup');

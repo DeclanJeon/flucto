@@ -1,6 +1,11 @@
 import { parseArgs } from 'util';
 import type { AiMediaStatus, AiVideoDiscoverySort, AudioQualityPreset, MediaOutputMode, VideoQualityPreset, VideoSearchScope } from '../shared/types.js';
 import { VIDEO_SEARCH_PLATFORM_IDS } from '../shared/videoSearchPlatforms.js';
+import {
+  DEFAULT_FRAMES_PER_SHOT,
+  DEFAULT_MAX_API_CALLS,
+  DEFAULT_SCENE_THRESHOLD,
+} from '../shared/analysisTypes.js';
 
 export type CliCommand =
   | 'download'
@@ -13,6 +18,8 @@ export type CliCommand =
   | 'discover'
   | 'formats'
   | 'languages'
+  | 'craft'
+  | 'analyze'
   | 'doctor'
   | 'setup'
   | 'update'
@@ -50,6 +57,16 @@ export interface CliOptions {
   cookiesFromBrowser?: string;
   proxy?: string;
   impersonate?: string;
+  craftDir?: string;
+  skillsRoot?: string;
+  bookExtracts?: string;
+  allowVisionApi: boolean;
+  allowDownload: boolean;
+  dryRun: boolean;
+  history?: string;
+  sceneThreshold: number;
+  maxFramesPerShot: number;
+  maxApiCalls: number;
 }
 
 const videoQualities = new Set(['4k', '1440p', '1080p', '720p', '480p', '360p', 'worst']);
@@ -73,6 +90,9 @@ const commandAliases: Record<string, CliCommand | 'channel'> = {
   formats: 'formats',
   languages: 'languages',
   l: 'languages',
+  craft: 'craft',
+  analyze: 'analyze',
+  an: 'analyze',
   doctor: 'doctor',
   doc: 'doctor',
   setup: 'setup',
@@ -172,6 +192,38 @@ const parseDiscoverySort = (value: string | boolean | undefined): AiVideoDiscove
   return raw;
 };
 
+const parseFloatOption = (
+  value: string | boolean | undefined,
+  fallback: number,
+  min: number,
+  max: number,
+  label: string,
+): number => {
+  const raw = stringOption(value);
+  if (!raw) return fallback;
+  const parsed = Number.parseFloat(raw);
+  if (!Number.isFinite(parsed) || parsed < min || parsed > max) {
+    throw new CliUsageError(`${label} must be a number from ${min} to ${max}.`);
+  }
+  return parsed;
+};
+
+const parseIntOption = (
+  value: string | boolean | undefined,
+  fallback: number,
+  min: number,
+  max: number,
+  label: string,
+): number => {
+  const raw = stringOption(value);
+  if (!raw) return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
+    throw new CliUsageError(`${label} must be an integer from ${min} to ${max}.`);
+  }
+  return parsed;
+};
+
 
 export const parseCliArgs = (argv: string[]): CliOptions => {
   const parsed = parseArgs({
@@ -207,6 +259,16 @@ export const parseCliArgs = (argv: string[]): CliOptions => {
       platform: { type: 'string' },
       status: { type: 'string' },
       sort: { type: 'string' },
+      craft: { type: 'string' },
+      skills: { type: 'string' },
+      'book-extracts': { type: 'string' },
+      'allow-vision-api': { type: 'boolean' },
+      'allow-download': { type: 'boolean' },
+      'dry-run': { type: 'boolean' },
+      history: { type: 'string' },
+      'scene-threshold': { type: 'string' },
+      'max-frames-per-shot': { type: 'string' },
+      'max-api-calls': { type: 'string' },
     },
   });
 
@@ -229,6 +291,10 @@ export const parseCliArgs = (argv: string[]): CliOptions => {
     } else {
       throw new CliUsageError('channel subcommand must be: to-md');
     }
+  }
+
+  if (rawCommand === 'craft' && positional[0] === 'build') {
+    positional = positional.slice(1);
   }
 
   const command = commandAliases[rawCommand];
@@ -281,6 +347,16 @@ const baseOptions = (
     cookiesFromBrowser: stringOption(values['cookies-from-browser']),
     proxy: stringOption(values.proxy),
     impersonate: stringOption(values.impersonate),
+    craftDir: stringOption(values.craft),
+    skillsRoot: stringOption(values.skills),
+    bookExtracts: stringOption(values['book-extracts']),
+    allowVisionApi: booleanOption(values['allow-vision-api']),
+    allowDownload: booleanOption(values['allow-download']),
+    dryRun: booleanOption(values['dry-run']),
+    history: stringOption(values.history),
+    sceneThreshold: parseFloatOption(values['scene-threshold'], DEFAULT_SCENE_THRESHOLD, 0, 1, '--scene-threshold'),
+    maxFramesPerShot: parseIntOption(values['max-frames-per-shot'], DEFAULT_FRAMES_PER_SHOT, 1, 10, '--max-frames-per-shot'),
+    maxApiCalls: parseIntOption(values['max-api-calls'], DEFAULT_MAX_API_CALLS, 0, 5000, '--max-api-calls'),
   };
 };
 const parseUpdateAction = (command: CliCommand, positional: string[]): CliUpdateAction => {
@@ -313,6 +389,36 @@ const validateCommand = (options: CliOptions): void => {
 
   if (options.command === 'batch' && options.positional.length !== 1) {
     throw new CliUsageError('batch requires exactly one file path.');
+  }
+
+  if (options.command === 'craft') {
+    if (options.positional.length > 0) {
+      throw new CliUsageError('craft accepts only the build subcommand; extra arguments are not allowed.');
+    }
+    if (!options.skillsRoot && !options.bookExtracts) {
+      throw new CliUsageError('craft build requires --skills <references-root> and/or --book-extracts <json>.');
+    }
+  }
+
+  if (options.command === 'analyze') {
+    const video = options.positional.length === 1 ? options.positional[0].trim() : '';
+    if (options.positional.length > 1 || (!video && !options.history)) {
+      throw new CliUsageError('analyze requires exactly one <videoPath> or --history <n>.');
+    }
+    if (!options.craftDir) {
+      throw new CliUsageError('analyze requires --craft <dir> pointing at a built craft taxonomy.');
+    }
+    const analyzeTarget = options.positional[0]?.trim() ?? '';
+    const isUrl = /^https:\/\//i.test(analyzeTarget);
+    if (isUrl && !options.allowDownload) throw new CliUsageError('analyze URL input downloads media; pass --allow-download after confirming you have permission.');
+    if (options.allowVisionApi) {
+      const opencodeLocal = process.env.FLUCTO_VISION_PROVIDER?.trim().toLowerCase() === 'opencode-local';
+      if (opencodeLocal ? !process.env.FLUCTO_VISION_MODEL : (!process.env.FLUCTO_VISION_BASE_URL || !process.env.FLUCTO_VISION_API_KEY || !process.env.FLUCTO_VISION_MODEL)) {
+        throw new CliUsageError(opencodeLocal
+          ? '--allow-vision-api with opencode-local needs FLUCTO_VISION_MODEL and a running OpenCode server.'
+          : '--allow-vision-api needs FLUCTO_VISION_BASE_URL, FLUCTO_VISION_API_KEY and FLUCTO_VISION_MODEL.');
+      }
+    }
   }
 
   if (options.command === 'update') {

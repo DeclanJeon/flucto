@@ -18,6 +18,11 @@ ${c.bold('Usage')}
       ${c.dim('(default --platform all searches every supported site; --limit is the total result cap)')}
   flucto discover ["query"] [--platform SITE|all] [--limit 20] [--status STATUS] [--sort relevance|popularity] [--json]
       ${c.dim('(optional query scopes general AI-video discovery; public-metadata only; never downloads candidates)')}
+  flucto craft build [--skills DIR] [--book-extracts FILE] [-o DIR] [--json]
+      ${c.dim('(builds the filmmaking craft taxonomy: taxonomy.csv + build-manifest.json only)')}
+  flucto analyze [<videoPath|supported-HTTPS-URL>|--history N] --craft DIR [-o DIR] [--dry-run] [--allow-download] [--allow-vision-api] [--json]
+      ${c.dim('(shot/craft analysis; writes CSV set + evidence-linked analysis.json and manifest.json)')}
+      ${c.dim('(URL downloads require --allow-download; --history indexes recent successful mp4s; --dry-run estimates cost)')}
   flucto formats <url> [--json]
   flucto languages <url> [--json]
   flucto doctor [--json]
@@ -76,6 +81,16 @@ ${c.bold('Global options')}
                          Extract cookies from a local browser via yt-dlp
   --proxy URL            Proxy for caption/media requests (or FLUCTO_PROXY / HTTPS_PROXY)
   --impersonate TARGET   Optional yt-dlp impersonation target (e.g. chrome)
+  --skills DIR          Directory containing the contents-production-skills repo (references parsed)
+  --book-extracts FILE   Pre-extracted book technique JSON from an offline agent pass
+  --craft DIR           Directory holding a built craft taxonomy (taxonomy.csv + build-manifest.json)
+  --history N           Zero-based index into recent successful mp4 downloads (0 = most recent)
+  --allow-download      Confirm permission to download an HTTPS video URL for analysis
+  --allow-vision-api    Enable optional vision-LLM labeling (provider credentials required)
+  --dry-run             Probe + segment only; estimate shots/frames/API calls without labeling
+  --scene-threshold N   ffmpeg scene-detect threshold 0..1 (default 0.3)
+  --max-frames-per-shot N  Frames sampled per shot for vision labeling (default 3, max 10)
+  --max-api-calls N     Vision API call budget for the run (default 400)
 
 ${c.dim('Tip: set NO_COLOR=1 to disable ANSI colors.')}
 `;

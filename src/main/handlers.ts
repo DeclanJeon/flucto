@@ -1,4 +1,6 @@
-import { BrowserWindow, ipcMain, safeStorage } from 'electron';
+import { BrowserWindow, dialog, ipcMain, safeStorage } from 'electron';
+import fs from 'fs';
+import path from 'path';
 import { execa } from './spawn.js';
 import { logger } from './logger.js';
 import {
@@ -9,7 +11,12 @@ import {
   onAppUpdateEvent,
 } from './updater.js';
 import { getBinaryPath } from './utils.js';
-import { getStoredUpdateSettings, isUpdateSettings, settingsStore } from './store.js';
+import { listFreeVisionModels, startOpenCodeRuntime } from './services/openCodeRuntime.js';
+import { runCraftAnalysis } from './services/cinematicAnalysis.js';
+import type { AnalysisProgress, AnalysisRequest } from '../shared/analysisTypes.js';
+import { getStoredDownloadSettings, getStoredUpdateSettings, isUpdateSettings, settingsStore } from './store.js';
+import { runMediaDownload } from './services/mediaDownload.js';
+import { createPlatformRegistry } from './platforms/createRegistry.js';
 import { fetchRepoStarCount, isRepoStarred, starRepo } from './services/githubStar.js';
 import type { AppUpdateEvent, GitHubStarResult, GitHubStarState, NetworkStatusEvent } from '../shared/types.js';
 
@@ -42,6 +49,190 @@ const encodeGitHubToken = (token: string): string => {
   }
   return `${PLAIN_TOKEN_PREFIX}${token}`;
 };
+
+const encodeSecret = (secret: string): string => {
+  if (!safeStorage.isEncryptionAvailable() || safeStorage.getSelectedStorageBackend() === 'basic_text') {
+    throw new Error('OS keychain-backed secure storage is unavailable; API keys are not saved in plaintext.');
+  }
+  return safeStorage.encryptString(secret).toString('base64');
+};
+
+const decodeSecret = (cipher: string): string => {
+  if (!cipher || !safeStorage.isEncryptionAvailable() || safeStorage.getSelectedStorageBackend() === 'basic_text') return '';
+  try {
+    return safeStorage.decryptString(Buffer.from(cipher, 'base64'));
+  } catch {
+    return '';
+  }
+};
+
+ipcMain.handle('get-opencode-vision-settings', (event) => {
+  assertTrustedRenderer(event);
+  const settings = settingsStore.get('openCodeVision');
+  const value = settings && typeof settings === 'object' ? settings : { providerID: '', modelID: '', variant: 'low' as const };
+  return {
+    providerID: typeof value.providerID === 'string' ? value.providerID : '',
+    modelID: typeof value.modelID === 'string' ? value.modelID : '',
+    variant: value.variant === 'medium' || value.variant === 'high' ? value.variant : 'low',
+    hasApiKey: Boolean(decodeSecret(settingsStore.get('openCodeApiKeyCipher')))
+      && settingsStore.get('openCodeApiKeyProvider') === value.providerID,
+  };
+});
+
+ipcMain.handle('save-opencode-vision-settings', (event, raw: unknown): void => {
+  assertTrustedRenderer(event);
+  if (!raw || typeof raw !== 'object') throw new Error('Invalid OpenCode vision settings');
+  const value = raw as Record<string, unknown>;
+  const validId = (candidate: unknown): candidate is string => typeof candidate === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(candidate);
+  const validModelId = (candidate: unknown): candidate is string => typeof candidate === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$/.test(candidate);
+  if (!validId(value.providerID) || !validModelId(value.modelID)) throw new Error('Choose a valid OpenCode provider and model.');
+  if (value.variant !== 'low' && value.variant !== 'medium' && value.variant !== 'high') throw new Error('Invalid model reasoning variant.');
+  if (value.apiKey !== undefined && (typeof value.apiKey !== 'string' || value.apiKey.length > 4096)) throw new Error('API key is invalid or too long.');
+  if (value.clearApiKey !== undefined && typeof value.clearApiKey !== 'boolean') throw new Error('Invalid API key action.');
+  if (value.clearApiKey === true) {
+    settingsStore.set('openCodeApiKeyCipher', '');
+    settingsStore.set('openCodeApiKeyProvider', '');
+  } else if (typeof value.apiKey === 'string' && value.apiKey.trim()) {
+    settingsStore.set('openCodeApiKeyCipher', encodeSecret(value.apiKey.trim()));
+    settingsStore.set('openCodeApiKeyProvider', value.providerID);
+  } else if (settingsStore.get('openCodeApiKeyProvider') !== value.providerID
+    || !decodeSecret(settingsStore.get('openCodeApiKeyCipher'))) {
+    throw new Error('Enter an API key for the selected provider.');
+  }
+  settingsStore.set('openCodeVision', { providerID: value.providerID, modelID: value.modelID, variant: value.variant });
+});
+
+ipcMain.handle('list-opencode-free-vision-models', async (event) => {
+  assertTrustedRenderer(event);
+  return listFreeVisionModels();
+});
+
+const CRAFT_ANALYSIS_PROGRESS_CHANNEL = 'craft-analysis-progress';
+let pickedVideoPath: string | null = null;
+let pickedCraftDir: string | null = null;
+let pickedOutputBaseDir: string | null = null;
+const assertTrustedRenderer = (event: { senderFrame?: { url?: string } | null }): void => {
+  const rawUrl = event.senderFrame?.url;
+  if (!rawUrl) throw new Error('Untrusted IPC sender.');
+  let url: URL;
+  try { url = new URL(rawUrl); } catch { throw new Error('Untrusted IPC sender.'); }
+  const trusted = url.protocol === 'file:' || (
+    url.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(url.hostname) && url.port === '5173'
+  );
+  if (!trusted) throw new Error('Untrusted IPC sender.');
+};
+ipcMain.handle('pick-analysis-video', async (event) => {
+  assertTrustedRenderer(event);
+  const result = await dialog.showOpenDialog({ properties: ['openFile'], filters: [{ name: 'Video', extensions: ['mp4', 'mov', 'mkv', 'webm', 'm4v', 'avi'] }] });
+  pickedVideoPath = result.canceled ? null : result.filePaths[0] ?? null;
+  return pickedVideoPath;
+});
+ipcMain.handle('pick-analysis-craft-directory', async (event) => {
+  assertTrustedRenderer(event);
+  const result = await dialog.showOpenDialog({ properties: ['openDirectory'] });
+  pickedCraftDir = result.canceled ? null : result.filePaths[0] ?? null;
+  return pickedCraftDir;
+});
+ipcMain.handle('pick-analysis-output-directory', async (event) => {
+  assertTrustedRenderer(event);
+  const result = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] });
+  pickedOutputBaseDir = result.canceled ? null : result.filePaths[0] ?? null;
+  return pickedOutputBaseDir;
+});
+ipcMain.handle('start-craft-analysis', async (event, raw: unknown) => {
+  assertTrustedRenderer(event);
+  if (!raw || typeof raw !== 'object') throw new Error('Invalid analysis request.');
+  const value = raw as Record<string, unknown>;
+  if ((typeof value.videoPath !== 'string' && typeof value.videoUrl !== 'string') || typeof value.craftDir !== 'string' || typeof value.outputBaseDir !== 'string') throw new Error('Select a video or enter a supported URL, craft taxonomy folder, and output folder.');
+  if (typeof value.allowVision !== 'boolean' || typeof value.maxApiCalls !== 'number' || !Number.isInteger(value.maxApiCalls) || value.maxApiCalls < 0 || value.maxApiCalls > 1000) throw new Error('Invalid analysis budget or consent.');
+  const videoUrl = typeof value.videoUrl === 'string' ? value.videoUrl.trim() : '';
+  const videoPath = typeof value.videoPath === 'string' && value.videoPath.trim() ? path.resolve(value.videoPath) : '';
+  const craftDir = path.resolve(value.craftDir);
+  const outputBaseDir = path.resolve(value.outputBaseDir);
+  if (videoUrl ? (value.confirmDownload !== true || videoPath !== '') : (videoPath !== pickedVideoPath)) {
+    throw new Error('Choose a video with Flucto or confirm downloading the supplied URL.');
+  }
+  if (craftDir !== pickedCraftDir || outputBaseDir !== pickedOutputBaseDir) throw new Error('Choose taxonomy and output folders using the Flucto file pickers.');
+  if (!videoUrl) {
+    const videoStat = fs.statSync(videoPath);
+    if (!videoStat.isFile()) throw new Error('Analysis input must be a video file.');
+  }
+  if (!fs.statSync(craftDir).isDirectory()) throw new Error('Craft taxonomy path must be a directory.');
+  if (!fs.statSync(outputBaseDir).isDirectory()) throw new Error('Output path must be a directory.');
+
+  let runtime: Awaited<ReturnType<typeof startOpenCodeRuntime>> | null = null;
+  let visionProvider: AnalysisRequest['vision']['provider'] = null;
+  if (value.allowVision) {
+    const selection = settingsStore.get('openCodeVision');
+    const apiKey = settingsStore.get('openCodeApiKeyProvider') === selection?.providerID
+      ? decodeSecret(settingsStore.get('openCodeApiKeyCipher'))
+      : '';
+    if (!selection?.providerID || !selection.modelID || !apiKey) throw new Error('Configure a free vision model and API key in OpenCode Vision settings first.');
+    const allowedModels = await listFreeVisionModels();
+    const model = allowedModels.find((candidate) => candidate.providerID === selection.providerID && candidate.modelID === selection.modelID);
+    if (!model) throw new Error('Selected model is no longer listed as a free image-input model. Refresh the catalog and choose another model.');
+    runtime = await startOpenCodeRuntime({ providerID: selection.providerID, apiKey });
+    visionProvider = {
+      provider: 'opencode-local',
+      providerID: selection.providerID,
+      baseURL: runtime.baseURL,
+      model: selection.modelID,
+      apiKey: '',
+      variant: selection.variant,
+      serverUsername: runtime.username,
+      serverPassword: runtime.password,
+    };
+  }
+
+  const sourceName = videoPath ? path.basename(videoPath, path.extname(videoPath)) : (() => {
+    try { return new URL(videoUrl).hostname; } catch { return 'video'; }
+  })();
+  const baseName = sourceName.replace(/[^\p{L}\p{N}._-]+/gu, '-').slice(0, 80) || 'video';
+  const outputDir = path.join(outputBaseDir, `flucto-analysis-${baseName}-${Date.now()}`);
+  let analyzedVideoPath = videoPath;
+  try {
+    fs.mkdirSync(outputDir, { recursive: true });
+    if (videoUrl) {
+      let parsedUrl: URL;
+      try { parsedUrl = new URL(videoUrl); } catch { throw new Error('Enter a valid video URL.'); }
+      if (parsedUrl.protocol !== 'https:' || parsedUrl.username || parsedUrl.password) throw new Error('Video URL must be a public HTTPS URL without embedded credentials.');
+      const adapter = createPlatformRegistry().resolve(videoUrl);
+      if (!adapter || adapter.id === 'generic') throw new Error('This video platform is not supported for direct analyze-and-download.');
+      const downloaded = await runMediaDownload({
+        url: videoUrl,
+        format: 'mp4',
+        outputDir: path.join(outputDir, 'source'),
+        quality: getStoredDownloadSettings().qualityPreferences,
+      }, {
+        binaries: { ytDlpPath: getBinaryPath('yt-dlp'), ffmpegPath: getBinaryPath('ffmpeg') },
+        onProgress: (downloadProgress) => {
+          if (!event.sender.isDestroyed()) event.sender.send(CRAFT_ANALYSIS_PROGRESS_CHANNEL, {
+            stage: 'download', shotsTotal: 0, shotsDone: 0, status: 'running',
+            message: downloadProgress.error ?? `${downloadProgress.status} ${Math.round(downloadProgress.progress)}%`,
+          } satisfies AnalysisProgress);
+        },
+      });
+      if (!downloaded.success || !downloaded.filePath) throw new Error(`Video download failed: ${downloaded.message}`);
+      analyzedVideoPath = downloaded.filePath;
+    }
+    return await runCraftAnalysis({
+      videoPath: analyzedVideoPath,
+      ...(videoUrl ? { sourceUrl: videoUrl } : {}),
+      craftDir,
+      outputDir,
+      budget: { maxFramesPerShot: 3, maxApiCalls: value.allowVision ? value.maxApiCalls : 0 },
+      vision: { enabled: value.allowVision, provider: visionProvider },
+      sceneThreshold: 0.3,
+    }, {
+      ffmpegPath: getBinaryPath('ffmpeg'),
+      onProgress: (progress: AnalysisProgress) => {
+        if (!event.sender.isDestroyed()) event.sender.send(CRAFT_ANALYSIS_PROGRESS_CHANNEL, progress);
+      },
+    });
+  } finally {
+    runtime?.close();
+  }
+});
 
 ipcMain.handle('get-github-star-state', async (): Promise<GitHubStarState> => {
   const token = decodeGitHubToken();

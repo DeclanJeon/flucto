@@ -9,6 +9,7 @@ const BIN_DIR = path.join(process.cwd(), 'bin');
 const OS = process.platform; // 'win32', 'darwin', 'linux'
 const HOST_ARCH = process.arch; // 'x64', 'arm64', ...
 const FORCE = process.argv.includes('--force') || process.env.FLUCTO_FORCE_BINARIES === '1';
+const OPENCODE_ONLY = process.argv.includes('--opencode-only');
 const UNIVERSAL =
   process.argv.includes('--universal')
   || process.env.FLUCTO_UNIVERSAL_BINARIES === '1';
@@ -22,6 +23,15 @@ const WARN_ONLY =
   process.env.FLUCTO_BINARY_SETUP_WARN_ONLY === '1'
   || process.env.npm_lifecycle_event === 'postinstall';
 const DOWNLOAD_TIMEOUT_MS = 120000;
+const OPENCODE_VERSION = '1.19.3';
+const OPENCODE_ASSET_SHA256 = {
+  'opencode-darwin-arm64.zip': 'c2d0fecd27acf6e08be02c1f5d384614d07495587766bcc4a6bff3971749bb64',
+  'opencode-darwin-x64.zip': '4e29dbe2f61ace728370523c88027d0742b3a79edcdd2c70e404f616d4ef8f36',
+  'opencode-linux-arm64.tar.gz': '7900818a6a98881edbbadab4b7525940eff3b9750040c200481f9f56cacee405',
+  'opencode-linux-x64.tar.gz': '13a8fb2978302071b86f9d7e00da9c8895f9cd846978379c3bdc6a5333536c9b',
+  'opencode-windows-arm64.zip': 'c1b9daf18c97564b2d171703279621f7edc3613e70750d796ef78db87257ad89',
+  'opencode-windows-x64.zip': 'e4ce9117f55fc068414513789f8c7d1049f855d7518bb4e350b9170a3a20d8c3',
+};
 
 const MAC_UNIVERSAL_ARCHES = ['x86_64', 'arm64'];
 const NODE_TO_MACHO_ARCH = { x64: 'x86_64', arm64: 'arm64' };
@@ -83,6 +93,24 @@ export const ytDlpUrlFor = (os = OS, arch = HOST_ARCH) => {
     return url;
   }
   throw new Error(`No yt-dlp download source for platform ${os}`);
+};
+
+export const openCodeAssetNameFor = (os, arch) => {
+  if (os === 'win32') {
+    if (arch !== 'x64' && arch !== 'arm64') throw new Error(`No OpenCode build for windows/${arch}`);
+    return `opencode-windows-${arch}.zip`;
+  }
+  if (os === 'darwin') {
+    if (arch === 'arm64') return 'opencode-darwin-arm64.zip';
+    if (arch === 'x64') return 'opencode-darwin-x64.zip';
+    throw new Error(`No OpenCode build for macOS/${arch}`);
+  }
+  if (os === 'linux') {
+    if (arch === 'arm64') return 'opencode-linux-arm64.tar.gz';
+    if (arch === 'x64') return 'opencode-linux-x64.tar.gz';
+    throw new Error(`No OpenCode build for linux/${arch}`);
+  }
+  throw new Error(`No OpenCode build for ${os}/${arch}`);
 };
 
 export const ffmpegSourcesFor = (os = OS, arch = HOST_ARCH) => {
@@ -415,6 +443,68 @@ async function setupFfmpegUniversal() {
   console.log(`✅ FFmpeg universal (x86_64+arm64, ${version}); executed on ${executed.join(', ') || 'host slice only'}.`);
 }
 
+async function fetchOpenCodeRelease() {
+  const response = await fetch(`https://api.github.com/repos/anomalyco/opencode/releases/tags/v${OPENCODE_VERSION}`, {
+    headers: { 'User-Agent': 'Flucto OpenCode binary setup', Accept: 'application/vnd.github+json' },
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!response.ok) throw new Error(`Could not resolve OpenCode release: HTTP ${response.status}`);
+  const release = await response.json();
+  if (typeof release.tag_name !== 'string' || !Array.isArray(release.assets)) {
+    throw new Error('OpenCode release response has an invalid shape');
+  }
+  if (release.tag_name !== `v${OPENCODE_VERSION}`) throw new Error(`Unexpected OpenCode release tag ${release.tag_name}`);
+  return release;
+}
+
+async function setupOpenCodeForArch(release, arch) {
+  const assetName = openCodeAssetNameFor(OS, arch);
+  const asset = release.assets.find((candidate) => candidate.name === assetName);
+  if (!asset || typeof asset.browser_download_url !== 'string') {
+    throw new Error(`OpenCode release ${release.tag_name} has no asset ${assetName}`);
+  }
+  const platformDir = path.join(BIN_DIR, 'opencode', arch);
+  const executableName = OS === 'win32' ? 'opencode.exe' : 'opencode';
+  const executablePath = path.join(platformDir, executableName);
+  const versionPath = path.join(platformDir, 'version.txt');
+  const installedVersion = fs.existsSync(versionPath) ? fs.readFileSync(versionPath, 'utf8').trim() : '';
+  const wantedVersion = OPENCODE_VERSION;
+  if (!FORCE && installedVersion === wantedVersion && fs.existsSync(executablePath)) {
+    console.log(`✅ OpenCode ${arch} already provisioned (${wantedVersion}).`);
+    return;
+  }
+  fs.mkdirSync(platformDir, { recursive: true });
+  const tempDir = fs.mkdtempSync(path.join(BIN_DIR, '.opencode-'));
+  try {
+    const archivePath = path.join(tempDir, assetName);
+    await downloadFileWithRetry(asset.browser_download_url, archivePath);
+    const pinnedDigest = OPENCODE_ASSET_SHA256[assetName];
+    if (!pinnedDigest || asset.digest !== `sha256:${pinnedDigest}`) {
+      throw new Error(`OpenCode release metadata digest changed for ${assetName}; review and update the pinned checksum before packaging`);
+    }
+    const actual = (await import('crypto')).createHash('sha256').update(fs.readFileSync(archivePath)).digest('hex');
+    if (actual !== pinnedDigest) throw new Error(`OpenCode checksum mismatch for ${assetName}`);
+    await installDownloadedBinary(archivePath, executableName, executablePath);
+    if (OS !== 'win32') execSync(`chmod 755 "${executablePath}"`);
+    const versionResult = execFileSync(executablePath, ['--version'], { encoding: 'utf8', timeout: 15000 }).trim();
+    if (!versionResult.includes(wantedVersion)) throw new Error(`OpenCode version check failed: expected ${wantedVersion}, got ${versionResult}`);
+    fs.writeFileSync(versionPath, `${wantedVersion}\\n`, 'utf8');
+    console.log(`✅ OpenCode ${arch} ready (${wantedVersion}).`);
+  } catch (error) {
+    fs.rmSync(executablePath, { force: true });
+    fs.rmSync(versionPath, { force: true });
+    throw error;
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
+async function setupOpenCode() {
+  const release = await fetchOpenCodeRelease();
+  const arches = OS === 'darwin' && UNIVERSAL ? ['x64', 'arm64'] : [HOST_ARCH];
+  for (const arch of arches) await setupOpenCodeForArch(release, arch);
+}
+
 async function setupFfmpeg() {
   const ffmpegName = OS === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
   const ffmpegPath = path.join(BIN_DIR, ffmpegName);
@@ -458,8 +548,11 @@ export async function setup() {
 
   console.log(`🚀 [Flucto] Setting up binaries for ${OS}/${HOST_ARCH}${UNIVERSAL ? ' (universal packaging)' : ''}...`);
 
-  await setupYtDlp();
-  await setupFfmpeg();
+  if (!OPENCODE_ONLY) {
+    await setupYtDlp();
+    await setupFfmpeg();
+  }
+  await setupOpenCode();
 
   console.log('\n🎉 Setup complete!');
   console.log(`📁 Binary directory: ${BIN_DIR}`);

@@ -3,7 +3,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type {
   AiVideoDiscoveryRequest,
   AppUpdateEvent,
-  ImageDownloadSummary, PostImageInfo,
+  ImageDownloadSummary,
   DownloadProgress,
   TranscriptProgress,
   TranscriptRequest,
@@ -17,12 +17,14 @@ import type {
 type NetworkStatusListener = (status: NetworkStatusEvent) => void;
 type AppUpdateListener = (event: AppUpdateEvent) => void;
 type TranscriptProgressListener = (progress: TranscriptProgress) => void;
+type CraftAnalysisProgressListener = (progress: import('../shared/analysisTypes.js').AnalysisProgress) => void;
 const NETWORK_STATUS_CHANNEL = 'network-status-change';
 const APP_UPDATE_CHANNEL = 'app-update-event';
 const TRANSCRIPT_PROGRESS_CHANNEL = 'transcript-progress';
 const networkStatusCallbacks = new Map<NetworkStatusListener, (event: IpcRendererEvent, status: NetworkStatusEvent) => void>();
 const appUpdateCallbacks = new Map<AppUpdateListener, (event: IpcRendererEvent, updateEvent: AppUpdateEvent) => void>();
 const transcriptProgressCallbacks = new Map<TranscriptProgressListener, (event: IpcRendererEvent, progress: TranscriptProgress) => void>();
+const craftAnalysisProgressCallbacks = new Map<CraftAnalysisProgressListener, (event: IpcRendererEvent, progress: import('../shared/analysisTypes.js').AnalysisProgress) => void>();
 
 const api: IElectronAPI = {
   downloadVideo: (data: DownloadRequest) => ipcRenderer.invoke('download-video', data),
@@ -65,6 +67,25 @@ const api: IElectronAPI = {
     if (wrapped) {
       ipcRenderer.off(TRANSCRIPT_PROGRESS_CHANNEL, wrapped);
       transcriptProgressCallbacks.delete(callback);
+    }
+  },
+  getOpenCodeVisionSettings: () => ipcRenderer.invoke('get-opencode-vision-settings'),
+  saveOpenCodeVisionSettings: (settings) => ipcRenderer.invoke('save-opencode-vision-settings', settings),
+  listOpenCodeFreeVisionModels: () => ipcRenderer.invoke('list-opencode-free-vision-models'),
+  pickAnalysisVideo: () => ipcRenderer.invoke('pick-analysis-video'),
+  pickAnalysisCraftDirectory: () => ipcRenderer.invoke('pick-analysis-craft-directory'),
+  pickAnalysisOutputDirectory: () => ipcRenderer.invoke('pick-analysis-output-directory'),
+  startCraftAnalysis: (request) => ipcRenderer.invoke('start-craft-analysis', request),
+  onCraftAnalysisProgress: (callback: CraftAnalysisProgressListener) => {
+    const wrapped = (_event: IpcRendererEvent, progress: import('../shared/analysisTypes.js').AnalysisProgress) => callback(progress);
+    craftAnalysisProgressCallbacks.set(callback, wrapped);
+    ipcRenderer.on('craft-analysis-progress', wrapped);
+  },
+  offCraftAnalysisProgress: (callback: CraftAnalysisProgressListener) => {
+    const wrapped = craftAnalysisProgressCallbacks.get(callback);
+    if (wrapped) {
+      ipcRenderer.off('craft-analysis-progress', wrapped);
+      craftAnalysisProgressCallbacks.delete(callback);
     }
   },
   getUpdateSettings: () => ipcRenderer.invoke('get-update-settings'),

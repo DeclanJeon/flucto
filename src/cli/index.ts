@@ -38,6 +38,14 @@ import { execa } from '../main/spawn.js';
 import { resolveCaptionNetworkOptions } from '../main/net/captionNetwork.js';
 import { searchVideos } from '../main/services/videoSearch.js';
 import { discoverAiVideos } from '../main/services/aiVideoDiscovery.js';
+import { buildCraftTaxonomy } from '../main/services/craftTaxonomy.js';
+import { resolveFfprobePath } from '../main/analysis/avCommands.js';
+import {
+  estimateAnalysisCost,
+  runCraftAnalysis,
+} from '../main/services/cinematicAnalysis.js';
+import { resolveVisionProviderConfig } from '../main/services/visionProvider.js';
+import type { AnalysisProgress, AnalysisRequest } from '../shared/analysisTypes.js';
 import type { TranscriptMarkdownResponse, TranscriptRequest } from '../shared/types.js';
 import { VIDEO_SEARCH_SITES } from '../shared/videoSearchPlatforms.js';
 
@@ -660,6 +668,171 @@ const runDiscovery = async (options: CliOptions): Promise<number> => {
   return result.error ? 4 : 0;
 };
 
+const writeAnalysisProgress = (options: CliOptions, progress: AnalysisProgress): void => {
+  if (options.progressJson) {
+    process.stderr.write(`${JSON.stringify({ type: 'craft-analysis-progress', ...progress })}\n`);
+  } else if (!options.json) {
+    writeStatus(`[${progress.stage}] ${progress.shotsDone}/${progress.shotsTotal} ${progress.message ?? ''}`);
+  }
+};
+
+const runCraftBuild = async (options: CliOptions): Promise<number> => {
+  const crafted = buildCraftTaxonomy({
+    outputDir: outputBaseDir(options),
+    skillsRoot: options.skillsRoot ?? null,
+    bookExtractsPath: options.bookExtracts ?? null,
+  });
+  if (options.json) {
+    writeJson({
+      success: true,
+      taxonomyPath: crafted.taxonomyPath,
+      manifestPath: crafted.manifestPath,
+      techniqueCount: crafted.techniqueCount,
+      unverifiedCount: crafted.unverifiedCount,
+      rejectedBookEntries: crafted.rejectedBookEntries,
+      taxonomyVersion: crafted.manifest.taxonomyVersion,
+    });
+  } else {
+    banner('craft  ·  taxonomy build', readPackageVersion());
+    ok(`techniques: ${crafted.techniqueCount} (unverified ${crafted.unverifiedCount})`);
+    if (crafted.rejectedBookEntries > 0) {
+      info(`rejected book extract entries (oversized/unshaped): ${crafted.rejectedBookEntries}`);
+    }
+    kv('taxonomy', crafted.taxonomyPath);
+    kv('manifest', crafted.manifestPath);
+  }
+  return 0;
+};
+
+const resolveAnalyzeVideoPath = async (options: CliOptions): Promise<string> => {
+  if (options.positional.length === 1 && options.positional[0].trim()) {
+    const target = options.positional[0].trim();
+    return /^https:\/\//i.test(target) ? target : path.resolve(target);
+  }
+  const historyIndex = Number.parseInt(options.history ?? '', 10);
+  if (!Number.isInteger(historyIndex) || historyIndex < 0) {
+    throw new Error('--history requires a zero-based index (0 = most recent successful mp4).');
+  }
+  const { getHistoryEntries } = await import('../main/historyStore.js');
+  const entries = getHistoryEntries().filter(
+    (entry) => entry.status === 'success' && entry.format === 'mp4' && entry.filePath,
+  );
+  if (historyIndex >= entries.length) {
+    throw new Error(`History index ${historyIndex} is out of range; ${entries.length} successful mp4 download(s) recorded.`);
+  }
+  return path.resolve(entries[historyIndex].filePath as string);
+};
+
+const runAnalyze = async (options: CliOptions): Promise<number> => {
+  let videoPath = '';
+  let sourceUrl: string | undefined;
+  try {
+    const target = await resolveAnalyzeVideoPath(options);
+    const isUrl = /^https:\/\//i.test(target);
+    if (isUrl) {
+      let parsed: URL;
+      try { parsed = new URL(target); } catch { throw new Error('Enter a valid HTTPS video URL.'); }
+      if (parsed.username || parsed.password) throw new Error('Video URLs must not contain embedded credentials.');
+      const adapter = createPlatformRegistry().resolve(target);
+      if (!adapter || adapter.id === 'generic') throw new Error('This platform is not supported for direct analyze-and-download.');
+      sourceUrl = target;
+    } else {
+      videoPath = target;
+      if (!fs.existsSync(videoPath)) throw new Error(`Video file not found: ${videoPath}`);
+    }
+    const binaries = resolveBinaries(options);
+    const health = checkBinaryHealth(binaries);
+    if (health.missing.includes('ffmpeg')) throw new Error('Missing ffmpeg binary. Run `flucto setup` or pass --ffmpeg/--bin-dir.');
+    if (sourceUrl && health.missing.includes('yt-dlp')) throw new Error('Missing yt-dlp binary required to download the video URL. Run `flucto setup` or pass --yt-dlp/--bin-dir.');
+    if (!fs.existsSync(resolveFfprobePath(binaries.ffmpegPath))) {
+      throw new Error('ffprobe not found next to ffmpeg. Run `flucto setup --force` to refresh the ffmpeg installation (includes ffprobe).');
+    }
+
+    const deps = { ffmpegPath: binaries.ffmpegPath, onProgress: (progress: AnalysisProgress) => writeAnalysisProgress(options, progress) };
+    const sceneThreshold = options.sceneThreshold;
+    const jobDir = sourceUrl
+      ? createMultiJobOutputDir(outputBaseDir(options), 'craft', new URL(sourceUrl).hostname)
+      : null;
+    if (sourceUrl && jobDir) {
+      const downloaded = await runMediaDownload({
+        url: sourceUrl,
+        format: 'mp4',
+        outputDir: path.join(jobDir, 'source'),
+        quality: { video: options.quality, audio: options.audioQuality },
+      }, {
+        binaries,
+        onProgress: (progress) => writeAnalysisProgress(options, {
+          stage: 'download', shotsTotal: 0, shotsDone: 0, status: 'running',
+          message: progress.error ?? `${progress.status} ${Math.round(progress.progress)}%`,
+        }),
+      });
+      if (!downloaded.success || !downloaded.filePath) throw new Error(`Video download failed: ${downloaded.message}`);
+      videoPath = downloaded.filePath;
+    }
+
+    if (options.dryRun) {
+      const estimate = await estimateAnalysisCost({ videoPath, sceneThreshold }, deps);
+      if (options.json) {
+        writeJson({ success: true, dryRun: true, videoPath, ...estimate });
+      } else {
+        banner('craft  ·  analyze (dry run)', readPackageVersion());
+        kv('video', videoPath);
+        kv('fps', String(estimate.fps));
+        kv('duration_s', estimate.durationS.toFixed(3));
+        kv('scene candidates', String(estimate.sceneRows));
+        kv('estimated shots', String(estimate.estimatedShots));
+        kv('estimated frames', String(estimate.estimatedFrames));
+        kv('estimated api calls', String(estimate.estimatedApiCalls));
+        kv('segmentation', estimate.segmentation.mode + (estimate.segmentation.reason ? ` (${estimate.segmentation.reason})` : ''));
+        if (!estimate.visionEnabled) info('Vision provider env not set: csv-only run costs 0 API calls.');
+      }
+      return 0;
+    }
+
+    const analysisJobDir = jobDir ?? createMultiJobOutputDir(outputBaseDir(options), 'craft', path.parse(videoPath).name);
+    const request: AnalysisRequest = {
+      videoPath,
+      ...(sourceUrl ? { sourceUrl } : {}),
+      craftDir: path.resolve(options.craftDir ?? ''),
+      outputDir: analysisJobDir,
+      budget: {
+        maxFramesPerShot: options.maxFramesPerShot,
+        maxApiCalls: options.maxApiCalls,
+      },
+      vision: {
+        enabled: options.allowVisionApi,
+        provider: options.allowVisionApi ? resolveVisionProviderConfig() : null,
+      },
+      sceneThreshold,
+    };
+    const result = await runCraftAnalysis(request, deps);
+    if (options.json) {
+      writeJson(result);
+    } else {
+      banner('craft  ·  analyze', readPackageVersion());
+      kv('shots', String(result.shotCount));
+      kv('segmentation', result.segmentationMode.mode + (result.segmentationMode.reason ? ` (${result.segmentationMode.reason})` : ''));
+      kv('labeled / signal-only', `${result.labeledShots} / ${result.signalOnlyShots}`);
+      if (result.budgetExceeded) writeError('Vision budget exceeded; remaining shots kept signal-only rows.');
+      if (result.rowsIncomplete) info('rows_incomplete=true: some rows carry ESTIMATED/UNKNOWN gaps by design.');
+      if (result.error) info(`vision: ${result.error}`);
+      ok(`shotlog: ${result.shotlogPath}`);
+      ok(`techniques: ${result.techniquesPath}`);
+      ok(`structured report: ${result.analysisJsonPath}`);
+      ok(`tool recommendations: ${result.toolRecommendationsPath}`);
+    }
+    return 0;
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (options.json) {
+      writeJson({ success: false, error: message, rows_incomplete: false, exit_code: 5 });
+    } else {
+      writeError(`analyze failed: ${message}`);
+    }
+    return 5;
+  }
+};
+
 const dispatch = async (options: CliOptions): Promise<number> => {
   const binaryDependentCommands = new Set(['download', 'batch', 'transcript', 'md', 'channel-to-md', 'info', 'formats', 'languages']);
   if (binaryDependentCommands.has(options.command)) {
@@ -717,6 +890,10 @@ const dispatch = async (options: CliOptions): Promise<number> => {
     }
     case 'discover':
       return runDiscovery(options);
+    case 'craft':
+      return runCraftBuild(options);
+    case 'analyze':
+      return runAnalyze(options);
     case 'download':
       return runDownload(options);
     case 'batch':

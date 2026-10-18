@@ -12,6 +12,8 @@
     "dist-electron/**/*",
     "dist/**/*",
     "package.json",
+    "THIRD-PARTY-NOTICES.md",
+    "schemas/**/*",
   ],
 
   asar: true,
