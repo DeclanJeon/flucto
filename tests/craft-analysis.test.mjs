@@ -261,10 +261,11 @@ test('structured report emits evidence-linked JSON and CSVs without persisting f
       labels: { shotSize: 'medium', confidence: 0.8 }, matchedTechniqueIds: [technique.techniqueId],
       matchedEvidence: ['scene observation'], unmatchedAnchors: [], analysisStatus: 'labeled',
     };
+    const secondObservation = { ...observation, shotId: 'S002', index: 1, startS: 2, endS: 4, durationS: 2, startTimecode: '00:00:02.000', endTimecode: '00:00:04.000' };
     const result = await writeStructuredAnalysisReport({
       request: { videoPath, sourceUrl: 'https://www.youtube.com/watch?v=test&list=private-list&token=secret#fragment', craftDir: tempDir, outputDir, budget: { maxFramesPerShot: 3, maxApiCalls: 1 }, vision: { enabled: true, provider: { provider: 'opencode-local', providerID: 'opencode', baseURL: 'http://127.0.0.1:1', model: 'vision-free', apiKey: '' } }, sceneThreshold: 0.3 },
-      probe: { path: videoPath, durationS: 2, width: 640, height: 360, fps: 30, hasAudio: false },
-      observations: [observation], taxonomyRows: [technique], segmentationMode: { mode: 'full', reason: null }, startedAt: new Date(0).toISOString(),
+      probe: { path: videoPath, durationS: 4, width: 640, height: 360, fps: 30, hasAudio: false },
+      observations: [observation, secondObservation], taxonomyRows: [technique], segmentationMode: { mode: 'full', reason: null }, startedAt: new Date(0).toISOString(),
     });
     const data = JSON.parse(fs.readFileSync(result.analysisJsonPath, 'utf8'));
     const schema = JSON.parse(fs.readFileSync(new URL('../schemas/analysis-run.v1.schema.json', import.meta.url), 'utf8'));
@@ -276,9 +277,11 @@ test('structured report emits evidence-linked JSON and CSVs without persisting f
     assert.equal(data.source.canonicalUrl, 'https://www.youtube.com/watch?v=test');
     assert.equal(data.shots[0].claims.shotSize.evidenceLevel, 'INFERRED');
     assert.equal(data.shots[0].claims.motion.evidenceLevel, 'UNKNOWN');
-    assert.equal(data.techniqueApplications.length, 1);
-    assert.ok(data.productionPlan.length >= 3);
+    assert.equal(data.techniqueApplications.length, 2);
+    assert.ok(data.productionPlan.length >= 6);
     assert.equal(data.toolRecommendations.length, 1);
+    assert.equal(data.toolRecommendations[0].relatedTaskIds.length, 1);
+    assert.equal(data.productionPlan.filter((task) => task.stage === 'post-production').every((task) => task.toolRecommendationIds.includes(data.toolRecommendations[0].id)), true);
     assert.equal(data.toolRecommendations[0].name, 'DaVinci Resolve');
     assert.equal(data.toolRecommendations[0].claim.evidenceLevel, 'INFERRED');
     assert.equal(data.toolRecommendations[0].pricingStatus, 'unknown');

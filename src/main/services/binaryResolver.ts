@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { resolveFfprobePath } from '../analysis/avCommands.js';
 
 export interface BinaryResolver {
   ytDlpPath: string;
@@ -77,6 +78,8 @@ export const resolveCliBinaries = (options: BinaryResolverOptions = {}): BinaryR
     ffmpegPath: resolveBinary('ffmpeg', options.ffmpegPath, env.FLUCTO_FFMPEG_PATH, { env, cwd, binDir: options.binDir }),
   };
 };
+
+export const hasUsableFfprobe = (ffmpegPath: string): boolean => isExecutable(resolveFfprobePath(ffmpegPath));
 
 export const checkBinaryHealth = (binaries: BinaryResolver): BinaryHealth => {
   const missing: string[] = [];

@@ -107,6 +107,7 @@ export const assertAnalysisReferences = (value: unknown): void => {
   }
   for (const recommendation of recommendations) {
     requireIds([recommendation.taskId], taskIds, `Tool recommendation ${String(recommendation.id)}`);
+    requireIds(recommendation.relatedTaskIds, taskIds, `Tool recommendation ${String(recommendation.id)}`);
     requireIds(recommendation.evidenceIds, evidenceIds, `Tool recommendation ${String(recommendation.id)}`);
     checkClaims({ claim: recommendation.claim }, `Tool recommendation ${String(recommendation.id)}`);
   }
@@ -298,6 +299,7 @@ export const writeStructuredAnalysisReport = async (input: {
   });
 
   const toolRecommendations: Array<Record<string, unknown>> = [];
+  let resolveRecommendation: Record<string, unknown> | null = null;
   const catalogEvidenceIds = new Set<string>();
   const addToolEvidence = (id: string, sourceUrl: string, summary: string): void => {
     if (catalogEvidenceIds.has(id)) return;
@@ -306,18 +308,23 @@ export const writeStructuredAnalysisReport = async (input: {
   };
   for (const task of productionPlan) {
     if (task.stage === 'post-production') {
-      const id = `TOOL-${task.id}-RESOLVE`;
+      const id = 'TOOL-DAVINCI-RESOLVE-EDITING';
       const sourceEvidenceId = 'E-TOOL-DAVINCI-RESOLVE';
       const sourceUrl = 'https://www.blackmagicdesign.com/products/davinciresolve';
       addToolEvidence(sourceEvidenceId, sourceUrl, 'Blackmagic Design official DaVinci Resolve product page: editing, color, visual effects and audio post-production capabilities.');
       task.toolRecommendationIds.push(id);
-      toolRecommendations.push({
-        id, taskId: task.id, category: 'editing', name: 'DaVinci Resolve', version: null,
-        catalogVersion: TOOL_CATALOG_VERSION, pricingStatus: 'unknown', licenseStatus: 'unknown',
-        capability: 'Recommended for assembling and timing the shot sequence; official product information also lists color, visual-effects, and audio post-production tools.',
-        claim: claim({ rationale: 'A dedicated non-linear editor can execute the sequence and duration-matching task.' }, 'INFERRED', [sourceEvidenceId], 'This is a workflow recommendation, not evidence that the reference was made in DaVinci Resolve.'),
-        evidenceIds: [sourceEvidenceId], sourceUrl, checkedAt: TOOL_CATALOG_CHECKED_AT, alternatives: ['Use another non-linear editor capable of frame-accurate timeline editing.'],
-      });
+      if (resolveRecommendation) {
+        (resolveRecommendation.relatedTaskIds as string[]).push(task.id);
+      } else {
+        resolveRecommendation = {
+          id, taskId: task.id, relatedTaskIds: [], category: 'editing', name: 'DaVinci Resolve', version: null,
+          catalogVersion: TOOL_CATALOG_VERSION, pricingStatus: 'unknown', licenseStatus: 'unknown',
+          capability: 'Recommended for assembling and timing the full shot sequence; official product information also lists color, visual-effects, and audio post-production tools.',
+          claim: claim({ rationale: 'A dedicated non-linear editor can execute the sequence and duration-matching tasks.' }, 'INFERRED', [sourceEvidenceId], 'This is a workflow recommendation, not evidence that the reference was made in DaVinci Resolve.'),
+          evidenceIds: [sourceEvidenceId], sourceUrl, checkedAt: TOOL_CATALOG_CHECKED_AT, alternatives: ['Use another non-linear editor capable of frame-accurate timeline editing.'],
+        };
+        toolRecommendations.push(resolveRecommendation);
+      }
     }
     if (task.stage === 'production') {
       const observation = observations.find((shot) => task.id === `TASK-${shot.shotId}-PRODUCE`);
@@ -403,7 +410,7 @@ export const writeStructuredAnalysisReport = async (input: {
   emitCsv('evidence.csv', evidence as unknown as Array<Record<string, unknown>>, ['id', 'kind', 'range', 'evidenceLevel', 'summary', 'generator', 'modelVersion', 'transmittedExternally']);
   emitCsv('technique_applications.csv', techniqueApplications.map((row) => ({ ...row, claim: row.claim, reproductionNotes: row.reproductionNotes, failureModes: row.failureModes })), ['id', 'techniqueId', 'shotIds', 'claim', 'reproductionNotes', 'failureModes']);
   emitCsv('production_plan.csv', productionPlan as unknown as Array<Record<string, unknown>>, ['id', 'stage', 'dependsOn', 'instruction', 'input', 'output', 'acceptanceCriteria', 'promptDraft', 'evidenceIds', 'limitations', 'toolRecommendationIds']);
-  emitCsv('tool_recommendations.csv', toolRecommendations, ['id', 'taskId', 'category', 'name', 'version', 'catalogVersion', 'pricingStatus', 'licenseStatus', 'capability', 'claim', 'evidenceIds', 'sourceUrl', 'checkedAt', 'alternatives']);
+  emitCsv('tool_recommendations.csv', toolRecommendations, ['id', 'taskId', 'relatedTaskIds', 'category', 'name', 'version', 'catalogVersion', 'pricingStatus', 'licenseStatus', 'capability', 'claim', 'evidenceIds', 'sourceUrl', 'checkedAt', 'alternatives']);
   const toolRecommendationsPath = path.join(output, 'tool_recommendations.csv');
   const manifestPath = path.join(output, 'manifest.json');
   fs.writeFileSync(manifestPath, `${JSON.stringify({ schemaVersion: '1.0.0', runId: analysis.runId, startedAt, completedAt: analysis.provenance.completedAt, sourceSha256, segmentationMode, shotCount: shots.length, sceneCount: scenes.length, evidenceCount: evidence.length, artifactFiles: [...artifactPaths.map((file) => path.basename(file)), 'manifest.json'], model: modelName, externalFrameTransmission: Boolean(request.vision.enabled && request.vision.provider) }, null, 2)}\n`, 'utf8');

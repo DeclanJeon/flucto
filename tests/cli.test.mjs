@@ -9,7 +9,7 @@ import { createExecutableFixtures } from './executable-fixtures.mjs';
 import { parseCliArgs, CliUsageError } from '../dist-electron/cli/args.js';
 import { createMultiJobOutputDir, slugifyJobLabel } from '../dist-electron/cli/jobOutput.js';
 import { parseBatchFileContent, runWithConcurrency } from '../dist-electron/main/services/batch.js';
-import { checkBinaryHealth, resolveCliBinaries } from '../dist-electron/main/services/binaryResolver.js';
+import { checkBinaryHealth, hasUsableFfprobe, resolveCliBinaries } from '../dist-electron/main/services/binaryResolver.js';
 import { setupUtilities } from '../dist-electron/main/services/binaryInstaller.js';
 import { applyCliUpdate, checkForCliUpdate, downloadCliUpdate, parseChecksumManifest, verifySha256 } from '../dist-electron/main/services/cliUpdater.js';
 import { compareVersions, parseGitHubRelease } from '../dist-electron/main/services/githubRelease.js';
@@ -193,10 +193,15 @@ test('binary resolver prefers explicit paths and health check verifies executabl
   const ffmpeg = path.join(temp, process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg');
   writeExecutable(ytDlp);
   writeExecutable(ffmpeg);
+  const ffprobe = path.join(temp, process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe');
+  writeExecutable(ffprobe);
 
   const binaries = resolveCliBinaries({ ytDlpPath: ytDlp, ffmpegPath: ffmpeg, env: { PATH: '' }, cwd: temp });
   assert.deepEqual(binaries, { ytDlpPath: ytDlp, ffmpegPath: ffmpeg });
   assert.deepEqual(checkBinaryHealth(binaries).missing, []);
+  assert.equal(hasUsableFfprobe(ffmpeg), true);
+  fs.unlinkSync(ffprobe);
+  assert.equal(hasUsableFfprobe(ffmpeg), false);
 });
 
 test('setupUtilities check-only validates provided bin dir without downloading', async () => {

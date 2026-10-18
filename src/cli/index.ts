@@ -21,7 +21,7 @@ import {
 } from './output.js';
 import { c } from './theme.js';
 import { createMultiJobOutputDir, slugifyJobLabel } from './jobOutput.js';
-import { checkBinaryHealth, resolveCliBinaries } from '../main/services/binaryResolver.js';
+import { checkBinaryHealth, hasUsableFfprobe, resolveCliBinaries } from '../main/services/binaryResolver.js';
 import { parseBatchFileContent, runWithConcurrency } from '../main/services/batch.js';
 import { runMediaDownload } from '../main/services/mediaDownload.js';
 import { getAvailableFormats, getMediaInfo, listChannelVideos, normalizeChannelTarget } from '../main/services/mediaInfo.js';
@@ -145,14 +145,18 @@ const ensureBinaries = async (options: CliOptions): Promise<void> => {
 const runDoctor = async (options: CliOptions): Promise<number> => {
   const binaries = resolveBinaries(options);
   const health = checkBinaryHealth(binaries);
+  const ffprobePath = resolveFfprobePath(binaries.ffmpegPath);
+  const missing = [...health.missing, ...(!hasUsableFfprobe(binaries.ffmpegPath) ? ['ffprobe'] : [])];
+  const valid = missing.length === 0;
   const result = {
-    valid: health.valid,
-    missing: health.missing,
-    paths: health.paths,
-    fix: health.valid ? undefined : 'Run `flucto setup` or pass --yt-dlp/--ffmpeg paths.',
+    valid,
+    missing,
+    paths: { ...health.paths, ffprobePath },
+    fix: valid ? undefined : 'Run `flucto setup --force` to refresh ffmpeg/ffprobe, or pass matching --ffmpeg/--bin-dir paths.',
     versions: {
       ytDlp: health.missing.includes('yt-dlp') ? null : await binaryVersion(binaries.ytDlpPath, ['--version']),
       ffmpeg: health.missing.includes('ffmpeg') ? null : await binaryVersion(binaries.ffmpegPath, ['-version']),
+      ffprobe: missing.includes('ffprobe') ? null : await binaryVersion(ffprobePath, ['-version']),
     },
   };
 
@@ -162,6 +166,7 @@ const runDoctor = async (options: CliOptions): Promise<number> => {
     banner('doctor  ·  binary health', readPackageVersion());
     ok(`yt-dlp   ${c.white(result.versions.ytDlp ?? binaries.ytDlpPath)}`);
     ok(`ffmpeg   ${c.white((result.versions.ffmpeg ?? binaries.ffmpegPath).split(' ')[0] ?? '')}`);
+    ok(`ffprobe  ${c.white((result.versions.ffprobe ?? ffprobePath).split(' ')[0] ?? '')}`);
     writeStatus('');
   } else {
     banner('doctor  ·  binary health', readPackageVersion());
