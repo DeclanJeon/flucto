@@ -1,6 +1,6 @@
 # Cinematic Craft Analysis: Real-Provider QA and Accuracy Work Order
 
-> **Current scope:** OpenCode runtime support was retired; historical OpenCode QA below documents past runs only. The application now offers Codex CLI subscription auth (desktop and CLI) and explicitly configured OpenAI-compatible endpoints (CLI). The post-retirement build/test/package matrix still needs rerunning. No provider integration establishes analysis accuracy.
+> **Current scope:** OpenCode runtime support was retired; historical OpenCode QA below documents past runs only. The application now offers Codex CLI subscription auth (desktop and CLI) and explicitly configured OpenAI-compatible endpoints (CLI). Post-retirement CI and Package Validation passed on Windows, macOS, and Ubuntu; the macOS package smoke ran on Intel. Real-video AV analysis remains verified only on Linux x64, and no provider integration establishes analysis accuracy.
 
 - Status: proposed implementation plan; not a release sign-off
 - Owner: Flucto cinematic-analysis maintainer

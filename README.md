@@ -203,7 +203,7 @@ This feature analyzes a local or permitted reference video to help plan a simila
 - **Privacy and consent:** Frames are sent to Codex only after you explicitly approve the run. Flucto passes frame data in memory and does not save frame images or Codex credentials. Codex-side handling/retention is governed by Codex policies.
 - **Setup:** Install and authenticate Codex CLI with `codex login`, then select an image-capable model in the desktop settings. CLI users set `FLUCTO_VISION_PROVIDER=codex-cli` and `FLUCTO_VISION_MODEL`; the CLI also requires `--allow-vision-api` for consent. Account access and quota are not guaranteed.
 - **Reviewable output:** `analysis.json` is canonical; CSV files provide review/export views. Evidence references, request outcomes and partial-analysis reasons are included.
-- **Early implementation limits:** Live Codex use has passed only a one-call integration smoke; this is not an accuracy benchmark. Only Linux x64 has passed real FFmpeg/FFprobe archive/runtime checks and a local AppImage/CLI package smoke. Other native platforms, the full release package matrix, and GPL redistribution/source obligations remain unresolved. Do not treat this feature as release-ready across platforms.
+- **Early implementation limits:** Live Codex use has passed only a one-call integration smoke; this is not an accuracy benchmark. Real-video FFmpeg/FFprobe analysis was exercised on Linux x64 only. Cross-platform package validation passed on Windows, Linux, and macOS (macOS package smoke on Intel); GPL redistribution/source obligations still need legal review. Do not treat analysis accuracy as validated.
 
 See the [analysis guide](docs/cinematic-craft-analysis-user-guide.md) for setup, CLI examples, output details, and limitations.
 
