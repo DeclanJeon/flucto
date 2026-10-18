@@ -5,6 +5,7 @@ import path from 'node:path';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { spawn } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
 import test from 'node:test';
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
@@ -23,8 +24,9 @@ const JPEG = Buffer.from([0xff, 0xd8, 0x46, 0x4c, 0x55, 0x58, 0xff, 0xd9]);
 const VALID_LABELS = JSON.stringify({ shotSize: 'wide', cameraMotion: 'static', subjectKind: 'landscape', confidence: 0.91 });
 
 const createExecutables = (binDir, registerFixture) => {
-  const ffmpeg = path.join(binDir, 'ffmpeg');
-  const ffprobe = path.join(binDir, 'ffprobe');
+  const extension = process.platform === 'win32' ? '.exe' : '';
+  const ffmpeg = path.join(binDir, `ffmpeg${extension}`);
+  const ffprobe = path.join(binDir, `ffprobe${extension}`);
   registerFixture(ffprobe);
   registerFixture(ffmpeg);
   // The shared shim executes these fixtures through Node on Windows as well as POSIX.
@@ -238,7 +240,7 @@ syncBuiltinESMExports();
       FLUCTO_VISION_MODEL: 'mock-vision',
     };
     const invoke = async (outputBase, allowVision) => {
-      const args = ['--import', electronLoader, '--import', preload, cliEntry, 'analyze', workspace.videoPath,
+      const args = ['--import', pathToFileURL(electronLoader).href, '--import', pathToFileURL(preload).href, cliEntry, 'analyze', workspace.videoPath,
         '--ffmpeg', workspace.ffmpegPath, '--craft', workspace.craftDir, '--output-dir', outputBase, '--json',
         '--max-api-calls', '10', ...(allowVision ? ['--allow-vision-api'] : [])];
       const processResult = await runCliProcess(args, baseEnv, process.cwd());
