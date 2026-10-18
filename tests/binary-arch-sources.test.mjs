@@ -9,7 +9,6 @@ import {
   pinnedAvSourceFor as setupPinnedAvSourceFor,
   replaceAvPairAtomically,
   ytDlpUrlFor,
-  openCodeAssetNameFor,
   machOArchitectures,
   assertUniversalMachO,
 } from '../scripts/setup-binaries.mjs';
@@ -107,16 +106,6 @@ test('runtime binary installer exposes the same per-arch sources', () => {
     assert.deepEqual(ffprobeDownloadUrlsFor(platform, arch), [ffprobe.url]);
   }
   assert.throws(() => ffprobeDownloadUrlsFor('darwin', 'ia32'), /No pinned/);
-});
-
-test('OpenCode release assets are selected per supported OS and architecture', () => {
-  assert.equal(openCodeAssetNameFor('win32', 'x64'), 'opencode-windows-x64.zip');
-  assert.equal(openCodeAssetNameFor('win32', 'arm64'), 'opencode-windows-arm64.zip');
-  assert.equal(openCodeAssetNameFor('darwin', 'x64'), 'opencode-darwin-x64.zip');
-  assert.equal(openCodeAssetNameFor('darwin', 'arm64'), 'opencode-darwin-arm64.zip');
-  assert.equal(openCodeAssetNameFor('linux', 'x64'), 'opencode-linux-x64.tar.gz');
-  assert.equal(openCodeAssetNameFor('linux', 'arm64'), 'opencode-linux-arm64.tar.gz');
-  assert.throws(() => openCodeAssetNameFor('linux', 'ia32'), /No OpenCode build/);
 });
 
 test('script yt-dlp source for linux follows the CPU', () => {

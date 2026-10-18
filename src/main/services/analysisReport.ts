@@ -182,14 +182,10 @@ export const writeStructuredAnalysisReport = async (input: {
   fs.mkdirSync(request.outputDir, { recursive: true });
   const visionProvider = request.vision.provider;
   const providerNamespace = visionProvider
-    ? visionProvider.providerID ?? (visionProvider.provider === 'codex-cli' ? 'codex-cli' : visionProvider.provider === 'openai' ? 'openai' : 'opencode')
+    ? visionProvider.provider === 'codex-cli' ? 'codex-cli' : 'openai'
     : null;
   const modelName = visionProvider && providerNamespace ? `${providerNamespace}/${visionProvider.model}` : null;
-  const visionGeneratorName = visionProvider?.provider === 'codex-cli'
-    ? 'Codex CLI vision'
-    : visionProvider?.provider === 'openai'
-      ? 'OpenAI-compatible vision'
-      : 'OpenCode vision';
+  const visionGeneratorName = visionProvider?.provider === 'codex-cli' ? 'Codex CLI vision' : 'OpenAI-compatible vision';
   const evidence: EvidenceRecord[] = [];
   const taxonomyById = new Map(taxonomyRows.map((row) => [row.techniqueId, row]));
   const shots = observations.map((observation) => {
@@ -218,7 +214,7 @@ export const writeStructuredAnalysisReport = async (input: {
         frameRequestAttempted: true,
         frameRequestResponseReceived: observation.frameRequestResponseReceived ?? false,
         requestDestination: observation.frameRequestDestination ?? null,
-        externalOnwardTransmission: observation.frameRequestDestination === 'local-server' || observation.frameRequestDestination === 'codex-cli' ? null : false,
+        externalOnwardTransmission: null,
       });
     }
     const labelClaims: Record<string, ReturnType<typeof claim>> = {};

@@ -86,29 +86,6 @@ test('CLI Codex vision mode requires only a model and local Codex CLI authentica
   }
 });
 
-test('CLI requires authenticated loopback credentials for opencode-local vision', () => {
-  const keys = ['FLUCTO_VISION_PROVIDER', 'FLUCTO_VISION_MODEL', 'FLUCTO_VISION_BASE_URL', 'FLUCTO_OPENCODE_SERVER_USERNAME', 'FLUCTO_OPENCODE_SERVER_PASSWORD'];
-  const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
-  try {
-    process.env.FLUCTO_VISION_PROVIDER = 'opencode-local';
-    process.env.FLUCTO_VISION_MODEL = 'vision-model';
-    process.env.FLUCTO_VISION_BASE_URL = 'http://127.0.0.1:4096';
-    delete process.env.FLUCTO_OPENCODE_SERVER_USERNAME;
-    delete process.env.FLUCTO_OPENCODE_SERVER_PASSWORD;
-    assert.throws(() => parseCliArgs(['analyze', 'video.mp4', '--craft', 'craft', '--allow-vision-api']), /FLUCTO_OPENCODE_SERVER_USERNAME/);
-    process.env.FLUCTO_OPENCODE_SERVER_USERNAME = 'test-user';
-    process.env.FLUCTO_OPENCODE_SERVER_PASSWORD = 'test-password';
-    assert.doesNotThrow(() => parseCliArgs(['analyze', 'video.mp4', '--craft', 'craft', '--allow-vision-api']));
-    process.env.FLUCTO_VISION_BASE_URL = 'https://127.0.0.1:4096';
-    assert.throws(() => parseCliArgs(['analyze', 'video.mp4', '--craft', 'craft', '--allow-vision-api']), /HTTP loopback/);
-  } finally {
-    for (const key of keys) {
-      if (previous[key] === undefined) delete process.env[key];
-      else process.env[key] = previous[key];
-    }
-  }
-});
-
 test('multi-file job folders are created as dedicated subdirectories', () => {
   const temp = makeTempDir();
   assert.equal(slugifyJobLabel('@LIFECODEofficial'), 'LIFECODEofficial');

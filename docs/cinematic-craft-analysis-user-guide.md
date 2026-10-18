@@ -44,7 +44,7 @@ The example model may not be available on every account. `--allow-vision-api` st
 ## Data contract and current limits
 
 - **Not release-ready on every platform yet:** `ffprobe` must be available beside the selected `ffmpeg`. Pinned FFmpeg/FFprobe sources exist for Windows x64, Linux x64/arm64, and macOS x64/arm64, but only Linux x64 archive/runtime analysis has passed a real-binary smoke. Other native targets, release-package smoke, and GPL redistribution review remain open. Run `flucto doctor --json`; a successful build does not prove the analysis prerequisites are installed.
-- **Codex integration is only minimally verified:** after correcting an app-server request shape, a one-call real-video smoke returned one label. This does not establish label accuracy, provider availability, or subscription quota. Codex onward transmission is not observable. The previous OpenCode gateway returned `403 Detect Abuse Traffic`; Flucto does not retry it to evade the block.
+- **Codex integration is only minimally verified:** after correcting an app-server request shape, a one-call real-video smoke returned one label. This does not establish label accuracy, provider availability, or subscription quota. Codex onward transmission is not observable. OpenCode support was retired and is not shipped.
 - `schemas/analysis-run.v1.schema.json` is the versioned contract for `analysis.json`; report tests validate it with Ajv.
 - CSV is UTF-8 with BOM, CRLF, and RFC 4180 escaping. `analysis.json` is canonical; CSVs are exports for review and spreadsheet use.
 - Video frames are never written as image files. Vision frames are downscaled and held in memory, then sent only after explicit consent.

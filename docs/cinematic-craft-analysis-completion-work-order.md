@@ -1,6 +1,7 @@
 # Cinematic Craft Analysis — Completion Work Order
 
 - Status: **active; not release-ready**
+- Current provider scope: OpenCode support has been retired from the application and package after the upstream gateway rejection and a GitHub API 403 blocking native-runtime setup. The old OpenCode-specific checklists and run notes below are historical; they are not current implementation requirements. Current choices are Codex CLI subscription auth (desktop and CLI) and explicitly configured OpenAI-compatible endpoints (CLI). The last pre-retirement package workflow passed Ubuntu, failed macOS during OpenCode asset resolution (HTTP 403), and had Windows pending; rerun after these changes.
 - Coordinator: cinematic-analysis maintainer
 - A2A workers: `qa-quality` and `platform-review` (Pi `openai-codex/gpt-6-luna`, Herdr-managed, same repository/cwd)
 - Existing QA evidence: `docs/cinematic-craft-analysis-qa-work-order.md`
@@ -13,7 +14,7 @@ Make the supported workflow reliable from setup and consent through analysis and
 A release cannot be called complete while any of these hold:
 
 1. a supported OS cannot install or package a compatible FFmpeg/FFprobe pair and run the probe;
-2. desktop/CLI OpenCode request isolation, authentication, cleanup, and no-redirect behavior are unverified;
+2. provider request isolation, consent, credential handling, and redirect behavior are unverified on every supported package;
 3. a successful end-to-end provider response has not produced a schema-valid report under an explicitly authorized run;
 4. output references/provenance, consent, failure/partial reporting, or artifact privacy checks fail;
 5. reviewed quality evidence is absent but accuracy/production-quality claims are made.
@@ -22,8 +23,8 @@ Provider availability and licensed human annotations are external dependencies. 
 
 ## Baseline and constraints
 
-- The current worktree contains uncommitted cinematic-analysis changes and a prior user change in `src/main/services/mediaDownload.ts`. Preserve them; do not reset, blanket-stage, or apply/drop `stash@{0}`.
-- Latest verification after Codex adapter and Linux package-smoke work: `npm test` passed (221 passed, 1 env-gated real-media test skipped by default); `npm run build` and `npm run lint` passed. A cleanly provisioned Linux x64 AppImage + CLI setup package passed `scripts/package-smoke.mjs`; other native package targets remain unverified.
+- The pushed validation branch is `validation/cinematic-analysis-release`. The current worktree contains uncommitted OpenCode retirement changes and a prior user change in `src/main/services/mediaDownload.ts`. Preserve the latter; do not reset, blanket-stage, or apply/drop `stash@{0}`.
+- Baseline verification before the OpenCode retirement edit: `npm test` passed (221 passed, 1 env-gated real-media test skipped by default); `npm run build` and `npm run lint` passed. A cleanly provisioned Linux x64 AppImage + CLI setup package passed `scripts/package-smoke.mjs`; other native package targets remain unverified. Re-run all checks after the retirement changes.
 - The authorized OpenCode live run emitted a 59-shot `partial` report with 0 labels after five frame-bearing attempts. OpenCode's assistant response contained gateway HTTP 403 `Detect Abuse Traffic`; a text-only probe of another listed free vision model received the same rejection. Do not retry until access is restored. Do not interpret the historical `malformed-response` artifact as current error classification.
 - Codex CLI `0.163.0` is installed locally; its app-server model catalog lists image-capable models. The first 3-call source-video smoke returned 0 labels because the `sandboxPolicy` RPC shape was wrong; that shape was corrected. With renewed user approval, a bounded 1-call smoke then returned a completion and labeled 1 of 59 shots. The JSON schema and evidence references validated, no frame files were present, and onward transmission remains unknown. This verifies integration only, not label accuracy. The generated smoke report exposed a provider-name attribution bug (`opencode/gpt-6-luna`); source and mock assertions now label Codex correctly, but the old artifact predates that metadata fix.
 - The recorded live artifact is under the user's Documents/`flucto` folder, not the repository. No frame files were persisted; whether the OpenCode gateway received rejected frame payloads remains unknown.

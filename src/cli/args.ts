@@ -413,26 +413,17 @@ const validateCommand = (options: CliOptions): void => {
     if (isUrl && !options.allowDownload) throw new CliUsageError('analyze URL input downloads media; pass --allow-download after confirming you have permission.');
     if (options.allowVisionApi) {
       const provider = process.env.FLUCTO_VISION_PROVIDER?.trim().toLowerCase() ?? 'openai';
-      const opencodeLocal = provider === 'opencode-local';
+      if (provider !== 'openai' && provider !== 'codex-cli') {
+        throw new CliUsageError('FLUCTO_VISION_PROVIDER must be openai or codex-cli.');
+      }
       const codexCli = provider === 'codex-cli';
       const missingConfiguration = codexCli
         ? !process.env.FLUCTO_VISION_MODEL
-        : opencodeLocal
-          ? (!process.env.FLUCTO_VISION_MODEL || !process.env.FLUCTO_OPENCODE_SERVER_USERNAME || !process.env.FLUCTO_OPENCODE_SERVER_PASSWORD)
-          : (!process.env.FLUCTO_VISION_BASE_URL || !process.env.FLUCTO_VISION_API_KEY || !process.env.FLUCTO_VISION_MODEL);
+        : (!process.env.FLUCTO_VISION_BASE_URL || !process.env.FLUCTO_VISION_API_KEY || !process.env.FLUCTO_VISION_MODEL);
       if (missingConfiguration) {
         throw new CliUsageError(codexCli
           ? '--allow-vision-api with codex-cli needs FLUCTO_VISION_MODEL and an authenticated Codex CLI installation (or FLUCTO_CODEX_PATH).'
-          : opencodeLocal
-            ? '--allow-vision-api with opencode-local needs FLUCTO_VISION_MODEL, FLUCTO_OPENCODE_SERVER_USERNAME, FLUCTO_OPENCODE_SERVER_PASSWORD, and a running authenticated loopback server.'
-            : '--allow-vision-api needs FLUCTO_VISION_BASE_URL, FLUCTO_VISION_API_KEY and FLUCTO_VISION_MODEL.');
-      }
-      if (opencodeLocal) {
-        let endpoint: URL;
-        try { endpoint = new URL(process.env.FLUCTO_VISION_BASE_URL?.trim() || 'http://127.0.0.1:4096'); } catch { throw new CliUsageError('opencode-local requires an HTTP loopback server URL.'); }
-        if (endpoint.protocol !== 'http:' || !['127.0.0.1', 'localhost', '[::1]'].includes(endpoint.hostname.toLowerCase()) || endpoint.username || endpoint.password) {
-          throw new CliUsageError('opencode-local requires an HTTP loopback server URL.');
-        }
+          : '--allow-vision-api needs FLUCTO_VISION_BASE_URL, FLUCTO_VISION_API_KEY and FLUCTO_VISION_MODEL.');
       }
     }
   }

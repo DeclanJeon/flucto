@@ -11,7 +11,6 @@ import {
   onAppUpdateEvent,
 } from './updater.js';
 import { getBinaryPath } from './utils.js';
-import { listFreeVisionModels } from './services/openCodeRuntime.js';
 import { listCodexVisionModels } from './services/codexVisionRuntime.js';
 import { runCraftAnalysis } from './services/cinematicAnalysis.js';
 import type { AnalysisProgress, AnalysisRequest } from '../shared/analysisTypes.js';
@@ -51,22 +50,6 @@ const encodeGitHubToken = (token: string): string => {
   return `${PLAIN_TOKEN_PREFIX}${token}`;
 };
 
-const encodeSecret = (secret: string): string => {
-  if (!safeStorage.isEncryptionAvailable() || safeStorage.getSelectedStorageBackend() === 'basic_text') {
-    throw new Error('OS keychain-backed secure storage is unavailable; API keys are not saved in plaintext.');
-  }
-  return safeStorage.encryptString(secret).toString('base64');
-};
-
-const decodeSecret = (cipher: string): string => {
-  if (!cipher || !safeStorage.isEncryptionAvailable() || safeStorage.getSelectedStorageBackend() === 'basic_text') return '';
-  try {
-    return safeStorage.decryptString(Buffer.from(cipher, 'base64'));
-  } catch {
-    return '';
-  }
-};
-
 ipcMain.handle('get-codex-vision-settings', (event) => {
   assertTrustedRenderer(event);
   const value = settingsStore.get('codexVision');
@@ -93,47 +76,6 @@ ipcMain.handle('list-codex-vision-models', async (event, rawPath?: unknown) => {
   const binaryPath = typeof rawPath === 'string' ? rawPath.trim() : stored?.binaryPath ?? '';
   if (binaryPath.length > 4096 || /[\0\r\n]/.test(binaryPath)) throw new Error('Codex CLI path is invalid.');
   return listCodexVisionModels(binaryPath ? { binaryPath } : {});
-});
-
-ipcMain.handle('get-opencode-vision-settings', (event) => {
-  assertTrustedRenderer(event);
-  const settings = settingsStore.get('openCodeVision');
-  const value = settings && typeof settings === 'object' ? settings : { providerID: '', modelID: '', variant: 'low' as const };
-  return {
-    providerID: typeof value.providerID === 'string' ? value.providerID : '',
-    modelID: typeof value.modelID === 'string' ? value.modelID : '',
-    variant: value.variant === 'medium' || value.variant === 'high' ? value.variant : 'low',
-    hasApiKey: Boolean(decodeSecret(settingsStore.get('openCodeApiKeyCipher')))
-      && settingsStore.get('openCodeApiKeyProvider') === value.providerID,
-  };
-});
-
-ipcMain.handle('save-opencode-vision-settings', (event, raw: unknown): void => {
-  assertTrustedRenderer(event);
-  if (!raw || typeof raw !== 'object') throw new Error('Invalid OpenCode vision settings');
-  const value = raw as Record<string, unknown>;
-  const validId = (candidate: unknown): candidate is string => typeof candidate === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(candidate);
-  const validModelId = (candidate: unknown): candidate is string => typeof candidate === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$/.test(candidate);
-  if (!validId(value.providerID) || !validModelId(value.modelID)) throw new Error('Choose a valid OpenCode provider and model.');
-  if (value.variant !== 'low' && value.variant !== 'medium' && value.variant !== 'high') throw new Error('Invalid model reasoning variant.');
-  if (value.apiKey !== undefined && (typeof value.apiKey !== 'string' || value.apiKey.length > 4096)) throw new Error('API key is invalid or too long.');
-  if (value.clearApiKey !== undefined && typeof value.clearApiKey !== 'boolean') throw new Error('Invalid API key action.');
-  if (value.clearApiKey === true) {
-    settingsStore.set('openCodeApiKeyCipher', '');
-    settingsStore.set('openCodeApiKeyProvider', '');
-  } else if (typeof value.apiKey === 'string' && value.apiKey.trim()) {
-    settingsStore.set('openCodeApiKeyCipher', encodeSecret(value.apiKey.trim()));
-    settingsStore.set('openCodeApiKeyProvider', value.providerID);
-  } else if (settingsStore.get('openCodeApiKeyProvider') !== value.providerID
-    || !decodeSecret(settingsStore.get('openCodeApiKeyCipher'))) {
-    throw new Error('Enter an API key for the selected provider.');
-  }
-  settingsStore.set('openCodeVision', { providerID: value.providerID, modelID: value.modelID, variant: value.variant });
-});
-
-ipcMain.handle('list-opencode-free-vision-models', async (event) => {
-  assertTrustedRenderer(event);
-  return listFreeVisionModels();
 });
 
 const CRAFT_ANALYSIS_PROGRESS_CHANNEL = 'craft-analysis-progress';

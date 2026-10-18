@@ -18,9 +18,8 @@ import { extractAvMember } from '../scripts/setup-binaries.mjs';
 const configuredFfmpegPath = process.env.FLUCTO_TEST_FFMPEG?.trim();
 const avArchivePath = process.env.FLUCTO_TEST_AV_ARCHIVE?.trim();
 const execFileAsync = promisify(execFile);
-const USER = 'real-av-local-smoke';
-const PASSWORD = 'local-only-secret-sentinel';
-const AUTH = `Basic ${Buffer.from(`${USER}:${PASSWORD}`).toString('base64')}`;
+const API_KEY = 'real-av-api-key-sentinel';
+const AUTH = `Bearer ${API_KEY}`;
 const LABELS = JSON.stringify({
   shotSize: 'medium', cameraMotion: 'static', cameraAxis: 'eye-level', lightingType: 'natural',
   palette: 'warm', composition: 'centered', subjectKind: 'abstract-pattern',
@@ -61,7 +60,7 @@ test('real FFmpeg/FFprobe decode media and CLI reports consented frames to a loc
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'flucto-real-av-cli-'));
   let ffmpegPath = configuredFfmpegPath;
   let server;
-  const calls = { sessions: 0, messages: 0, frames: 0, authFailures: 0 };
+  const calls = { requests: 0, frames: 0, authFailures: 0 };
   const serverErrors = [];
   try {
     if (avArchivePath) {
@@ -123,29 +122,24 @@ test('real FFmpeg/FFprobe decode media and CLI reports consented frames to a loc
             return;
           }
           assert.equal(request.method, 'POST');
+          assert.equal(request.url, '/v1/chat/completions');
           const payload = JSON.parse(body);
-          if (request.url === '/session') {
-            calls.sessions += 1;
-            response.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ id: 'real-av-local' }));
-            return;
+          assert.equal(payload.model, 'mock-vision');
+          calls.requests += 1;
+          const content = payload.messages[1].content;
+          for (const part of content ?? []) {
+            if (part.type !== 'image_url') continue;
+            calls.frames += 1;
+            const url = part.image_url.url;
+            assert.match(url, /^data:image\/jpeg;base64,/);
+            const frame = Buffer.from(url.split(',')[1], 'base64');
+            assert.equal(frame[0], 0xff, 'frame has JPEG SOI marker');
+            assert.equal(frame[1], 0xd8);
+            assert.equal(frame.at(-2), 0xff, 'frame has JPEG EOI marker');
+            assert.equal(frame.at(-1), 0xd9);
           }
-          if (request.url === '/session/real-av-local/message') {
-            calls.messages += 1;
-            assert.deepEqual(payload.model, { providerID: 'opencode', modelID: 'mock-vision' });
-            for (const part of payload.parts ?? []) {
-              if (part.type !== 'file') continue;
-              calls.frames += 1;
-              assert.equal(part.mime, 'image/jpeg');
-              assert.match(part.url, /^data:image\/jpeg;base64,/);
-              const frame = Buffer.from(part.url.split(',')[1], 'base64');
-              assert.equal(frame[0], 0xff, 'frame has JPEG SOI marker');
-              assert.equal(frame[1], 0xd8);
-              assert.equal(frame.at(-2), 0xff, 'frame has JPEG EOI marker');
-              assert.equal(frame.at(-1), 0xd9);
-            }
-            response.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ parts: [{ type: 'text', text: LABELS }] }));
-            return;
-          }
+          response.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ choices: [{ message: { content: LABELS } }] }));
+          return;
           response.writeHead(404).end();
         } catch (error) {
           serverErrors.push(error instanceof Error ? error.message : String(error));
@@ -168,11 +162,10 @@ test('real FFmpeg/FFprobe decode media and CLI reports consented frames to a loc
       XDG_CONFIG_HOME: path.join(root, 'config'),
       XDG_DATA_HOME: path.join(root, 'data'),
       XDG_CACHE_HOME: path.join(root, 'cache'),
-      FLUCTO_VISION_PROVIDER: 'opencode-local',
-      FLUCTO_VISION_BASE_URL: `http://127.0.0.1:${server.address().port}`,
+      FLUCTO_VISION_PROVIDER: 'openai',
+      FLUCTO_VISION_BASE_URL: `http://127.0.0.1:${server.address().port}/v1`,
+      FLUCTO_VISION_API_KEY: API_KEY,
       FLUCTO_VISION_MODEL: 'mock-vision',
-      FLUCTO_OPENCODE_SERVER_USERNAME: USER,
-      FLUCTO_OPENCODE_SERVER_PASSWORD: PASSWORD,
     };
     const cli = path.resolve('dist-electron/cli/index.js');
     const loader = path.resolve('tests/electron-stub-loader.mjs');
@@ -187,8 +180,7 @@ test('real FFmpeg/FFprobe decode media and CLI reports consented frames to a loc
     const report = JSON.parse(result.stdout.trim());
     assert.equal(report.success, true, result.stdout);
     assert.ok(report.labeledShots >= 1, JSON.stringify(report));
-    assert.equal(calls.sessions, 1);
-    assert.equal(calls.messages, 1);
+    assert.equal(calls.requests, 1);
     assert.ok(calls.frames >= 1);
     assert.equal(calls.authFailures, 0);
     assert.deepEqual(serverErrors, []);
@@ -200,7 +192,7 @@ test('real FFmpeg/FFprobe decode media and CLI reports consented frames to a loc
     const ajv = new Ajv2020({ allErrors: true, strict: false });
     addFormats(ajv);
     assert.equal(ajv.validate(schema, analysis), true, JSON.stringify(ajv.errors));
-    assert.equal(analysis.visionSummary.localServerFrameRequestAttempted, true);
+    assert.equal(analysis.visionSummary.localServerFrameRequestAttempted, false);
     assert.equal(analysis.visionSummary.externalOnwardTransmission, null);
     assert.ok(analysis.shots.some((shot) => shot.visionOutcome === 'labeled'));
     const files = fs.readdirSync(reportDir);
@@ -209,10 +201,10 @@ test('real FFmpeg/FFprobe decode media and CLI reports consented frames to a loc
       const filePath = path.join(reportDir, name);
       if (!fs.statSync(filePath).isFile()) continue;
       const bytes = fs.readFileSync(filePath);
-      assert.equal(bytes.includes(Buffer.from(PASSWORD)), false, `${name} persisted the password sentinel`);
+      assert.equal(bytes.includes(Buffer.from(API_KEY)), false, `${name} persisted the API-key sentinel`);
       assert.equal(/\.jpe?g$/i.test(name), false, `${name} persisted a frame image`);
     }
-    assert.equal(analysis.status, 'partial', 'onward transmission through the local mock is intentionally unknown');
+    assert.equal(analysis.status, 'partial', 'the synthetic source is intentionally a partial analysis');
   } finally {
     if (server) await new Promise((resolve) => server.close(resolve));
     fs.rmSync(root, { recursive: true, force: true });

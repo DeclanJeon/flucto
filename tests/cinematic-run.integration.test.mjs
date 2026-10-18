@@ -17,9 +17,8 @@ import { createExecutableFixtures } from './executable-fixtures.mjs';
 // probe and signal output; they do not decode/probe input media. The JPEG is an
 // SOI/EOI marker with sentinel bytes, not a real decodable image. The mock server
 // checks request plumbing, not model behavior or semantic quality.
-const USER = 'integration-user';
-const PASSWORD = 'integration-secret-not-to-persist';
-const AUTH = `Basic ${Buffer.from(`${USER}:${PASSWORD}`).toString('base64')}`;
+const API_KEY = 'integration-secret-not-to-persist';
+const AUTH = `Bearer ${API_KEY}`;
 const JPEG = Buffer.from([0xff, 0xd8, 0x46, 0x4c, 0x55, 0x58, 0xff, 0xd9]);
 const VALID_LABELS = JSON.stringify({ shotSize: 'wide', cameraMotion: 'static', subjectKind: 'landscape', confidence: 0.91 });
 
@@ -44,8 +43,8 @@ if (args.includes('-f') && args.includes('image2pipe')) {
   return ffmpeg;
 };
 
-const startMockOpenCode = async ({ reject = false } = {}) => {
-  const calls = { sessions: 0, messages: 0, receivedFrames: 0, authFailures: 0 };
+const startMockOpenAi = async ({ reject = false } = {}) => {
+  const calls = { requests: 0, receivedFrames: 0, authFailures: 0 };
   const handlerErrors = [];
   const server = createServer((request, response) => {
     void (async () => {
@@ -58,29 +57,21 @@ const startMockOpenCode = async ({ reject = false } = {}) => {
           return;
         }
         assert.equal(request.method, 'POST');
+        assert.equal(request.url, '/v1/chat/completions');
         assert.match(request.headers['content-type'] ?? '', /^application\/json\b/i);
-        if (request.url === '/session') {
-          calls.sessions += 1;
-          assert.deepEqual(JSON.parse(body), { title: 'flucto-vision' });
-          response.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ id: 'mock-session' }));
+        calls.requests += 1;
+        const payload = JSON.parse(body);
+        assert.equal(payload.model, 'mock-vision');
+        const content = payload.messages[1].content;
+        const images = content.filter((part) => part.type === 'image_url');
+        calls.receivedFrames += images.length;
+        assert.ok(images.length > 0);
+        assert.ok(images.every((part) => part.image_url.url === `data:image/jpeg;base64,${JPEG.toString('base64')}`));
+        if (reject) {
+          response.writeHead(403, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'private mock rejection' }));
           return;
         }
-        if (request.url === '/session/mock-session/message') {
-          calls.messages += 1;
-          const payload = JSON.parse(body);
-          assert.deepEqual(payload.model, { providerID: 'opencode', modelID: 'mock-vision' });
-          assert.equal(payload.variant, 'low');
-          const files = payload.parts.filter((part) => part.type === 'file');
-          calls.receivedFrames += files.length;
-          assert.ok(files.length > 0);
-          assert.ok(files.every((part) => part.mime === 'image/jpeg' && part.url === `data:image/jpeg;base64,${JPEG.toString('base64')}`));
-          const result = reject
-            ? { info: { error: { name: 'APIError', data: { statusCode: 403, message: 'mock forbidden' } } }, parts: [] }
-            : { parts: [{ type: 'text', text: VALID_LABELS }] };
-          response.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(result));
-          return;
-        }
-        response.writeHead(404).end();
+        response.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ choices: [{ message: { content: VALID_LABELS } }] }));
       } catch (error) {
         handlerErrors.push(error instanceof Error ? error : new Error(String(error)));
         if (!response.headersSent) response.writeHead(500);
@@ -93,7 +84,7 @@ const startMockOpenCode = async ({ reject = false } = {}) => {
   const { port } = server.address();
   return {
     server, calls, handlerErrors,
-    baseURL: `http://127.0.0.1:${port}`,
+    baseURL: `http://127.0.0.1:${port}/v1`,
     close: () => new Promise((resolve, rejectClose) => server.close((error) => error ? rejectClose(error) : resolve())),
   };
 };
@@ -117,7 +108,7 @@ const run = (workspace, provider) => runCraftAnalysis({
   outputDir: workspace.outputDir,
   sceneThreshold: 0.3,
   budget: { maxFramesPerShot: 3, maxApiCalls: 10 },
-  vision: { enabled: true, provider: { provider: 'opencode-local', baseURL: provider.baseURL, model: 'mock-vision', apiKey: '', serverUsername: USER, serverPassword: PASSWORD } },
+  vision: { enabled: true, provider: { provider: 'openai', baseURL: provider.baseURL, model: 'mock-vision', apiKey: API_KEY } },
 }, { ffmpegPath: workspace.ffmpegPath });
 
 const readRun = (workspace, outputDir = workspace.outputDir) => {
@@ -175,9 +166,8 @@ const assertSentinelFixturesNotPersisted = (workspace) => {
   assert.equal(files.some((file) => /(?:frame|\.jpe?g$)/i.test(path.basename(file))), false);
   for (const file of files) {
     const contents = fs.readFileSync(file);
-    assert.equal(contents.includes(Buffer.from(PASSWORD)), false, `${path.relative(workspace.outputDir, file)} persisted password sentinel`);
-    assert.equal(contents.includes(Buffer.from(USER)), false, `${path.relative(workspace.outputDir, file)} persisted username sentinel`);
-    assert.equal(contents.includes(Buffer.from(AUTH)), false, `${path.relative(workspace.outputDir, file)} persisted Basic-auth sentinel`);
+    assert.equal(contents.includes(Buffer.from(API_KEY)), false, `${path.relative(workspace.outputDir, file)} persisted API-key sentinel`);
+    assert.equal(contents.includes(Buffer.from(AUTH)), false, `${path.relative(workspace.outputDir, file)} persisted bearer-auth sentinel`);
     assert.equal(contents.includes(JPEG), false, `${path.relative(workspace.outputDir, file)} persisted fake JPEG sentinel bytes`);
   }
 };
@@ -186,7 +176,7 @@ test('runCraftAnalysis orchestration/report plumbing emits consistent labeled ar
   const registerFixture = createExecutableFixtures();
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'flucto-cinematic-integration-'));
   const workspace = makeWorkspace(root, registerFixture);
-  const provider = await startMockOpenCode();
+  const provider = await startMockOpenAi();
   try {
     const result = await run(workspace, provider);
     assert.equal(result.success, true);
@@ -194,8 +184,7 @@ test('runCraftAnalysis orchestration/report plumbing emits consistent labeled ar
     assert.equal(result.labeledShots, 2);
     assert.equal(result.signalOnlyShots, 0);
     assert.equal(result.visionSummary.attemptedModelCalls, 2);
-    assert.equal(provider.calls.sessions, 2);
-    assert.equal(provider.calls.messages, 2);
+    assert.equal(provider.calls.requests, 2);
     assert.equal(provider.calls.receivedFrames, 6);
     assert.equal(provider.calls.authFailures, 0);
     assert.deepEqual(provider.handlerErrors, []);
@@ -224,7 +213,7 @@ test('compiled CLI analyze dispatch honors vision consent and emits structured a
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'flucto-cinematic-cli-process-'));
   const registerFixture = createExecutableFixtures();
   const workspace = makeWorkspace(root, registerFixture);
-  const provider = await startMockOpenCode();
+  const provider = await startMockOpenAi();
   try {
     const preload = path.join(root, 'fake-binary-spawn-loader.mjs');
     fs.writeFileSync(preload, `
@@ -243,11 +232,10 @@ syncBuiltinESMExports();
     const baseEnv = {
       ...process.env,
       FLUCTO_TEST_FFMPEG_PATH: workspace.ffmpegPath,
-      FLUCTO_VISION_PROVIDER: 'opencode-local',
+      FLUCTO_VISION_PROVIDER: 'openai',
       FLUCTO_VISION_BASE_URL: provider.baseURL,
+      FLUCTO_VISION_API_KEY: API_KEY,
       FLUCTO_VISION_MODEL: 'mock-vision',
-      FLUCTO_OPENCODE_SERVER_USERNAME: USER,
-      FLUCTO_OPENCODE_SERVER_PASSWORD: PASSWORD,
     };
     const invoke = async (outputBase, allowVision) => {
       const args = ['--import', electronLoader, '--import', preload, cliEntry, 'analyze', workspace.videoPath,
@@ -266,8 +254,7 @@ syncBuiltinESMExports();
     const consented = await invoke(path.join(root, 'allowed-output'), true);
     assert.equal(consented.report.labeledShots, 2);
     assert.equal(consented.report.visionSummary.attemptedModelCalls, 2);
-    assert.equal(provider.calls.sessions, 2);
-    assert.equal(provider.calls.messages, 2);
+    assert.equal(provider.calls.requests, 2);
     assert.equal(provider.calls.receivedFrames, 6);
     assert.equal(provider.calls.authFailures, 0);
     const consentedArtifacts = readRun(workspace, consented.outputDir);
@@ -280,8 +267,8 @@ syncBuiltinESMExports();
     assert.equal(denied.report.labeledShots, 0);
     assert.equal(denied.report.signalOnlyShots, 2);
     assert.equal(denied.report.visionSummary.attemptedModelCalls, 0);
-    assert.equal(provider.calls.sessions, 2, 'without --allow-vision-api CLI must make no provider requests');
-    assert.equal(provider.calls.messages, 2);
+    assert.equal(provider.calls.requests, 2, 'without --allow-vision-api CLI must make no provider requests');
+    assert.equal(provider.calls.requests, 2);
     assert.equal(provider.calls.receivedFrames, 6);
     const deniedArtifacts = readRun(workspace, denied.outputDir);
     assert.ok(deniedArtifacts.json.shots.every((shot) => shot.visionOutcome === 'not-requested'));
@@ -294,11 +281,11 @@ syncBuiltinESMExports();
   }
 });
 
-test('runCraftAnalysis aborts on embedded OpenCode 403 and reports partial orchestration consistently', async () => {
+test('runCraftAnalysis aborts on provider HTTP 403 and reports partial orchestration consistently', async () => {
   const registerFixture = createExecutableFixtures();
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'flucto-cinematic-rejected-'));
   const workspace = makeWorkspace(root, registerFixture);
-  const provider = await startMockOpenCode({ reject: true });
+  const provider = await startMockOpenAi({ reject: true });
   try {
     const result = await run(workspace, provider);
     assert.equal(result.success, true);
@@ -306,8 +293,7 @@ test('runCraftAnalysis aborts on embedded OpenCode 403 and reports partial orche
     assert.equal(result.labeledShots, 0);
     assert.equal(result.signalOnlyShots, 2);
     assert.equal(result.visionSummary.attemptedModelCalls, 1);
-    assert.equal(provider.calls.sessions, 1);
-    assert.equal(provider.calls.messages, 1);
+    assert.equal(provider.calls.requests, 1);
     assert.equal(provider.calls.receivedFrames, 3);
     assert.equal(provider.calls.authFailures, 0);
     assert.deepEqual(provider.handlerErrors, []);

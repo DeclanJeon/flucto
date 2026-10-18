@@ -654,8 +654,8 @@ export const runCraftAnalysis = async (
       frameRequestAttempted: observations.some((shot) => shot.frameRequestAttempted),
       frameRequestResponseReceived: observations.some((shot) => shot.frameRequestResponseReceived),
       externalFrameRequestAttempted: observations.some((shot) => shot.frameRequestDestination === 'external-provider' || shot.frameRequestDestination === 'codex-cli'),
-      localServerFrameRequestAttempted: observations.some((shot) => shot.frameRequestDestination === 'local-server' || shot.frameRequestDestination === 'codex-cli'),
-      externalOnwardTransmission: observations.some((shot) => shot.frameRequestDestination === 'local-server' || shot.frameRequestDestination === 'codex-cli') ? null : false,
+      localServerFrameRequestAttempted: observations.some((shot) => shot.frameRequestDestination === 'codex-cli'),
+      externalOnwardTransmission: observations.some((shot) => shot.frameRequestAttempted) ? null : false,
     },
   });
 
@@ -684,8 +684,8 @@ export const runCraftAnalysis = async (
       frameRequestAttempted: observations.some((shot) => shot.frameRequestAttempted),
       frameRequestResponseReceived: observations.some((shot) => shot.frameRequestResponseReceived),
       externalFrameRequestAttempted: observations.some((shot) => shot.frameRequestDestination === 'external-provider' || shot.frameRequestDestination === 'codex-cli'),
-      localServerFrameRequestAttempted: observations.some((shot) => shot.frameRequestDestination === 'local-server' || shot.frameRequestDestination === 'codex-cli'),
-      externalOnwardTransmission: observations.some((shot) => shot.frameRequestDestination === 'local-server' || shot.frameRequestDestination === 'codex-cli') ? null : false,
+      localServerFrameRequestAttempted: observations.some((shot) => shot.frameRequestDestination === 'codex-cli'),
+      externalOnwardTransmission: observations.some((shot) => shot.frameRequestAttempted) ? null : false,
     },
     matchedTechniqueCount: aggregation.rows.length,
     ...(counters.visionNote ? { error: counters.visionNote } : {}),

@@ -1,5 +1,7 @@
 # Cinematic Craft Analysis: Real-Provider QA and Accuracy Work Order
 
+> **Current scope:** OpenCode runtime support was retired; historical OpenCode QA below documents past runs only. The application now offers Codex CLI subscription auth (desktop and CLI) and explicitly configured OpenAI-compatible endpoints (CLI). The post-retirement build/test/package matrix still needs rerunning. No provider integration establishes analysis accuracy.
+
 - Status: proposed implementation plan; not a release sign-off
 - Owner: Flucto cinematic-analysis maintainer
 - Model for delegated Pi work: `openai-codex/gpt-6-luna`
@@ -145,6 +147,6 @@ The initial user-authorized three-call smoke with `gpt-6-luna` returned zero lab
 
 The successful run output is under `/tmp/flucto-codex-corrected-smoke/AI_병맛_로판_EP.4_빙의는_했는데_얼굴이_따라왔습니다-craft-20261019-034718/`. It was generated before fixing a report attribution defect and says `opencode/gpt-6-luna` although Codex CLI was used. The source and mock test are now corrected to report `codex-cli/gpt-6-luna`; do not treat the old artifact's provider name as accurate. The failed-run artifact's `externalOnwardTransmission:false` is also stale; transmission is unknown.
 
-Still open: WP1 Windows/Linux arm64/macOS native archive and package smoke plus GPL redistribution review; WP2 bundled OpenCode auth smoke on native packages and visual boundary/scene quality validation; WP5 rights-cleared human-reviewed benchmark and accuracy review. Do not retry the OpenCode gateway to evade its abuse block. Accuracy claims remain blocked until an approved benchmark exists.
+Still open: Windows/Linux arm64/macOS native archive and package smoke plus GPL redistribution review; provider-specific package validation and visual boundary/scene quality validation; rights-cleared human-reviewed benchmark and accuracy review. Accuracy claims remain blocked until an approved benchmark exists.
 
 Unrelated prior changes remain preserved in `stash@{0}`; do not apply or delete them wholesale. Review the complete diff and stage only intentional files.

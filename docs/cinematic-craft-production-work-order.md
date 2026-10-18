@@ -208,17 +208,17 @@ M5 이전에 “영상만 넣으면 완전한 제작법/실제 사용 도구를 
 ### 현재 작업 세션에서 구현한 기반
 
 - `schemas/analysis-run.v1.schema.json`: 근거 연결형 JSON 계약 초안. `analysis.json` 산출, 런타임 JSON Schema 검증(Ajv), ID/증거 교차 참조 검증이 구현되었고 CSV 세트는 해당 JSON과 같은 분석 결과에서 생성된다. 권리 확인 gold-set 기반 정확도 평가는 아직 없다.
-- OpenCode 바이너리 빌드 준비: 공식 릴리스의 OS/아키텍처별 바이너리를 pinned version + pinned SHA-256으로 검증해 앱 `bin` 리소스에 포함. 현재 pin은 `1.19.3`; macOS universal에는 두 아키텍처 바이너리를 각각 포함한다.
-- `OpenCodeRuntime`: loopback-only 인증 서버, 격리 설정·홈·데이터·상태·캐시 경로, provider API key의 런타임 전달, 종료 시 임시 데이터 정리.
-- 모델 목록은 OpenCode `/provider` 카탈로그에서 이미지 입력, 양쪽 가격 0, 이름/ID의 명시적 free 표기를 모두 확인한 항목만 선택지로 제공한다. 카탈로그 가격은 무료 사용·접근·쿼터를 보장하지 않으며 공급자별 실제 조건을 확인해야 한다.
-- AI 설정 UI: provider/model 선택, 강도, API key 입력/교체/삭제. 키는 OS keychain-backed Electron safeStorage 사용 가능 시에만 저장하고 plaintext fallback은 금지한다.
+- 과거 OpenCode 기반 구현은 gateway의 403 및 GitHub asset-resolution 403 이후 제거했다. 과거 런타임·패키지 설정은 더 이상 제품 지원이나 릴리스 전제조건이 아니다.
+- 현재 vision 경로는 선택형 OpenAI-compatible API 또는 Codex CLI App Server이며, 외부 프레임 전송은 매 실행 동의가 필요하다. Codex 인증/요청은 Flucto에 복사·저장하지 않으며, downstream 전달 여부는 알 수 없다.
+- Provider 응답 및 모델-reported confidence는 검증된 사실/정확도 증거가 아니다. 비용, 접근성, 쿼터, 라벨 정확도는 공급자별·인간 검토 벤치마크로 확인해야 한다.
+- Desktop AI 설정 UI는 Codex CLI 모델 선택과 executable path만 관리한다. CLI에서도 명시적 환경 변수로 OpenAI-compatible provider를 구성할 수 있다; API keys는 Flucto settings에 저장하지 않는다.
 - Desktop 로컬 파일 또는 HTTPS 지원 플랫폼 URL 분석 경로와 매 실행별 외부 프레임 전송 동의를 추가했다. URL은 권한 확인 후 다운로드하며 원본은 결과 폴더 `source/`에 남는다.
 - 프레임 추출을 샷 초반 연속 프레임에서 샷 구간에 분산된 대표 샘플로 변경하고 JPEG stdout pipe 크기 상한을 적용했다. luma 신호는 2 Hz, RMS는 48k-sample windows로 제한해 고해상도·장시간 입력 메모리 폭증 위험을 낮췄다.
 - Windows 경로를 Linux 테스트에서 처리하지 못하던 ffprobe 경로 조합 버그 수정.
 
 ### 아직 남은 필수 작업
 
-이 기반은 운영 가능한 완료 상태가 아니다. 샘플 MP4의 실제 ffmpeg 분석·전체 CSV/JSON 산출 및 schema validation은 실행했지만, OpenCode 실제 provider 프레임/API 호출 E2E, 전체 지원 플랫폼의 설치·업데이트 검증, 권리 승인 gold-set 및 정확도 평가, 경계/씬 분할 정확도, 광학 흐름·의미 오디오, taxonomy 검토, 영상 생성 모델 후보 검증, 비용/접근성·예산 설정, 취소/재개, 편집 가능한 사용자 리뷰 UI, SSRF/악성 미디어 방어 및 보안·운영 게이트는 미완료다. 현재 도구 추천은 제한적이다. 공식 기능 출처를 연결한 DaVinci Resolve 편집기 추천과 명시적 CGI/애니메이션 추정 시 Blender 후보만 생성하며, 가격/라이선스는 unknown이다. 영상 생성 모델 capability가 실제 검증되지 않았으므로 생성 모델을 추천하지 않는다. 아래 릴리스 체크리스트는 미완료 상태로 유지한다.
+이 기반은 운영 가능한 완료 상태가 아니다. 샘플 MP4의 실제 ffmpeg 분석·전체 CSV/JSON 산출 및 schema validation은 실행했지만, OpenAI-compatible/Codex provider 확인, 전체 지원 플랫폼의 설치·업데이트 검증, GPL redistribution/legal review, 권리 승인 gold-set 및 정확도 평가, 경계/씬 분할 정확도, 광학 흐름·의미 오디오, taxonomy 검토, 영상 생성 모델 후보 검증, 비용/접근성·예산 설정, 취소/재개, 편집 가능한 사용자 리뷰 UI, SSRF/악성 미디어 방어 및 보안·운영 게이트는 미완료다. 현재 도구 추천은 제한적이다. 공식 기능 출처를 연결한 DaVinci Resolve 편집기 추천과 명시적 CGI/애니메이션 추정 시 Blender 후보만 생성하며, 가격/라이선스는 unknown이다. 영상 생성 모델 capability가 실제 검증되지 않았으므로 생성 모델을 추천하지 않는다. 아래 릴리스 체크리스트는 미완료 상태로 유지한다.
 
 ## 9. 최종 릴리스 체크리스트
 

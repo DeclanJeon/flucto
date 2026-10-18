@@ -43,16 +43,8 @@ export class VisionProviderError extends Error {
 /**
  * Env-contract (external API, not inferable from code):
  * provider=openai: BASE_URL + API_KEY + MODEL all required.
- * provider=opencode-local: local `opencode serve`; MODEL and authenticated loopback credentials required.
  * provider=codex-cli: authenticated local Codex CLI app-server; MODEL required, no Flucto API key.
  */
-export const validateOpenCodeLocalEndpoint = (baseURL: string): void => {
-  let url: URL;
-  try { url = new URL(baseURL); } catch { throw new Error('OpenCode local server URL must be an HTTP loopback URL.'); }
-  if (url.protocol !== 'http:' || !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname.toLowerCase()) || url.username || url.password) {
-    throw new Error('OpenCode local server URL must be an HTTP loopback URL.');
-  }
-};
 
 export const resolveVisionProviderConfig = (env: NodeJS.ProcessEnv = process.env): VisionProviderConfig | null => {
   const providerRaw = env.FLUCTO_VISION_PROVIDER?.trim().toLowerCase() ?? '';
@@ -64,23 +56,8 @@ export const resolveVisionProviderConfig = (env: NodeJS.ProcessEnv = process.env
       ...(env.FLUCTO_CODEX_PATH?.trim() ? { codexPath: env.FLUCTO_CODEX_PATH.trim() } : {}),
     };
   }
-  const provider = providerRaw === 'opencode-local' ? 'opencode-local' as const : 'openai' as const;
-  if (provider === 'opencode-local') {
-    const baseURL = env.FLUCTO_VISION_BASE_URL?.trim() || 'http://127.0.0.1:4096';
-    const serverUsername = env.FLUCTO_OPENCODE_SERVER_USERNAME?.trim() ?? '';
-    const serverPassword = env.FLUCTO_OPENCODE_SERVER_PASSWORD ?? '';
-    validateOpenCodeLocalEndpoint(baseURL);
-    if (!serverUsername || !serverPassword) return null;
-    return {
-      provider,
-      baseURL,
-      model: model.replace(/^opencode\//i, ''),
-      apiKey: env.FLUCTO_VISION_API_KEY?.trim() ?? '',
-      serverUsername,
-      serverPassword,
-      variant: env.FLUCTO_VISION_VARIANT?.trim() || 'low',
-    };
-  }
+  if (providerRaw && providerRaw !== 'openai') return null;
+  const provider = 'openai' as const;
   const baseURL = env.FLUCTO_VISION_BASE_URL?.trim() ?? '';
   const apiKey = env.FLUCTO_VISION_API_KEY?.trim() ?? '';
   if (!baseURL || !apiKey) return null;
@@ -173,15 +150,6 @@ const safeHttpError = (status: number): VisionProviderError => new VisionProvide
   status === 401 || status === 403 ? 'provider-rejected' : status === 404 || status === 503 ? 'provider-unavailable' : 'http-error',
 );
 
-const openCodeResponseFailure = (payload: unknown): VisionFailureCode | null => {
-  if (!payload || typeof payload !== 'object') return null;
-  const error = (payload as { info?: { error?: unknown } }).info?.error;
-  if (!error || typeof error !== 'object') return null;
-  const status = (error as { data?: { statusCode?: unknown } }).data?.statusCode;
-  if (typeof status !== 'number') return 'http-error';
-  return status === 401 || status === 403 ? 'provider-rejected' : status === 404 || status === 503 ? 'provider-unavailable' : 'http-error';
-};
-
 const dataUrl = (frame: VisionRequestFrame): { type: 'image_url'; image_url: { url: string } } => ({
   type: 'image_url',
   image_url: { url: `data:${frame.mime};base64,${frame.base64}` },
@@ -192,86 +160,6 @@ const shotContextText = (signals: ShotSignals, frameCount: number): string => [
   `cut_score_max=${signals.cutScoreMax} luma_mean=${signals.lumaMean} luma_std=${signals.lumaStddev}`,
   `brightness_trend=${signals.brightnessTrend}. ${frameCount} sampled frame(s) follow.`,
 ].join('\n');
-
-export const buildOpencodePromptPayload = (
-  config: VisionProviderConfig,
-  frames: VisionRequestFrame[],
-  signals: ShotSignals,
-): unknown => ({
-  model: { providerID: config.providerID ?? 'opencode', modelID: config.model },
-  variant: config.variant ?? 'low',
-  parts: [
-    { type: 'text', text: `${shotContextText(signals, frames.length)}\n\n${SYSTEM_PROMPT}` },
-    ...frames.map((frame) => ({ type: 'file', mime: frame.mime, url: `data:${frame.mime};base64,${frame.base64}` })),
-  ],
-});
-
-const extractTextPart = (payload: unknown): string | null => {
-  const parts = (payload as { parts?: Array<{ type?: unknown; text?: unknown }> }).parts;
-  if (!Array.isArray(parts)) return null;
-  const part = parts.find(
-    (entry) => entry.type === 'text' && typeof entry.text === 'string' && entry.text.trim().length > 0,
-  );
-  return part ? (part.text as string) : null;
-};
-
-export const labelShotFramesOpencodeLocal = async (
-  config: VisionProviderConfig,
-  frames: VisionRequestFrame[],
-  signals: ShotSignals,
-  counter: VisionApiCallCounter,
-  fetchImpl: typeof fetch = fetch,
-): Promise<VisionApiCallResult> => {
-  if (frames.length === 0) return { labels: null, apiCallsUsed: 0 };
-  validateOpenCodeLocalEndpoint(config.baseURL);
-  if (!config.serverUsername || !config.serverPassword) throw new Error('OpenCode local server credentials are required.');
-  if (counter.used >= counter.limit) {
-    throw new VisionBudgetExceededError(counter.used, counter.limit);
-  }
-  const headers: Record<string, string> = { 'content-type': 'application/json' };
-  headers.authorization = `Basic ${Buffer.from(`${config.serverUsername}:${config.serverPassword}`).toString('base64')}`;
-  const base = config.baseURL.replace(/\/+$/, '');
-  const requestTimeout = AbortSignal.timeout(120_000);
-  let sessionResponse: Response;
-  try {
-    sessionResponse = await fetchImpl(`${base}/session`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ title: 'flucto-vision' }),
-      signal: requestTimeout,
-      redirect: 'manual',
-    });
-  } catch (error) { throw new VisionProviderError(failureCodeFor(error)); }
-  if (!sessionResponse.ok) throw safeHttpError(sessionResponse.status);
-  let sessionId: unknown;
-  try { sessionId = (await sessionResponse.json() as { id?: unknown }).id; } catch { throw new VisionProviderError('malformed-response'); }
-  if (typeof sessionId !== 'string' || sessionId.length === 0) {
-    throw new VisionProviderError('malformed-response');
-  }
-  counter.used += 1;
-  counter.onFrameRequest?.('local-server');
-  let messageResponse: Response;
-  try {
-    messageResponse = await fetchImpl(`${base}/session/${sessionId}/message`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(buildOpencodePromptPayload(config, frames, signals)),
-    signal: requestTimeout,
-    redirect: 'manual',
-    });
-  } catch (error) { throw new VisionProviderError(failureCodeFor(error)); }
-  counter.onFrameResponseReceived?.();
-  if (!messageResponse.ok) throw safeHttpError(messageResponse.status);
-  let payload: unknown;
-  try { payload = await messageResponse.json(); } catch { return { labels: null, apiCallsUsed: 1, failureCode: 'malformed-response' }; }
-  const responseFailure = openCodeResponseFailure(payload);
-  if (responseFailure) return { labels: null, apiCallsUsed: 1, failureCode: responseFailure };
-  const text = extractTextPart(payload);
-  if (text === null) return { labels: null, apiCallsUsed: 1, failureCode: 'malformed-response' };
-  const parsed = parseVisionCompletionJson(text);
-  if (!parsed.labels) return { labels: null, apiCallsUsed: 1, failureCode: parsed.rawConfidence === null ? 'malformed-response' : undefined };
-  return { labels: hasSemanticLabels(parsed.labels) ? parsed.labels : null, apiCallsUsed: 1 };
-};
 
 export const labelShotFramesOpenai = async (
   config: VisionProviderConfig,
@@ -370,7 +258,6 @@ export const labelShotFrames = (
   fetchImpl: typeof fetch = fetch,
   codexOptions: import('./codexVisionRuntime.js').CodexAppServerOptions = {},
 ): ReturnType<typeof labelShotFramesOpenai> => {
-  if (config.provider === 'opencode-local') return labelShotFramesOpencodeLocal(config, frames, signals, counter, fetchImpl);
   if (config.provider === 'codex-cli') return labelShotFramesCodexCli(config, frames, signals, counter, codexOptions);
   return labelShotFramesOpenai(config, frames, signals, counter, fetchImpl);
 };

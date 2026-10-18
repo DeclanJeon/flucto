@@ -23,11 +23,11 @@ type FluctoSettingsStore = {
   lastAppUpdateCheckAt: number;
   /** safeStorage-encrypted GitHub token (or `plain:`-prefixed fallback) used to star the repo. */
   githubTokenCipher: string;
-  /** OpenCode provider selection and safeStorage-encrypted user API key. */
   codexVision: { modelID: string; binaryPath: string };
-  openCodeVision: { providerID: string; modelID: string; variant: 'low' | 'medium' | 'high' };
-  openCodeApiKeyCipher: string;
-  openCodeApiKeyProvider: string;
+  /** Legacy keys are typed only so they can be removed during migration. */
+  openCodeVision?: { providerID: string; modelID: string; variant: 'low' | 'medium' | 'high' };
+  openCodeApiKeyCipher?: string;
+  openCodeApiKeyProvider?: string;
   downloadSettings: {
     downloadsDirectory: string | null;
     qualityPreferences: DownloadQualityPreferences;
@@ -47,14 +47,15 @@ export const settingsStore = new Store<FluctoSettingsStore>({
     lastAppUpdateCheckAt: 0,
     githubTokenCipher: '',
     codexVision: { modelID: '', binaryPath: '' },
-    openCodeVision: { providerID: '', modelID: '', variant: 'low' },
-    openCodeApiKeyCipher: '',
-    openCodeApiKeyProvider: '',
     downloadSettings: getDownloadSettingsDefaults(),
     transcriptSettings: getTranscriptSettingsDefaults(),
   },
 });
 
+// Remove credentials/settings from the retired OpenCode vision integration.
+settingsStore.delete('openCodeVision');
+settingsStore.delete('openCodeApiKeyCipher');
+settingsStore.delete('openCodeApiKeyProvider');
 
 const isLegacyUpdateSettings = (value: unknown): value is {
   autoUpdate: boolean;

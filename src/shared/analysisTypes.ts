@@ -181,17 +181,12 @@ export interface AnalysisBudget {
 }
 
 export interface VisionProviderRequestConfig {
-  provider: 'openai' | 'opencode-local' | 'codex-cli';
+  provider: 'openai' | 'codex-cli';
   /** Optional path to the user's authenticated Codex CLI executable. */
   codexPath?: string;
   baseURL: string;
   model: string;
   apiKey: string;
-  variant?: string;
-  /** OpenCode provider namespace for non-default providers. */
-  providerID?: string;
-  serverUsername?: string;
-  serverPassword?: string;
 }
 
 export interface AnalysisRequest {

@@ -279,22 +279,6 @@ export interface DownloadProgress {
 
 
 
-export interface OpenCodeFreeVisionModel {
-  providerID: string;
-  modelID: string;
-  name: string;
-  free: true;
-  acceptsImages: true;
-  contextLimit: number | null;
-}
-
-export interface OpenCodeVisionSettings {
-  providerID: string;
-  modelID: string;
-  variant: 'low' | 'medium' | 'high';
-  hasApiKey: boolean;
-}
-
 export interface CodexVisionModel {
   id: string;
   name: string;
@@ -441,9 +425,6 @@ export interface IElectronAPI {
   getCodexVisionSettings: () => Promise<CodexVisionSettings>;
   saveCodexVisionSettings: (settings: CodexVisionSettings) => Promise<void>;
   listCodexVisionModels: (binaryPath?: string) => Promise<CodexVisionModel[]>;
-  getOpenCodeVisionSettings: () => Promise<OpenCodeVisionSettings>;
-  saveOpenCodeVisionSettings: (settings: { providerID: string; modelID: string; variant: 'low' | 'medium' | 'high'; apiKey?: string; clearApiKey?: boolean }) => Promise<void>;
-  listOpenCodeFreeVisionModels: () => Promise<OpenCodeFreeVisionModel[]>;
   pickAnalysisVideo: () => Promise<string | null>;
   pickAnalysisCraftDirectory: () => Promise<string | null>;
   getDefaultAnalysisOutputDirectory: () => Promise<string>;

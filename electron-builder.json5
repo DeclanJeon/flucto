@@ -22,7 +22,7 @@
     {
       from: "bin",
       to: "bin",
-      filter: ["**/*"]
+      filter: ["**/*", "!opencode/**/*"]
     }
   ],
 

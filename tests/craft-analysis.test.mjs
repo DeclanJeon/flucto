@@ -31,13 +31,10 @@ import {
   BookExtractValidationError,
 } from '../dist-electron/main/services/craftTaxonomy.js';
 import { parseSignalHint, matchTechniques, aggregateTechniqueUsage, groupShotsIntoScenes, advanceVisionErrorStreak, shouldAbortVisionRun } from '../dist-electron/main/services/cinematicAnalysis.js';
-import { parseOpenCodeProviders } from '../dist-electron/main/services/openCodeRuntime.js';
 import { writeStructuredAnalysisReport, assertAnalysisReferences } from '../dist-electron/main/services/analysisReport.js';
 import {
   parseVisionCompletionJson,
   resolveVisionProviderConfig,
-  validateOpenCodeLocalEndpoint,
-  buildOpencodePromptPayload,
   labelShotFrames,
   VISION_CONFIDENCE_FLOOR,
 } from '../dist-electron/main/services/visionProvider.js';
@@ -265,9 +262,9 @@ test('structured report emits evidence-linked JSON and CSVs without persisting f
       labels: { shotSize: 'medium', confidence: 0.8 }, visionOutcome: 'labeled', frameRequestAttempted: true, frameRequestResponseReceived: true, frameRequestDestination: 'external-provider', matchedTechniqueIds: [technique.techniqueId],
       matchedEvidence: ['scene observation'], unmatchedAnchors: [], analysisStatus: 'labeled',
     };
-    const secondObservation = { ...observation, shotId: 'S002', index: 1, startS: 2, endS: 4, durationS: 2, startTimecode: '00:00:02.000', endTimecode: '00:00:04.000', labels: {}, visionOutcome: 'request-failed', visionFailureCode: 'http-error', frameRequestResponseReceived: true, frameRequestDestination: 'local-server', outgoingBoundaryCandidate: null, analysisStatus: 'signal-only' };
+    const secondObservation = { ...observation, shotId: 'S002', index: 1, startS: 2, endS: 4, durationS: 2, startTimecode: '00:00:02.000', endTimecode: '00:00:04.000', labels: {}, visionOutcome: 'request-failed', visionFailureCode: 'http-error', frameRequestResponseReceived: true, frameRequestDestination: 'codex-cli', outgoingBoundaryCandidate: null, analysisStatus: 'signal-only' };
     const result = await writeStructuredAnalysisReport({
-      request: { videoPath, sourceUrl: 'https://www.youtube.com/watch?v=test&list=private-list&token=secret#fragment', craftDir: tempDir, outputDir, budget: { maxFramesPerShot: 3, maxApiCalls: 1 }, vision: { enabled: true, provider: { provider: 'opencode-local', providerID: 'opencode', baseURL: 'http://127.0.0.1:1', model: 'vision-free', apiKey: '' } }, sceneThreshold: 0.3 },
+      request: { videoPath, sourceUrl: 'https://www.youtube.com/watch?v=test&list=private-list&token=secret#fragment', craftDir: tempDir, outputDir, budget: { maxFramesPerShot: 3, maxApiCalls: 1 }, vision: { enabled: true, provider: { provider: 'codex-cli', baseURL: '', model: 'gpt-6-luna', apiKey: '' } }, sceneThreshold: 0.3 },
       probe: { path: videoPath, durationS: 4, width: 640, height: 360, fps: 30, hasAudio: false },
       observations: [observation, secondObservation], taxonomyRows: [technique], segmentationMode: { mode: 'full', reason: null }, startedAt: new Date(0).toISOString(),
       visionSummary: { attemptedModelCalls: 2, modelCallLimit: 2, labeledShots: 1, signalOnlyShots: 1, partialReasons: ['http-error'], frameRequestAttempted: true, frameRequestResponseReceived: true, externalFrameRequestAttempted: true, localServerFrameRequestAttempted: true, externalOnwardTransmission: null },
@@ -290,8 +287,8 @@ test('structured report emits evidence-linked JSON and CSVs without persisting f
     assert.equal(frameEvidence[0].requestDestination, 'external-provider');
     assert.equal(frameEvidence[0].frameRequestResponseReceived, true);
     assert.equal(frameEvidence[0].transmittedExternally, true);
-    assert.equal(frameEvidence[0].externalOnwardTransmission, false);
-    assert.equal(frameEvidence[1].requestDestination, 'local-server');
+    assert.equal(frameEvidence[0].externalOnwardTransmission, null);
+    assert.equal(frameEvidence[1].requestDestination, 'codex-cli');
     assert.equal(frameEvidence[1].frameRequestResponseReceived, true);
     assert.equal(frameEvidence[1].transmittedExternally, null);
     assert.equal(frameEvidence[1].externalOnwardTransmission, null);
@@ -323,7 +320,7 @@ test('structured report emits evidence-linked JSON and CSVs without persisting f
     assert.equal(JSON.parse(shotRows[1].claims).shotSize.confidence, null);
     assert.equal(shotRows[0].vision_outcome, 'labeled');
     assert.equal(shotRows[1].vision_failure_code, 'http-error');
-    assert.equal(shotRows[1].frame_request_destination, 'local-server');
+    assert.equal(shotRows[1].frame_request_destination, 'codex-cli');
     const evidenceRows = parseCsvWithColumns(fs.readFileSync(path.join(outputDir, 'evidence.csv'), 'utf8'));
     const frameEvidenceRow = evidenceRows.find((row) => row.kind === 'frame');
     assert.equal(frameEvidenceRow.frameRequestAttempted, 'true');
@@ -482,90 +479,14 @@ test('vision completion parse locks the schema and demotes low confidence to UNK
   assert.equal(parseVisionCompletionJson('[1,2,3]').labels, null);
 });
 
-test('vision config resolution: opencode-local needs only a model and drops the opencode/ prefix', () => {
-  const local = resolveVisionProviderConfig({
-    FLUCTO_VISION_PROVIDER: 'opencode-local',
-    FLUCTO_VISION_MODEL: 'opencode/glm-5.3-flash-free',
-    FLUCTO_OPENCODE_SERVER_USERNAME: 'flucto',
-    FLUCTO_OPENCODE_SERVER_PASSWORD: 'test-only',
-  });
-  assert.equal(local?.provider, 'opencode-local');
-  assert.equal(local?.baseURL, 'http://127.0.0.1:4096');
-  assert.equal(local?.model, 'glm-5.3-flash-free');
-  assert.equal(local?.variant, 'low');
-  assert.equal(local?.apiKey, '');
-
-  assert.deepEqual(
-    resolveVisionProviderConfig({
-      FLUCTO_VISION_PROVIDER: 'opencode-local',
-      FLUCTO_VISION_BASE_URL: 'http://127.0.0.1:7777',
-      FLUCTO_VISION_MODEL: ' nemotron-3.5-super-vl-free ',
-      FLUCTO_VISION_VARIANT: 'none',
-      FLUCTO_OPENCODE_SERVER_USERNAME: 'user',
-      FLUCTO_OPENCODE_SERVER_PASSWORD: 'pass',
-    }),
-    { provider: 'opencode-local', baseURL: 'http://127.0.0.1:7777', model: 'nemotron-3.5-super-vl-free', apiKey: '', serverUsername: 'user', serverPassword: 'pass', variant: 'none' },
-  );
-
-  assert.equal(resolveVisionProviderConfig({ FLUCTO_VISION_PROVIDER: 'opencode-local', FLUCTO_VISION_MODEL: 'm' }), null);
-  assert.deepEqual(resolveVisionProviderConfig({ FLUCTO_VISION_PROVIDER: 'codex-cli', FLUCTO_VISION_MODEL: 'gpt-6-luna', FLUCTO_CODEX_PATH: '/usr/local/bin/codex' }), { provider: 'codex-cli', baseURL: '', model: 'gpt-6-luna', apiKey: '', codexPath: '/usr/local/bin/codex' });
-  assert.throws(() => validateOpenCodeLocalEndpoint('https://127.0.0.1:4096'), /HTTP loopback/);
-  assert.throws(() => validateOpenCodeLocalEndpoint('http://192.168.1.5:4096'), /HTTP loopback/);
-  assert.throws(() => validateOpenCodeLocalEndpoint('http://user:pass@127.0.0.1:4096'), /HTTP loopback/);
-  assert.doesNotThrow(() => validateOpenCodeLocalEndpoint('http://127.0.0.1:4096'));
+test('vision config accepts Codex CLI subscription auth and OpenAI-compatible settings', () => {
+  const codex = resolveVisionProviderConfig({ FLUCTO_VISION_PROVIDER: 'codex-cli', FLUCTO_VISION_MODEL: 'gpt-6-luna', FLUCTO_CODEX_PATH: '/usr/local/bin/codex' });
+  assert.deepEqual(codex, { provider: 'codex-cli', baseURL: '', model: 'gpt-6-luna', apiKey: '', codexPath: '/usr/local/bin/codex' });
+  assert.equal(resolveVisionProviderConfig({ FLUCTO_VISION_PROVIDER: 'opencode-local', FLUCTO_VISION_MODEL: 'vision' }), null);
   assert.equal(resolveVisionProviderConfig({}), null);
   assert.equal(resolveVisionProviderConfig({ FLUCTO_VISION_BASE_URL: 'https://api.example/v1', FLUCTO_VISION_API_KEY: 'k' }), null);
-  assert.equal(resolveVisionProviderConfig({ FLUCTO_VISION_BASE_URL: 'https://api.example/v1', FLUCTO_VISION_API_KEY: '', FLUCTO_VISION_MODEL: 'm' }), null);
-
-  const openai = resolveVisionProviderConfig({ FLUCTO_VISION_BASE_URL: 'https://api.example/v1', FLUCTO_VISION_API_KEY: 'k', FLUCTO_VISION_MODEL: 'vl-model' });
+  const openai = resolveVisionProviderConfig({ FLUCTO_VISION_PROVIDER: 'openai', FLUCTO_VISION_BASE_URL: 'https://api.example/v1', FLUCTO_VISION_API_KEY: 'k', FLUCTO_VISION_MODEL: 'vl-model' });
   assert.deepEqual(openai, { provider: 'openai', baseURL: 'https://api.example/v1', model: 'vl-model', apiKey: 'k' });
-});
-
-test('OpenCode catalog requires an explicit free label and zero-cost image-input metadata', () => {
-  const models = parseOpenCodeProviders({ all: [
-    { id: 'provider-a', models: {
-      vision: { id: 'vision', name: 'Free Vision', cost: { input: 0, output: 0 }, capabilities: { input: { image: true } }, limit: { context: 8192 } },
-      text: { id: 'text', cost: { input: 0, output: 0 }, capabilities: { input: { image: false } } },
-      paid: { id: 'paid', cost: { input: 1, output: 1 }, capabilities: { input: { image: true } } },
-      unknownPrice: { id: 'unknownPrice', cost: {}, capabilities: { input: { image: true } } },
-      unpriced: { id: 'unpriced', name: 'Vision XL', cost: { input: 0, output: 0 }, capabilities: { input: { image: true } } },
-    } },
-    { id: 'provider-b', models: { other: { id: 'other', name: 'Also Free Vision', cost: { input: 0, output: 0 }, capabilities: { input: { image: true } } } } },
-  ] });
-  assert.deepEqual(models.map(({ providerID, modelID, free, acceptsImages }) => ({ providerID, modelID, free, acceptsImages })), [
-    { providerID: 'provider-a', modelID: 'vision', free: true, acceptsImages: true },
-    { providerID: 'provider-b', modelID: 'other', free: true, acceptsImages: true },
-  ]);
-  assert.equal(models[0].contextLimit, 8192);
-  assert.deepEqual(parseOpenCodeProviders({ all: [] }), []);
-});
-
-test('opencode-local payload builder locks provider/model id, variant and data-url file parts', () => {
-  const payload = buildOpencodePromptPayload(
-    { provider: 'opencode-local', baseURL: 'http://127.0.0.1:4096', model: 'glm-5.3-flash-free', apiKey: '', variant: 'low' },
-    [{ base64: 'AAA', mime: 'image/jpeg' }],
-    { cutScoreMax: 0.42, lumaMean: 55, lumaStddev: 7, brightnessTrend: -0.03 },
-  );
-  assert.deepEqual(payload.model, { providerID: 'opencode', modelID: 'glm-5.3-flash-free' });
-  assert.equal(payload.variant, 'low');
-  assert.equal(payload.parts.length, 2);
-  assert.match(payload.parts[0].text, /cut_score_max=0\.42/);
-  assert.match(payload.parts[0].text, /Reply with JSON only/);
-  assert.deepEqual(payload.parts[1], { type: 'file', mime: 'image/jpeg', url: 'data:image/jpeg;base64,AAA' });
-});
-
-test('OpenCode local requests authenticate to the loopback server with its ephemeral Basic auth', async () => {
-  const authorization = [];
-  const fetchImpl = async (_url, init) => {
-    authorization.push(init.headers.authorization);
-    return { ok: true, json: async () => ({ id: 'ses_auth', parts: [{ type: 'text', text: '{"shotSize":"wide","confidence":0.9}' }] }) };
-  };
-  const config = { provider: 'opencode-local', providerID: 'opencode', baseURL: 'http://127.0.0.1:4096', model: 'vision-free', apiKey: '', serverUsername: 'flucto', serverPassword: 'ephemeral-secret' };
-  await labelShotFrames(config, [{ base64: 'QQ==', mime: 'image/jpeg' }], { cutScoreMax: 0.5, lumaMean: 60, lumaStddev: 6, brightnessTrend: 0 }, { used: 0, limit: 5 }, fetchImpl);
-  assert.deepEqual(authorization, [
-    `Basic ${Buffer.from('flucto:ephemeral-secret').toString('base64')}`,
-    `Basic ${Buffer.from('flucto:ephemeral-secret').toString('base64')}`,
-  ]);
 });
 
 test('vision model attempts consume budget on HTTP/network failure without leaking response bodies', async () => {
@@ -592,70 +513,6 @@ test('vision model attempts consume budget on HTTP/network failure without leaki
   assert.equal(networkResponseReceived, false);
 });
 
-test('OpenCode session creation is not a model call, but failed message attempts consume budget', async () => {
-  const frames = [{ base64: 'QQ==', mime: 'image/jpeg' }];
-  const signals = { cutScoreMax: 0.5, lumaMean: 60, lumaStddev: 6, brightnessTrend: 0 };
-  const config = { provider: 'opencode-local', baseURL: 'http://127.0.0.1:4096', model: 'vision', apiKey: 'must-not-be-used', serverUsername: 'user', serverPassword: 'pass' };
-  const sessionCounter = { used: 0, limit: 1 };
-  await assert.rejects(labelShotFrames(config, frames, signals, sessionCounter, async () => ({ ok: false, status: 401, text: async () => 'private body' })), (error) => !error.message.includes('private body'));
-  assert.equal(sessionCounter.used, 0);
-  const messageCounter = { used: 0, limit: 1 };
-  let requests = 0;
-  await assert.rejects(labelShotFrames(config, frames, signals, messageCounter, async () => {
-    requests += 1;
-    return requests === 1 ? { ok: true, json: async () => ({ id: 'session-id' }) } : { ok: false, status: 500, text: async () => 'private body' };
-  }), (error) => error.code === 'http-error' && !error.message.includes('private body'));
-  assert.equal(messageCounter.used, 1);
-  assert.equal(requests, 2);
-});
-
-test('OpenCode surfaces provider rejection responses without leaking gateway details', async () => {
-  const frames = [{ base64: 'QQ==', mime: 'image/jpeg' }];
-  const signals = { cutScoreMax: 0.5, lumaMean: 60, lumaStddev: 6, brightnessTrend: 0 };
-  const config = { provider: 'opencode-local', baseURL: 'http://127.0.0.1:4096', model: 'vision', apiKey: '', serverUsername: 'user', serverPassword: 'pass' };
-  const counter = { used: 0, limit: 1 };
-  let calls = 0;
-  const result = await labelShotFrames(config, frames, signals, counter, async () => {
-    calls += 1;
-    return calls === 1
-      ? { ok: true, json: async () => ({ id: 'session-id' }) }
-      : { ok: true, json: async () => ({ info: { error: { name: 'APIError', data: { statusCode: 403, message: 'Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic' } } }, parts: [] }) };
-  });
-  assert.deepEqual(result, { labels: null, apiCallsUsed: 1, failureCode: 'provider-rejected' });
-  assert.equal(counter.used, 1);
-  assert.equal(calls, 2);
-  assert.equal(JSON.stringify(result).includes('Detect Abuse'), false);
-});
-
-test('OpenCode frame-bearing requests never follow 307 or 308 redirects', async () => {
-  const frames = [{ base64: 'QQ==', mime: 'image/jpeg' }];
-  const signals = { cutScoreMax: 0.5, lumaMean: 60, lumaStddev: 6, brightnessTrend: 0 };
-  const config = { provider: 'opencode-local', baseURL: 'http://127.0.0.1:4096', model: 'vision', apiKey: '', serverUsername: 'user', serverPassword: 'pass' };
-  for (const status of [307, 308]) {
-    const requests = [];
-    const counter = { used: 0, limit: 1 };
-    await assert.rejects(labelShotFrames(config, frames, signals, counter, async (url, init) => {
-      requests.push({ url, init });
-      if (url.endsWith('/session')) return { ok: true, json: async () => ({ id: 'session-id' }) };
-      return { ok: false, status, headers: { get: () => 'http://attacker.invalid/collect' } };
-    }), (error) => error.code === 'http-error');
-    assert.equal(counter.used, 1);
-    assert.equal(requests.length, 2, 'redirect target is never requested');
-    assert.ok(requests.every(({ init }) => init.redirect === 'manual'));
-    assert.match(requests[1].init.body, /data:image\/jpeg;base64,QQ==/);
-
-    let sessionRequests = 0;
-    const sessionCounter = { used: 0, limit: 1 };
-    await assert.rejects(labelShotFrames(config, frames, signals, sessionCounter, async (_url, init) => {
-      sessionRequests += 1;
-      assert.equal(init.redirect, 'manual');
-      return { ok: false, status, headers: { get: () => 'http://attacker.invalid/collect' } };
-    }), (error) => error.code === 'http-error');
-    assert.equal(sessionRequests, 1);
-    assert.equal(sessionCounter.used, 0);
-  }
-});
-
 test('vision parser distinguishes malformed and valid high-confidence empty output', async () => {
   const frames = [{ base64: 'QQ==', mime: 'image/jpeg' }];
   const signals = { cutScoreMax: 0.5, lumaMean: 60, lumaStddev: 6, brightnessTrend: 0 };
@@ -672,39 +529,4 @@ test('vision parser distinguishes malformed and valid high-confidence empty outp
   const empty = await labelShotFrames(config, frames, signals, { used: 0, limit: 2 }, async () => responseFor(JSON.stringify({ shotSize: null, cameraMotion: '', confidence: 0.99 })));
   assert.equal(empty.labels, null);
   assert.equal(empty.failureCode, undefined);
-});
-
-test('opencode-local requires Basic credentials and rejects non-loopback endpoints before requests', async () => {
-  const frames = [{ base64: 'QQ==', mime: 'image/jpeg' }];
-  const signals = { cutScoreMax: 0.5, lumaMean: 60, lumaStddev: 6, brightnessTrend: 0 };
-  let fetchCalled = false;
-  const fetchImpl = async () => { fetchCalled = true; throw new Error('unexpected'); };
-  const missingCredentials = { provider: 'opencode-local', baseURL: 'http://127.0.0.1:4096', model: 'vision', apiKey: 'provider-key' };
-  await assert.rejects(labelShotFrames(missingCredentials, frames, signals, { used: 0, limit: 1 }, fetchImpl), /credentials are required/);
-  const remoteEndpoint = { ...missingCredentials, serverUsername: 'user', serverPassword: 'pass', baseURL: 'http://192.168.1.2:4096' };
-  await assert.rejects(labelShotFrames(remoteEndpoint, frames, signals, { used: 0, limit: 1 }, fetchImpl), /HTTP loopback/);
-  assert.equal(fetchCalled, false);
-});
-
-test('labelShotFrames dispatches opencode-local through session + message endpoints', async () => {
-  const calls = [];
-  const stub = async (url, init) => {
-    calls.push({ url, body: JSON.parse(init.body) });
-    if (url.endsWith('/session')) {
-      return { ok: true, json: async () => ({ id: 'ses_probe' }) };
-    }
-    return {
-      ok: true,
-      json: async () => ({ parts: [{ type: 'text', text: '{"shotSize":"wide","confidence":0.9}' }] }),
-    };
-  };
-  const config = { provider: 'opencode-local', baseURL: 'http://127.0.0.1:4096', model: 'glm-5.3-flash-free', apiKey: '', variant: 'low', serverUsername: 'flucto', serverPassword: 'test-only' };
-  const counter = { used: 0, limit: 5 };
-  const result = await labelShotFrames(config, [{ base64: 'QQ==', mime: 'image/jpeg' }], { cutScoreMax: 0.5, lumaMean: 60, lumaStddev: 6, brightnessTrend: 0 }, counter, stub);
-  assert.equal(counter.used, 1);
-  assert.deepEqual(result, { labels: { confidence: 0.9, shotSize: 'wide' }, apiCallsUsed: 1 });
-  assert.equal(calls.length, 2);
-  assert.equal(calls[0].url, 'http://127.0.0.1:4096/session');
-  assert.equal(calls[1].url, 'http://127.0.0.1:4096/session/ses_probe/message');
-  assert.deepEqual(calls[1].body.model, { providerID: 'opencode', modelID: 'glm-5.3-flash-free' });
 });
