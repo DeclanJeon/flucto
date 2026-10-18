@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog, ipcMain, safeStorage } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, safeStorage } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import { execa } from './spawn.js';
@@ -133,11 +133,21 @@ ipcMain.handle('pick-analysis-craft-directory', async (event) => {
   pickedCraftDir = result.canceled ? null : result.filePaths[0] ?? null;
   return pickedCraftDir;
 });
+const defaultAnalysisOutputDirectory = (): string => path.join(app.getPath('documents'), 'flucto');
+ipcMain.handle('get-default-analysis-output-directory', (event) => {
+  assertTrustedRenderer(event);
+  const outputDir = defaultAnalysisOutputDirectory();
+  fs.mkdirSync(outputDir, { recursive: true });
+  pickedOutputBaseDir = outputDir;
+  return outputDir;
+});
 ipcMain.handle('pick-analysis-output-directory', async (event) => {
   assertTrustedRenderer(event);
-  const result = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] });
-  pickedOutputBaseDir = result.canceled ? null : result.filePaths[0] ?? null;
-  return pickedOutputBaseDir;
+  const defaultPath = pickedOutputBaseDir ?? defaultAnalysisOutputDirectory();
+  fs.mkdirSync(defaultPath, { recursive: true });
+  const result = await dialog.showOpenDialog({ defaultPath, properties: ['openDirectory', 'createDirectory'] });
+  if (!result.canceled) pickedOutputBaseDir = result.filePaths[0] ?? pickedOutputBaseDir;
+  return result.canceled ? null : pickedOutputBaseDir;
 });
 ipcMain.handle('start-craft-analysis', async (event, raw: unknown) => {
   assertTrustedRenderer(event);

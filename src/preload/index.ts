@@ -74,6 +74,7 @@ const api: IElectronAPI = {
   listOpenCodeFreeVisionModels: () => ipcRenderer.invoke('list-opencode-free-vision-models'),
   pickAnalysisVideo: () => ipcRenderer.invoke('pick-analysis-video'),
   pickAnalysisCraftDirectory: () => ipcRenderer.invoke('pick-analysis-craft-directory'),
+  getDefaultAnalysisOutputDirectory: () => ipcRenderer.invoke('get-default-analysis-output-directory'),
   pickAnalysisOutputDirectory: () => ipcRenderer.invoke('pick-analysis-output-directory'),
   startCraftAnalysis: (request) => ipcRenderer.invoke('start-craft-analysis', request),
   onCraftAnalysisProgress: (callback: CraftAnalysisProgressListener) => {

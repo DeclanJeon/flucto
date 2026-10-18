@@ -22,6 +22,13 @@ export function CraftAnalysisPanel() {
     return () => window.api.offCraftAnalysisProgress(onProgress);
   }, []);
 
+  useEffect(() => {
+    if (!open || outputBaseDir) return;
+    window.api.getDefaultAnalysisOutputDirectory()
+      .then(setOutputBaseDir)
+      .catch((cause) => setError(cause instanceof Error ? cause.message : String(cause)));
+  }, [open, outputBaseDir]);
+
   const pick = async (kind: 'video' | 'craft' | 'output') => {
     setError('');
     try {
@@ -75,7 +82,7 @@ export function CraftAnalysisPanel() {
             <label className="block space-y-2 text-xs font-medium text-gray-300"><span>지원 플랫폼 영상 URL (다운로드 후 분석)</span><input type="url" value={videoUrl} onChange={(event) => { setVideoUrl(event.target.value); setVideoPath(''); setConfirmDownload(false); }} placeholder="https://www.youtube.com/watch?v=…" className="w-full rounded-xl border border-white/10 bg-black/35 px-3 py-2.5 text-xs text-gray-300" /></label>
             {videoUrl ? <label className="flex items-start gap-3 rounded-xl border border-amber-300/20 bg-amber-300/5 p-3 text-xs leading-5 text-amber-100"><input type="checkbox" checked={confirmDownload} onChange={(event) => setConfirmDownload(event.target.checked)} className="mt-1 accent-amber-500"/><span>이 URL의 영상 다운로드 권한이 있으며, Flucto가 영상을 내려받아 분석하는 데 동의합니다. 원본 영상은 결과 폴더의 `source` 하위 폴더에 남습니다.</span></label> : picker('분석할 로컬 영상 파일', videoPath, 'video')}
             {picker('Craft taxonomy 폴더 (taxonomy.csv 포함)', craftDir, 'craft')}
-            {picker('결과 저장 폴더', outputBaseDir, 'output')}
+            <div>{picker('결과 저장 폴더', outputBaseDir, 'output')}<p className="mt-1 text-[11px] text-gray-500">기본 위치는 Documents/flucto이며, 찾아보기를 눌러 변경할 수 있습니다.</p></div>
             <label className="flex items-start gap-3 rounded-xl border border-amber-300/20 bg-amber-300/5 p-3 text-xs leading-5 text-amber-100"><input type="checkbox" checked={allowVision} onChange={(event) => setAllowVision(event.target.checked)} className="mt-1 accent-violet-500"/><span><span className="font-semibold">OpenCode 비전 분석 허용</span><br/>샷 대표 프레임이 선택된 제공자에게 전송됩니다. 무료 모델이어도 제공자의 요금/쿼터/약관이 적용됩니다. 체크하지 않으면 프레임은 외부 전송하지 않습니다.</span></label>
             {allowVision && <label className="flex items-center justify-between gap-4 text-xs text-gray-300"><span>최대 모델 호출 수</span><input type="number" min={1} max={1000} value={maxApiCalls} onChange={(event) => setMaxApiCalls(Math.max(1, Math.min(1000, Number(event.target.value) || 1)))} className="w-28 rounded-lg border border-white/10 bg-black/40 px-3 py-2"/></label>}
             {progress && <div className="rounded-xl border border-white/10 bg-black/25 p-3 text-xs text-gray-300"><div className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin text-violet-300" />{progress.stage}: {progress.message ?? '분석 중'} {progress.shotsTotal > 0 && `(${progress.shotsDone}/${progress.shotsTotal})`}</div></div>}

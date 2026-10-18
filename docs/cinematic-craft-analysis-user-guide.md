@@ -19,8 +19,10 @@ The catalog's zero-price status is not a promise of free access: providers can r
 Local file:
 
 ```sh
-flucto analyze ./reference.mp4 --craft ./craft -o ./analyses --json
+flucto analyze ./reference.mp4 --craft ./craft --json
 ```
+
+When `-o` is omitted, analysis outputs default to the user's Documents/`flucto` folder (Linux uses the configured XDG Documents directory when available). Use `-o ./analyses` to override it.
 
 Supported HTTPS URL (download permission is an explicit flag):
 

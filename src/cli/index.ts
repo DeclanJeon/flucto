@@ -48,6 +48,7 @@ import { resolveVisionProviderConfig } from '../main/services/visionProvider.js'
 import type { AnalysisProgress, AnalysisRequest } from '../shared/analysisTypes.js';
 import type { TranscriptMarkdownResponse, TranscriptRequest } from '../shared/types.js';
 import { VIDEO_SEARCH_SITES } from '../shared/videoSearchPlatforms.js';
+import { defaultAnalysisOutputDirectory } from '../shared/analysisOutputPath.js';
 
 const moduleFile = fileURLToPath(import.meta.url);
 const moduleDir = path.dirname(moduleFile);
@@ -55,6 +56,7 @@ const privateInstallRoot = findPrivateInstallRoot(moduleFile);
 
 /** Base output directory (parent). Multi-file jobs create a dedicated subfolder under this. */
 const outputBaseDir = (options: CliOptions): string => path.resolve(options.outputDir ?? process.cwd());
+const analysisOutputBaseDir = (options: CliOptions): string => path.resolve(options.outputDir ?? defaultAnalysisOutputDirectory());
 
 /** @deprecated single-file jobs still write directly into base */
 const outputDir = (options: CliOptions): string => outputBaseDir(options);
@@ -751,7 +753,7 @@ const runAnalyze = async (options: CliOptions): Promise<number> => {
     const deps = { ffmpegPath: binaries.ffmpegPath, onProgress: (progress: AnalysisProgress) => writeAnalysisProgress(options, progress) };
     const sceneThreshold = options.sceneThreshold;
     const jobDir = sourceUrl
-      ? createMultiJobOutputDir(outputBaseDir(options), 'craft', new URL(sourceUrl).hostname)
+      ? createMultiJobOutputDir(analysisOutputBaseDir(options), 'craft', new URL(sourceUrl).hostname)
       : null;
     if (sourceUrl && jobDir) {
       const downloaded = await runMediaDownload({
@@ -789,7 +791,7 @@ const runAnalyze = async (options: CliOptions): Promise<number> => {
       return 0;
     }
 
-    const analysisJobDir = jobDir ?? createMultiJobOutputDir(outputBaseDir(options), 'craft', path.parse(videoPath).name);
+    const analysisJobDir = jobDir ?? createMultiJobOutputDir(analysisOutputBaseDir(options), 'craft', path.parse(videoPath).name);
     const request: AnalysisRequest = {
       videoPath,
       ...(sourceUrl ? { sourceUrl } : {}),

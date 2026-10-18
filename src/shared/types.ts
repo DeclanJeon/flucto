@@ -430,6 +430,7 @@ export interface IElectronAPI {
   listOpenCodeFreeVisionModels: () => Promise<OpenCodeFreeVisionModel[]>;
   pickAnalysisVideo: () => Promise<string | null>;
   pickAnalysisCraftDirectory: () => Promise<string | null>;
+  getDefaultAnalysisOutputDirectory: () => Promise<string>;
   pickAnalysisOutputDirectory: () => Promise<string | null>;
   startCraftAnalysis: (request: { videoPath?: string; videoUrl?: string; confirmDownload?: boolean; craftDir: string; outputBaseDir: string; allowVision: boolean; maxApiCalls: number }) => Promise<AnalysisResult>;
   onCraftAnalysisProgress: (callback: (progress: AnalysisProgress) => void) => void;
