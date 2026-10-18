@@ -295,6 +295,19 @@ export interface OpenCodeVisionSettings {
   hasApiKey: boolean;
 }
 
+export interface CodexVisionModel {
+  id: string;
+  name: string;
+  description: string;
+  acceptsImages: true;
+  defaultReasoningEffort: string;
+}
+
+export interface CodexVisionSettings {
+  modelID: string;
+  binaryPath: string;
+}
+
 export interface UpdateSettings {
   autoUpdate: boolean;
   checkInterval: number;
@@ -425,6 +438,9 @@ export interface IElectronAPI {
   onTranscriptProgress: (callback: (progress: TranscriptProgress) => void) => void;
   offTranscriptProgress?: (callback: (progress: TranscriptProgress) => void) => void;
   readBatchFile: () => Promise<string[] | null>;
+  getCodexVisionSettings: () => Promise<CodexVisionSettings>;
+  saveCodexVisionSettings: (settings: CodexVisionSettings) => Promise<void>;
+  listCodexVisionModels: (binaryPath?: string) => Promise<CodexVisionModel[]>;
   getOpenCodeVisionSettings: () => Promise<OpenCodeVisionSettings>;
   saveOpenCodeVisionSettings: (settings: { providerID: string; modelID: string; variant: 'low' | 'medium' | 'high'; apiKey?: string; clearApiKey?: boolean }) => Promise<void>;
   listOpenCodeFreeVisionModels: () => Promise<OpenCodeFreeVisionModel[]>;

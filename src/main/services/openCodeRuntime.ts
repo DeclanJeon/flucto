@@ -92,19 +92,30 @@ export interface OpenCodeRuntime {
   baseURL: string;
   username: string;
   password: string;
-  close(): void;
+  close(): Promise<void>;
+}
+
+export interface OpenCodeRuntimeOptions {
+  binaryPath?: string;
+  tempRoot?: string;
+  startupTimeoutMs?: number;
+  shutdownGraceMs?: number;
+  spawnProcess?: typeof spawn;
 }
 
 /** Start the app-managed, loopback-only OpenCode server. Credentials are passed
  * through the OpenCode config environment and never placed on the command line. */
-export const startOpenCodeRuntime = async (credential?: { providerID: string; apiKey: string }): Promise<OpenCodeRuntime> => {
+export const startOpenCodeRuntime = async (
+  credential?: { providerID: string; apiKey: string },
+  options: OpenCodeRuntimeOptions = {},
+): Promise<OpenCodeRuntime> => {
   if (credential && (!validId(credential.providerID) || !credential.apiKey || credential.apiKey.length > 4096)) {
     throw new Error('OpenCode provider credentials are invalid.');
   }
-  const binary = getOpenCodeBinaryPath();
+  const binary = options.binaryPath ?? getOpenCodeBinaryPath();
   const port = await getFreePort();
   const baseURL = `http://127.0.0.1:${port}`;
-  const isolatedConfigDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flucto-opencode-'));
+  const isolatedConfigDir = fs.mkdtempSync(path.join(options.tempRoot ?? os.tmpdir(), 'flucto-opencode-'));
   const serverUsername = 'flucto';
   const serverPassword = randomBytes(32).toString('base64url');
   const inheritedEnvKeys = ['PATH', 'HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'TEMP', 'TMP', 'SYSTEMROOT', 'WINDIR', 'LANG', 'XDG_CACHE_HOME'];
@@ -125,43 +136,55 @@ export const startOpenCodeRuntime = async (credential?: { providerID: string; ap
       provider: { [credential.providerID]: { options: { apiKey: credential.apiKey } } },
     });
   }
-  const child: ChildProcess = spawn(binary, ['serve', '--hostname', '127.0.0.1', '--port', String(port)], {
+  const child: ChildProcess = (options.spawnProcess ?? spawn)(binary, ['serve', '--hostname', '127.0.0.1', '--port', String(port)], {
     env,
     stdio: 'ignore',
     windowsHide: true,
     shell: false,
   });
   let exited = false;
-  child.once('exit', () => { exited = true; });
-  child.once('error', () => { exited = true; });
-  const deadline = Date.now() + 20000;
-  let lastError: unknown;
-  while (Date.now() < deadline && !exited) {
-    try {
-      const response = await fetch(`${baseURL}/provider`, { headers: { authorization: `Basic ${Buffer.from(`${serverUsername}:${serverPassword}`).toString('base64')}` }, signal: AbortSignal.timeout(1500) });
-      if (response.ok) {
-        return {
-          baseURL,
-          username: serverUsername,
-          password: serverPassword,
-          close: () => {
-            if (!exited) child.kill('SIGTERM');
-            const timer = setTimeout(() => { if (!exited) child.kill('SIGKILL'); }, 2500);
-            timer.unref();
-            if (exited) fs.rmSync(isolatedConfigDir, { recursive: true, force: true });
-            else child.once('exit', () => fs.rmSync(isolatedConfigDir, { recursive: true, force: true }));
-          },
-        };
-      }
-      lastError = new Error(`OpenCode returned HTTP ${response.status}`);
-    } catch (error) {
-      lastError = error;
+  let spawnError: Error | null = null;
+  const exitPromise = new Promise<void>((resolve) => {
+    child.once('error', (error) => { spawnError = error; exited = true; resolve(); });
+    child.once('close', () => { exited = true; resolve(); });
+  });
+  const stop = async (): Promise<void> => {
+    if (!exited) child.kill('SIGTERM');
+    if (!exited) {
+      const grace = options.shutdownGraceMs ?? 2500;
+      await Promise.race([exitPromise, new Promise<void>((resolve) => setTimeout(resolve, grace))]);
     }
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    if (!exited) {
+      child.kill('SIGKILL');
+      await exitPromise;
+    }
+  };
+  const deadline = Date.now() + (options.startupTimeoutMs ?? 20000);
+  let lastError: unknown;
+  try {
+    while (Date.now() < deadline && !exited) {
+      if (spawnError) throw spawnError;
+      try {
+        const response = await fetch(`${baseURL}/provider`, { headers: { authorization: `Basic ${Buffer.from(`${serverUsername}:${serverPassword}`).toString('base64')}` }, signal: AbortSignal.timeout(1000), redirect: 'error' });
+        if (response.ok) {
+          let closePromise: Promise<void> | undefined;
+          return {
+            baseURL,
+            username: serverUsername,
+            password: serverPassword,
+            close: () => closePromise ??= (async () => { try { await stop(); } finally { fs.rmSync(isolatedConfigDir, { recursive: true, force: true }); } })(),
+          };
+        }
+        lastError = new Error(`OpenCode returned HTTP ${response.status}`);
+      } catch (error) { lastError = error; }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    throw new Error(`Could not start the bundled OpenCode service${spawnError ? '' : lastError instanceof Error ? `: ${lastError.message}` : ''}`);
+  } catch (error) {
+    try { await stop(); } finally { fs.rmSync(isolatedConfigDir, { recursive: true, force: true }); }
+    if (spawnError) throw new Error('Could not start the bundled OpenCode service (spawn failed)');
+    throw error;
   }
-  child.kill('SIGKILL');
-  fs.rmSync(isolatedConfigDir, { recursive: true, force: true });
-  throw new Error(`Could not start the bundled OpenCode service${lastError instanceof Error ? `: ${lastError.message}` : ''}`);
 };
 
 export const listFreeVisionModels = async (): Promise<OpenCodeVisionModel[]> => {
@@ -171,6 +194,6 @@ export const listFreeVisionModels = async (): Promise<OpenCodeVisionModel[]> => 
     if (!response.ok) throw new Error(`OpenCode model catalog failed (HTTP ${response.status})`);
     return parseOpenCodeProviders(await response.json());
   } finally {
-    runtime.close();
+    await runtime.close();
   }
 };

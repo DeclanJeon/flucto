@@ -277,6 +277,7 @@ export interface CutCandidate {
   ptsS: number;
   score: number;
   cutType: CutType;
+  method: 'ffmpeg-lavfi-scene-score';
 }
 
 /**
@@ -300,6 +301,7 @@ export const toCutCandidates = (sceneRows: MetadataRow[], confirmThreshold: numb
         ptsS: row.ptsS,
         score: row.score,
         cutType: 'ESTIMATED',
+        method: 'ffmpeg-lavfi-scene-score',
       };
       continue;
     }
@@ -307,6 +309,7 @@ export const toCutCandidates = (sceneRows: MetadataRow[], confirmThreshold: numb
       ptsS: row.ptsS,
       score: row.score,
       cutType: 'ESTIMATED',
+      method: 'ffmpeg-lavfi-scene-score',
     });
   }
   return spaced;
@@ -343,6 +346,7 @@ export interface ShotWindow {
   startS: number;
   endS: number;
   cutType: CutType;
+  outgoingBoundaryCandidate: CutCandidate | null;
 }
 
 /** Uniform sampling fallback when the detector produces no candidates. */
@@ -352,7 +356,7 @@ export const samplingWindows = (durationS: number, sampleEveryS: number): ShotWi
   let index = 0;
   while (start < durationS - 0.05) {
     const end = Math.min(start + sampleEveryS, durationS);
-    windows.push({ index, startS: start, endS: end, cutType: 'UNKNOWN' });
+    windows.push({ index, startS: start, endS: end, cutType: 'UNKNOWN', outgoingBoundaryCandidate: null });
     start = end;
     index += 1;
   }
@@ -386,7 +390,7 @@ export const segmentShots = (
   for (let index = 0; index <= candidates.length; index += 1) {
     const startS = index === 0 ? 0 : candidates[index - 1].ptsS;
     const endS = index === candidates.length ? durationS : candidates[index].ptsS;
-    windows.push({ index, startS, endS, cutType: index === candidates.length ? 'UNKNOWN' : candidates[index].cutType });
+    windows.push({ index, startS, endS, cutType: index === candidates.length ? 'UNKNOWN' : candidates[index].cutType, outgoingBoundaryCandidate: index === candidates.length ? null : candidates[index] });
   }
   return { windows, mode: 'full', reason: null };
 };

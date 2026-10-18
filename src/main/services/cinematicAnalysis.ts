@@ -27,6 +27,7 @@ import type {
   ShotSignals,
   TechniqueUsageRow,
   VideoProbe,
+  VisionFailureCode,
 } from '../../shared/analysisTypes.js';
 import {
   computeShotSignals,
@@ -39,12 +40,15 @@ import {
   segmentShots,
   toCutCandidates,
   type MetadataRow,
+  type ShotWindow,
   type SilenceInterval,
 } from '../analysis/ffmpegSignals.js';
 import {
   labelShotFrames,
   resolveVisionProviderConfig,
   VisionBudgetExceededError,
+  VisionProviderError,
+  type VisionApiCallCounter,
   type VisionProviderConfig,
   type VisionRequestFrame,
 } from './visionProvider.js';
@@ -59,6 +63,14 @@ const DEFAULT_SAMPLE_EVERY_S = 5;
 const MAX_UNMATCHED_ANCHORS = 16;
 const MAX_SAMPLE_TIMECODES = 5;
 const MAX_CONSECUTIVE_VISION_ERRORS = 5;
+
+export const advanceVisionErrorStreak = (current: number, failed: boolean): { streak: number; shouldAbort: boolean } => {
+  const streak = failed ? current + 1 : 0;
+  return { streak, shouldAbort: streak >= MAX_CONSECUTIVE_VISION_ERRORS };
+};
+
+export const shouldAbortVisionRun = (failureCode: VisionFailureCode): boolean =>
+  failureCode === 'provider-rejected' || failureCode === 'provider-unavailable';
 
 export interface CraftAnalysisDeps {
   ffmpegPath: string;
@@ -327,7 +339,7 @@ export const TECHNIQUES_FILE = TECHNIQUES_NAME;
 export interface DetectionOutcome {
   probe: VideoProbe;
   sceneRows: MetadataRow[];
-  windows: Array<{ index: number; startS: number; endS: number; cutType: CutType }>;
+  windows: ShotWindow[];
   segmentation: SegmentationMode;
 }
 
@@ -421,8 +433,18 @@ export const runCraftAnalysis = async (
       startTimecode: formatTimecode(startS),
       endTimecode: formatTimecode(endS),
       cutType: window.cutType,
+      outgoingBoundaryCandidate: window.outgoingBoundaryCandidate ? {
+        timeSeconds: window.outgoingBoundaryCandidate.ptsS,
+        score: window.outgoingBoundaryCandidate.score,
+        method: window.outgoingBoundaryCandidate.method,
+        verification: 'estimated',
+      } : null,
       signals,
       labels: {} as ShotSemanticLabels,
+      visionOutcome: 'not-requested',
+      frameRequestAttempted: false,
+      frameRequestResponseReceived: false,
+      frameRequestDestination: null,
       matchedTechniqueIds: [],
       matchedEvidence: [],
       unmatchedAnchors: [],
@@ -451,16 +473,19 @@ export const runCraftAnalysis = async (
   } else if (!visionProvider) {
     for (const observation of observations) {
       observation.analysisStatus = 'signal-only';
+      observation.visionOutcome = 'request-failed';
+      observation.visionFailureCode = 'provider-unavailable';
       counters.signalOnlyShots += 1;
     }
-    counters.visionNote = 'Vision requested but provider is not configured; labels stay UNKNOWN';
+    counters.visionNote = 'Vision requested but provider configuration is unavailable; labels stay UNKNOWN';
   } else {
     progress('label', windows.length, 0, 'Labeling shots with vision provider');
-    const counter = { used: 0, limit: request.budget.maxApiCalls };
+    const counter: VisionApiCallCounter = { used: 0, limit: request.budget.maxApiCalls };
     let visionErrorStreak = 0;
     let visionAborted = false;
     for (const observation of observations) {
       if (counters.budgetExceeded || visionAborted) {
+        observation.visionOutcome = 'skipped';
         observation.analysisStatus = 'signal-only';
         counters.signalOnlyShots += 1;
         continue;
@@ -473,38 +498,58 @@ export const runCraftAnalysis = async (
           observation.durationS,
           request.budget.maxFramesPerShot,
         );
+        counter.onFrameRequest = (destination) => {
+          observation.frameRequestAttempted = true;
+          observation.frameRequestDestination = destination;
+        };
+        counter.onFrameResponseReceived = () => { observation.frameRequestResponseReceived = true; };
         const call = await labelShotFrames(visionProvider, toVisionFrames(buffers), observation.signals, counter);
-        visionErrorStreak = 0;
-        counters.apiCallsUsed += call.apiCallsUsed;
         if (call.labels) {
+          visionErrorStreak = 0;
           observation.labels = call.labels;
           observation.analysisStatus = 'labeled';
+          observation.visionOutcome = 'labeled';
           counters.labeledShots += 1;
         } else {
           observation.analysisStatus = 'signal-only';
+          observation.visionOutcome = call.failureCode ? 'request-failed' : 'no-labels';
+          if (call.failureCode) observation.visionFailureCode = call.failureCode;
+          const streakResult = advanceVisionErrorStreak(visionErrorStreak, Boolean(call.failureCode));
+          visionErrorStreak = streakResult.streak;
+          if (call.failureCode && (shouldAbortVisionRun(call.failureCode) || streakResult.shouldAbort)) {
+            visionAborted = true;
+            counters.visionNote = shouldAbortVisionRun(call.failureCode)
+              ? 'Vision provider rejected or unavailable; remaining shots stay signal-only'
+              : `Vision provider failed ${MAX_CONSECUTIVE_VISION_ERRORS} consecutive shots; remaining shots stay signal-only`;
+          }
           counters.signalOnlyShots += 1;
         }
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        if (error instanceof VisionBudgetExceededError) {
-          counters.budgetExceeded = true;
-          observation.analysisStatus = 'signal-only';
-          counters.signalOnlyShots += 1;
-          counters.visionNote = `Budget exceeded after ${counter.used} vision call(s); remaining shots stay signal-only`;
-          continue;
-        }
         observation.analysisStatus = 'signal-only';
         counters.signalOnlyShots += 1;
-        visionErrorStreak += 1;
-        if (visionErrorStreak >= MAX_CONSECUTIVE_VISION_ERRORS) {
+        if (error instanceof VisionBudgetExceededError) {
+          counters.budgetExceeded = true;
+          observation.visionOutcome = 'budget-exceeded';
+          observation.visionFailureCode = 'budget-exceeded';
+          counters.visionNote = 'Vision request budget reached; remaining shots stay signal-only';
+          continue;
+        }
+        observation.visionOutcome = 'request-failed';
+        observation.visionFailureCode = error instanceof VisionProviderError ? error.code : observation.frameRequestAttempted ? 'network-error' : 'processing-error';
+        const streakResult = advanceVisionErrorStreak(visionErrorStreak, true);
+        visionErrorStreak = streakResult.streak;
+        if (shouldAbortVisionRun(observation.visionFailureCode) || streakResult.shouldAbort) {
           visionAborted = true;
-          counters.visionNote = `Vision provider failed ${MAX_CONSECUTIVE_VISION_ERRORS} shots in a row; remaining shots stay signal-only (last error: ${message})`;
+          counters.visionNote = shouldAbortVisionRun(observation.visionFailureCode)
+            ? 'Vision provider rejected or unavailable; remaining shots stay signal-only'
+            : `Vision provider failed ${MAX_CONSECUTIVE_VISION_ERRORS} consecutive shots; remaining shots stay signal-only`;
         } else {
-          counters.visionNote = `Vision provider error: ${message}`;
+          counters.visionNote = 'Vision provider request failed; shot remains signal-only';
         }
       }
       progress('label', windows.length, observation.index + 1);
     }
+    counters.apiCallsUsed = counter.used;
   }
 
   groupShotsIntoScenes(observations);
@@ -600,6 +645,18 @@ export const runCraftAnalysis = async (
     taxonomyRows,
     segmentationMode,
     startedAt,
+    visionSummary: {
+      attemptedModelCalls: counters.apiCallsUsed,
+      modelCallLimit: request.budget.maxApiCalls,
+      labeledShots: counters.labeledShots,
+      signalOnlyShots: counters.signalOnlyShots,
+      partialReasons: Array.from(new Set(observations.flatMap((shot) => shot.visionFailureCode ? [shot.visionFailureCode] : shot.visionOutcome === 'no-labels' ? ['no-labels'] : shot.visionOutcome === 'skipped' ? ['skipped'] : []))),
+      frameRequestAttempted: observations.some((shot) => shot.frameRequestAttempted),
+      frameRequestResponseReceived: observations.some((shot) => shot.frameRequestResponseReceived),
+      externalFrameRequestAttempted: observations.some((shot) => shot.frameRequestDestination === 'external-provider' || shot.frameRequestDestination === 'codex-cli'),
+      localServerFrameRequestAttempted: observations.some((shot) => shot.frameRequestDestination === 'local-server' || shot.frameRequestDestination === 'codex-cli'),
+      externalOnwardTransmission: observations.some((shot) => shot.frameRequestDestination === 'local-server' || shot.frameRequestDestination === 'codex-cli') ? null : false,
+    },
   });
 
   return {
@@ -618,6 +675,18 @@ export const runCraftAnalysis = async (
     signalOnlyShots: counters.signalOnlyShots,
     unknownShots: counters.unknownShots,
     budgetExceeded: counters.budgetExceeded,
+    visionSummary: {
+      attemptedModelCalls: counters.apiCallsUsed,
+      modelCallLimit: request.budget.maxApiCalls,
+      labeledShots: counters.labeledShots,
+      signalOnlyShots: counters.signalOnlyShots,
+      partialReasons: Array.from(new Set(observations.flatMap((shot) => shot.visionFailureCode ? [shot.visionFailureCode] : shot.visionOutcome === 'no-labels' ? ['no-labels'] : shot.visionOutcome === 'skipped' ? ['skipped'] : []))),
+      frameRequestAttempted: observations.some((shot) => shot.frameRequestAttempted),
+      frameRequestResponseReceived: observations.some((shot) => shot.frameRequestResponseReceived),
+      externalFrameRequestAttempted: observations.some((shot) => shot.frameRequestDestination === 'external-provider' || shot.frameRequestDestination === 'codex-cli'),
+      localServerFrameRequestAttempted: observations.some((shot) => shot.frameRequestDestination === 'local-server' || shot.frameRequestDestination === 'codex-cli'),
+      externalOnwardTransmission: observations.some((shot) => shot.frameRequestDestination === 'local-server' || shot.frameRequestDestination === 'codex-cli') ? null : false,
+    },
     matchedTechniqueCount: aggregation.rows.length,
     ...(counters.visionNote ? { error: counters.visionNote } : {}),
   };

@@ -2,7 +2,7 @@ import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { MainDownloader } from './components/MainDownloader';
 import { UpdateSettings } from './components/UpdateSettings';
-import { OpenCodeVisionSettings } from './components/OpenCodeVisionSettings';
+import { CodexVisionSettings } from './components/CodexVisionSettings';
 import { CraftAnalysisPanel } from './components/CraftAnalysisPanel';
 
 const App: React.FC = () => {
@@ -14,7 +14,7 @@ const App: React.FC = () => {
           <>
             <MainDownloader />
             <UpdateSettings />
-            <OpenCodeVisionSettings />
+            <CodexVisionSettings />
             <CraftAnalysisPanel />
           </>
         )}

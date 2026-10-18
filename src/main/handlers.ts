@@ -11,7 +11,8 @@ import {
   onAppUpdateEvent,
 } from './updater.js';
 import { getBinaryPath } from './utils.js';
-import { listFreeVisionModels, startOpenCodeRuntime } from './services/openCodeRuntime.js';
+import { listFreeVisionModels } from './services/openCodeRuntime.js';
+import { listCodexVisionModels } from './services/codexVisionRuntime.js';
 import { runCraftAnalysis } from './services/cinematicAnalysis.js';
 import type { AnalysisProgress, AnalysisRequest } from '../shared/analysisTypes.js';
 import { getStoredDownloadSettings, getStoredUpdateSettings, isUpdateSettings, settingsStore } from './store.js';
@@ -65,6 +66,34 @@ const decodeSecret = (cipher: string): string => {
     return '';
   }
 };
+
+ipcMain.handle('get-codex-vision-settings', (event) => {
+  assertTrustedRenderer(event);
+  const value = settingsStore.get('codexVision');
+  return {
+    modelID: value && typeof value.modelID === 'string' ? value.modelID : '',
+    binaryPath: value && typeof value.binaryPath === 'string' ? value.binaryPath : '',
+  };
+});
+
+ipcMain.handle('save-codex-vision-settings', (event, raw: unknown): void => {
+  assertTrustedRenderer(event);
+  if (!raw || typeof raw !== 'object') throw new Error('Invalid Codex vision settings.');
+  const value = raw as Record<string, unknown>;
+  const modelID = typeof value.modelID === 'string' ? value.modelID.trim() : '';
+  const binaryPath = typeof value.binaryPath === 'string' ? value.binaryPath.trim() : '';
+  if (!modelID || !/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$/.test(modelID)) throw new Error('Select an image-capable Codex model.');
+  if (binaryPath.length > 4096 || /[\0\r\n]/.test(binaryPath)) throw new Error('Codex CLI path is invalid.');
+  settingsStore.set('codexVision', { modelID, binaryPath });
+});
+
+ipcMain.handle('list-codex-vision-models', async (event, rawPath?: unknown) => {
+  assertTrustedRenderer(event);
+  const stored = settingsStore.get('codexVision');
+  const binaryPath = typeof rawPath === 'string' ? rawPath.trim() : stored?.binaryPath ?? '';
+  if (binaryPath.length > 4096 || /[\0\r\n]/.test(binaryPath)) throw new Error('Codex CLI path is invalid.');
+  return listCodexVisionModels(binaryPath ? { binaryPath } : {});
+});
 
 ipcMain.handle('get-opencode-vision-settings', (event) => {
   assertTrustedRenderer(event);
@@ -170,29 +199,21 @@ ipcMain.handle('start-craft-analysis', async (event, raw: unknown) => {
   if (!fs.statSync(craftDir).isDirectory()) throw new Error('Craft taxonomy path must be a directory.');
   if (!fs.statSync(outputBaseDir).isDirectory()) throw new Error('Output path must be a directory.');
 
-  let runtime: Awaited<ReturnType<typeof startOpenCodeRuntime>> | null = null;
-  let visionProvider: AnalysisRequest['vision']['provider'] = null;
-  if (value.allowVision) {
-    const selection = settingsStore.get('openCodeVision');
-    const apiKey = settingsStore.get('openCodeApiKeyProvider') === selection?.providerID
-      ? decodeSecret(settingsStore.get('openCodeApiKeyCipher'))
-      : '';
-    if (!selection?.providerID || !selection.modelID || !apiKey) throw new Error('Configure a free vision model and API key in OpenCode Vision settings first.');
-    const allowedModels = await listFreeVisionModels();
-    const model = allowedModels.find((candidate) => candidate.providerID === selection.providerID && candidate.modelID === selection.modelID);
-    if (!model) throw new Error('Selected model is no longer listed as a free image-input model. Refresh the catalog and choose another model.');
-    runtime = await startOpenCodeRuntime({ providerID: selection.providerID, apiKey });
-    visionProvider = {
-      provider: 'opencode-local',
-      providerID: selection.providerID,
-      baseURL: runtime.baseURL,
-      model: selection.modelID,
-      apiKey: '',
-      variant: selection.variant,
-      serverUsername: runtime.username,
-      serverPassword: runtime.password,
-    };
-  }
+  const visionProvider: AnalysisRequest['vision']['provider'] = value.allowVision
+    ? await (async () => {
+        const selection = settingsStore.get('codexVision');
+        if (!selection?.modelID) throw new Error('Install and sign in to Codex CLI, then choose an image-capable model in Codex Vision settings.');
+        const models = await listCodexVisionModels(selection.binaryPath ? { binaryPath: selection.binaryPath } : {});
+        if (!models.some((model) => model.id === selection.modelID)) throw new Error('Selected Codex model is unavailable or no longer supports image input. Refresh the model list.');
+        return {
+          provider: 'codex-cli' as const,
+          model: selection.modelID,
+          baseURL: '',
+          apiKey: '',
+          ...(selection.binaryPath ? { codexPath: selection.binaryPath } : {}),
+        };
+      })()
+    : null;
 
   const sourceName = videoPath ? path.basename(videoPath, path.extname(videoPath)) : (() => {
     try { return new URL(videoUrl).hostname; } catch { return 'video'; }
@@ -200,8 +221,7 @@ ipcMain.handle('start-craft-analysis', async (event, raw: unknown) => {
   const baseName = sourceName.replace(/[^\p{L}\p{N}._-]+/gu, '-').slice(0, 80) || 'video';
   const outputDir = path.join(outputBaseDir, `flucto-analysis-${baseName}-${Date.now()}`);
   let analyzedVideoPath = videoPath;
-  try {
-    fs.mkdirSync(outputDir, { recursive: true });
+  fs.mkdirSync(outputDir, { recursive: true });
     if (videoUrl) {
       let parsedUrl: URL;
       try { parsedUrl = new URL(videoUrl); } catch { throw new Error('Enter a valid video URL.'); }
@@ -239,9 +259,6 @@ ipcMain.handle('start-craft-analysis', async (event, raw: unknown) => {
         if (!event.sender.isDestroyed()) event.sender.send(CRAFT_ANALYSIS_PROGRESS_CHANNEL, progress);
       },
     });
-  } finally {
-    runtime?.close();
-  }
 });
 
 ipcMain.handle('get-github-star-state', async (): Promise<GitHubStarState> => {

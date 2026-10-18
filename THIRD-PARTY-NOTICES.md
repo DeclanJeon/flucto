@@ -1,5 +1,13 @@
 # Third-party notices
 
+## tar
+
+The `tar` npm package is used to inspect/extract expected TAR members. It is licensed under Blue Oak Model License 1.0.0: https://blueoakcouncil.org/license/1.0.0. The full license text is included in the `tar` npm package.
+
+## FFmpeg and FFprobe binaries
+
+The pinned native FFmpeg/FFprobe candidates in the setup manifest are GPL-enabled (GyanD Windows, BtbN Linux, and Martin Riedl macOS builds). See `docs/cinematic-craft-ffprobe-source-research.md` for versioned archive URLs and SHA-256 values. Redistribution/source-offer and build-configuration obligations have not received legal review; do not treat this notice as approval to ship these binaries.
+
 ## OpenCode
 
 Flucto bundles the OpenCode command-line runtime from [anomalyco/opencode](https://github.com/anomalyco/opencode), licensed under the MIT License. Binaries are obtained from official GitHub releases and verified against the SHA-256 digest published by the GitHub Releases API before installation.

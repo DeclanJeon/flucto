@@ -69,6 +69,9 @@ const api: IElectronAPI = {
       transcriptProgressCallbacks.delete(callback);
     }
   },
+  getCodexVisionSettings: () => ipcRenderer.invoke('get-codex-vision-settings'),
+  saveCodexVisionSettings: (settings) => ipcRenderer.invoke('save-codex-vision-settings', settings),
+  listCodexVisionModels: (binaryPath) => ipcRenderer.invoke('list-codex-vision-models', binaryPath),
   getOpenCodeVisionSettings: () => ipcRenderer.invoke('get-opencode-vision-settings'),
   saveOpenCodeVisionSettings: (settings) => ipcRenderer.invoke('save-opencode-vision-settings', settings),
   listOpenCodeFreeVisionModels: () => ipcRenderer.invoke('list-opencode-free-vision-models'),

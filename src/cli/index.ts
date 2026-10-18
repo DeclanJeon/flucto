@@ -57,6 +57,9 @@ const privateInstallRoot = findPrivateInstallRoot(moduleFile);
 /** Base output directory (parent). Multi-file jobs create a dedicated subfolder under this. */
 const outputBaseDir = (options: CliOptions): string => path.resolve(options.outputDir ?? process.cwd());
 const analysisOutputBaseDir = (options: CliOptions): string => path.resolve(options.outputDir ?? defaultAnalysisOutputDirectory());
+const ffprobeSetupGuidance = process.platform === 'darwin'
+  ? 'Install a compatible ffprobe next to ffmpeg and pass --bin-dir; Flucto has no verified macOS ffprobe download source yet.'
+  : 'Run `flucto setup --force` to provision ffmpeg/ffprobe, or pass matching --ffmpeg/--bin-dir paths.';
 
 /** @deprecated single-file jobs still write directly into base */
 const outputDir = (options: CliOptions): string => outputBaseDir(options);
@@ -152,7 +155,7 @@ const runDoctor = async (options: CliOptions): Promise<number> => {
     valid,
     missing,
     paths: { ...health.paths, ffprobePath },
-    fix: valid ? undefined : 'Run `flucto setup --force` to refresh ffmpeg/ffprobe, or pass matching --ffmpeg/--bin-dir paths.',
+    fix: valid ? undefined : ffprobeSetupGuidance,
     versions: {
       ytDlp: health.missing.includes('yt-dlp') ? null : await binaryVersion(binaries.ytDlpPath, ['--version']),
       ffmpeg: health.missing.includes('ffmpeg') ? null : await binaryVersion(binaries.ffmpegPath, ['-version']),
@@ -752,7 +755,7 @@ const runAnalyze = async (options: CliOptions): Promise<number> => {
     if (health.missing.includes('ffmpeg')) throw new Error('Missing ffmpeg binary. Run `flucto setup` or pass --ffmpeg/--bin-dir.');
     if (sourceUrl && health.missing.includes('yt-dlp')) throw new Error('Missing yt-dlp binary required to download the video URL. Run `flucto setup` or pass --yt-dlp/--bin-dir.');
     if (!fs.existsSync(resolveFfprobePath(binaries.ffmpegPath))) {
-      throw new Error('ffprobe not found next to ffmpeg. Run `flucto setup --force` to refresh the ffmpeg installation (includes ffprobe).');
+      throw new Error(`ffprobe not found next to ffmpeg. ${ffprobeSetupGuidance}`);
     }
 
     const deps = { ffmpegPath: binaries.ffmpegPath, onProgress: (progress: AnalysisProgress) => writeAnalysisProgress(options, progress) };
@@ -820,6 +823,10 @@ const runAnalyze = async (options: CliOptions): Promise<number> => {
       kv('shots', String(result.shotCount));
       kv('segmentation', result.segmentationMode.mode + (result.segmentationMode.reason ? ` (${result.segmentationMode.reason})` : ''));
       kv('labeled / signal-only', `${result.labeledShots} / ${result.signalOnlyShots}`);
+      if (result.visionSummary) {
+        kv('vision calls', `${result.visionSummary.attemptedModelCalls}/${result.visionSummary.modelCallLimit}`);
+        if (result.visionSummary.partialReasons.length) info(`vision outcomes: ${result.visionSummary.partialReasons.join(', ')}`);
+      }
       if (result.budgetExceeded) writeError('Vision budget exceeded; remaining shots kept signal-only rows.');
       if (result.rowsIncomplete) info('rows_incomplete=true: some rows carry ESTIMATED/UNKNOWN gaps by design.');
       if (result.error) info(`vision: ${result.error}`);

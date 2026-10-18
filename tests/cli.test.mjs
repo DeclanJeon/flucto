@@ -67,18 +67,64 @@ test('CLI parser handles channel to-md nested command and limit/out flags', () =
   assert.throws(() => parseCliArgs(['channel', 'to-md']), /exactly one channel/);
 });
 
+test('CLI Codex vision mode requires only a model and local Codex CLI authentication', () => {
+  const keys = ['FLUCTO_VISION_PROVIDER', 'FLUCTO_VISION_MODEL', 'FLUCTO_VISION_BASE_URL', 'FLUCTO_VISION_API_KEY', 'FLUCTO_CODEX_PATH'];
+  const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+  try {
+    process.env.FLUCTO_VISION_PROVIDER = 'codex-cli';
+    process.env.FLUCTO_VISION_MODEL = 'gpt-6-luna';
+    delete process.env.FLUCTO_VISION_BASE_URL;
+    delete process.env.FLUCTO_VISION_API_KEY;
+    process.env.FLUCTO_CODEX_PATH = '/tmp/codex';
+    const options = parseCliArgs(['analyze', 'video.mp4', '--craft', 'craft', '--allow-vision-api']);
+    assert.equal(options.allowVisionApi, true);
+  } finally {
+    for (const key of keys) {
+      if (previous[key] === undefined) delete process.env[key];
+      else process.env[key] = previous[key];
+    }
+  }
+});
+
+test('CLI requires authenticated loopback credentials for opencode-local vision', () => {
+  const keys = ['FLUCTO_VISION_PROVIDER', 'FLUCTO_VISION_MODEL', 'FLUCTO_VISION_BASE_URL', 'FLUCTO_OPENCODE_SERVER_USERNAME', 'FLUCTO_OPENCODE_SERVER_PASSWORD'];
+  const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+  try {
+    process.env.FLUCTO_VISION_PROVIDER = 'opencode-local';
+    process.env.FLUCTO_VISION_MODEL = 'vision-model';
+    process.env.FLUCTO_VISION_BASE_URL = 'http://127.0.0.1:4096';
+    delete process.env.FLUCTO_OPENCODE_SERVER_USERNAME;
+    delete process.env.FLUCTO_OPENCODE_SERVER_PASSWORD;
+    assert.throws(() => parseCliArgs(['analyze', 'video.mp4', '--craft', 'craft', '--allow-vision-api']), /FLUCTO_OPENCODE_SERVER_USERNAME/);
+    process.env.FLUCTO_OPENCODE_SERVER_USERNAME = 'test-user';
+    process.env.FLUCTO_OPENCODE_SERVER_PASSWORD = 'test-password';
+    assert.doesNotThrow(() => parseCliArgs(['analyze', 'video.mp4', '--craft', 'craft', '--allow-vision-api']));
+    process.env.FLUCTO_VISION_BASE_URL = 'https://127.0.0.1:4096';
+    assert.throws(() => parseCliArgs(['analyze', 'video.mp4', '--craft', 'craft', '--allow-vision-api']), /HTTP loopback/);
+  } finally {
+    for (const key of keys) {
+      if (previous[key] === undefined) delete process.env[key];
+      else process.env[key] = previous[key];
+    }
+  }
+});
+
 test('multi-file job folders are created as dedicated subdirectories', () => {
   const temp = makeTempDir();
   assert.equal(slugifyJobLabel('@LIFECODEofficial'), 'LIFECODEofficial');
   const jobA = createMultiJobOutputDir(temp, 'channel-md', '라이프코드 LIFECODE');
   const jobB = createMultiJobOutputDir(temp, 'batch-md', 'urls');
+  const craftJob = createMultiJobOutputDir(temp, 'craft', 'reference-video');
   assert.ok(jobA.startsWith(temp));
   assert.ok(jobB.startsWith(temp));
+  assert.ok(craftJob.startsWith(temp));
   assert.notEqual(jobA, jobB);
   assert.ok(fs.existsSync(jobA));
   assert.ok(fs.existsSync(jobB));
+  assert.ok(fs.existsSync(craftJob));
   assert.match(path.basename(jobA), /channel-md-/);
   assert.match(path.basename(jobB), /batch-md-/);
+  assert.match(path.basename(craftJob), /craft-/);
 });
 
 test('normalizeChannelTarget expands handles and @ URLs', async () => {
@@ -209,15 +255,18 @@ test('setupUtilities check-only validates provided bin dir without downloading',
   const ytDlp = path.join(temp, process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp');
   const ffmpeg = path.join(temp, process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg');
   writeExecutable(ytDlp, '2026.01.01');
-  writeExecutable(ffmpeg, 'ffmpeg version test');
+  const pinnedVersion = process.platform === 'win32' ? '8.1.2' : process.platform === 'darwin' ? '9.0.2' : 'N-127651-gb60ab6c9a4';
+  writeExecutable(ffmpeg, `ffmpeg version ${pinnedVersion}`);
+  writeExecutable(path.join(temp, process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe'), `ffprobe version ${pinnedVersion}`);
 
   const result = await setupUtilities({ binDir: temp, checkOnly: true, env: { PATH: '' }, cwd: temp });
   assert.equal(result.valid, true);
   assert.deepEqual(result.missing, []);
-  assert.equal(result.utilities.map((utility) => utility.status).join(','), 'present,present');
+  assert.equal(result.utilities.map((utility) => utility.status).join(','), 'present,present,present');
   assert.deepEqual(result.utilities.map(({ name, version }) => ({ name, version })), [
     { name: 'yt-dlp', version: '2026.01.01' },
-    { name: 'ffmpeg', version: 'ffmpeg version test' },
+    { name: 'ffmpeg', version: `ffmpeg version ${pinnedVersion}` },
+    { name: 'ffprobe', version: `ffprobe version ${pinnedVersion}` },
   ]);
 });
 
@@ -231,8 +280,8 @@ test('setupUtilities check-only reports missing target bin dir even when PATH ha
 
   const result = await setupUtilities({ binDir: emptyTarget, checkOnly: true, env: { PATH: pathBin }, cwd: emptyTarget });
   assert.equal(result.valid, false);
-  assert.deepEqual(result.missing, ['yt-dlp', 'ffmpeg']);
-  assert.equal(result.utilities.map((utility) => utility.status).join(','), 'missing,missing');
+  assert.deepEqual(result.missing, ['yt-dlp', 'ffmpeg', 'ffprobe']);
+  assert.equal(result.utilities.map((utility) => utility.status).join(','), 'missing,failed,failed');
 });
 
 test('setupUtilities force does not overwrite explicit binary paths', async () => {
@@ -240,7 +289,8 @@ test('setupUtilities force does not overwrite explicit binary paths', async () =
   const ytDlp = path.join(temp, process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp');
   const ffmpeg = path.join(temp, process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg');
   writeExecutable(ytDlp, 'original-yt-dlp');
-  writeExecutable(ffmpeg, 'original-ffmpeg');
+  writeExecutable(ffmpeg, 'ffmpeg version 8.1.2');
+  writeExecutable(path.join(temp, process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe'), 'ffprobe version 8.1.2');
   const originalYtDlp = fs.readFileSync(ytDlp, 'utf8');
   const originalFfmpeg = fs.readFileSync(ffmpeg, 'utf8');
 

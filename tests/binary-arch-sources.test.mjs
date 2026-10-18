@@ -6,6 +6,8 @@ import test, { after } from 'node:test';
 
 import {
   ffmpegSourcesFor,
+  pinnedAvSourceFor as setupPinnedAvSourceFor,
+  replaceAvPairAtomically,
   ytDlpUrlFor,
   openCodeAssetNameFor,
   machOArchitectures,
@@ -13,6 +15,8 @@ import {
 } from '../scripts/setup-binaries.mjs';
 import {
   ffmpegDownloadUrlsFor,
+  ffprobeDownloadUrlsFor,
+  pinnedAvSourceFor as installerPinnedAvSourceFor,
   ytDlpUrlFor as installerYtDlpUrlFor,
 } from '../dist-electron/main/services/binaryInstaller.js';
 
@@ -53,23 +57,40 @@ const writeFixture = (name, content) => {
 const CPU_X86_64 = 0x01000007;
 const CPU_ARM64 = 0x0100000c;
 
-test('packaging ffmpeg sources cover both macOS slices with compatible fallbacks', () => {
-  const x64 = ffmpegSourcesFor('darwin', 'x64');
-  const arm64 = ffmpegSourcesFor('darwin', 'arm64');
-
-  assert.ok(x64.includes('https://evermeet.cx/ffmpeg/getrelease/zip'));
-  assert.ok(!arm64.some((url) => url.includes('evermeet')), 'evermeet is x86_64-only and must not serve arm64');
-  assert.ok(arm64.some((url) => url.includes('macos/arm64')), 'arm64 needs an arm64 build');
-  assert.ok(arm64.some((url) => url.includes('darwin-arm64')), 'arm64 keeps an ffmpeg-static fallback');
+test('packaging FFmpeg and FFprobe sources are pinned per supported target', () => {
+  for (const [os, arch] of [['win32', 'x64'], ['linux', 'x64'], ['linux', 'arm64'], ['darwin', 'x64'], ['darwin', 'arm64']]) {
+    const ffmpeg = setupPinnedAvSourceFor('ffmpeg', os, arch);
+    const ffprobe = setupPinnedAvSourceFor('ffprobe', os, arch);
+    assert.match(ffmpeg.sha256, /^[a-f0-9]{64}$/);
+    assert.match(ffprobe.sha256, /^[a-f0-9]{64}$/);
+    assert.ok(!ffmpeg.url.includes('/latest/'));
+    if (os !== 'darwin') assert.equal(ffmpeg.url, ffprobe.url, `${os}/${arch} pair must come from one archive`);
+  }
+  assert.throws(() => setupPinnedAvSourceFor('ffmpeg', 'linux', 'ia32'), /No pinned/);
+  assert.equal(ffmpegSourcesFor('linux', 'arm64')[0], setupPinnedAvSourceFor('ffmpeg', 'linux', 'arm64').url);
 });
 
-test('linux ffmpeg sources pick per-architecture static builds', () => {
-  assert.ok(ffmpegSourcesFor('linux', 'x64').some((url) => url.includes('amd64')));
-  const arm64 = ffmpegSourcesFor('linux', 'arm64');
-  assert.ok(arm64.some((url) => url.includes('arm64-static')));
-  assert.ok(arm64.some((url) => url.includes('linuxarm64')));
-  assert.ok(ffmpegSourcesFor('linux', 'arm').some((url) => url.includes('armhf')));
-  assert.ok(ffmpegSourcesFor('linux', 'ia32').some((url) => url.includes('i686')));
+test('paired AV replacement rolls both old files back when second install fails', () => {
+  const dir = makeTempDir();
+  const old1 = path.join(dir, 'ffmpeg'); const old2 = path.join(dir, 'ffprobe');
+  const staged1 = path.join(dir, 'new-ffmpeg'); const staged2 = path.join(dir, 'new-ffprobe');
+  fs.writeFileSync(old1, 'old ffmpeg'); fs.writeFileSync(old2, 'old ffprobe');
+  fs.writeFileSync(staged1, 'new ffmpeg'); fs.writeFileSync(staged2, 'new ffprobe');
+  let failed = false;
+  assert.throws(() => replaceAvPairAtomically([{ staged: staged1, target: old1 }, { staged: staged2, target: old2 }], {
+    rename(from, to) {
+      if (!failed && from === staged2) { failed = true; throw new Error('injected second rename failure'); }
+      fs.renameSync(from, to);
+    },
+  }), /injected second rename failure/);
+  assert.equal(fs.readFileSync(old1, 'utf8'), 'old ffmpeg');
+  assert.equal(fs.readFileSync(old2, 'utf8'), 'old ffprobe');
+  assert.equal(fs.readdirSync(dir).sort().join(','), 'ffmpeg,ffprobe,new-ffprobe');
+});
+
+test('Linux source selection is pinned to BtbN GPL assets by architecture', () => {
+  assert.match(ffmpegSourcesFor('linux', 'x64')[0], /linux64-gpl\.tar\.xz$/);
+  assert.match(ffmpegSourcesFor('linux', 'arm64')[0], /linuxarm64-gpl\.tar\.xz$/);
 });
 
 test('runtime binary installer exposes the same per-arch sources', () => {
@@ -77,11 +98,15 @@ test('runtime binary installer exposes the same per-arch sources', () => {
   assert.match(installerYtDlpUrlFor('linux', 'x64'), /yt-dlp_linux$/);
   assert.match(installerYtDlpUrlFor('darwin', 'arm64'), /yt-dlp_macos$/);
 
-  const macArm64 = ffmpegDownloadUrlsFor('darwin', 'arm64');
-  assert.ok(!macArm64.some((url) => url.includes('evermeet')));
-  const linuxArm64 = ffmpegDownloadUrlsFor('linux', 'arm64');
-  assert.ok(linuxArm64.some((url) => url.includes('arm64-static')));
-  assert.ok(linuxArm64.every((url) => !url.includes('amd64')));
+  for (const [platform, arch] of [['win32', 'x64'], ['linux', 'x64'], ['linux', 'arm64'], ['darwin', 'x64'], ['darwin', 'arm64']]) {
+    const ffmpeg = installerPinnedAvSourceFor('ffmpeg', platform, arch);
+    const ffprobe = installerPinnedAvSourceFor('ffprobe', platform, arch);
+    assert.match(ffmpeg.sha256, /^[a-f0-9]{64}$/);
+    assert.match(ffprobe.sha256, /^[a-f0-9]{64}$/);
+    assert.deepEqual(ffmpegDownloadUrlsFor(platform, arch), [ffmpeg.url]);
+    assert.deepEqual(ffprobeDownloadUrlsFor(platform, arch), [ffprobe.url]);
+  }
+  assert.throws(() => ffprobeDownloadUrlsFor('darwin', 'ia32'), /No pinned/);
 });
 
 test('OpenCode release assets are selected per supported OS and architecture', () => {

@@ -28,7 +28,7 @@ export const jobTimestamp = (date = new Date()): string => {
  */
 export const createMultiJobOutputDir = (
   baseDir: string,
-  kind: 'md' | 'mp4' | 'mp3' | 'batch-md' | 'batch-mp4' | 'batch-mp3' | 'channel-md',
+  kind: 'md' | 'mp4' | 'mp3' | 'batch-md' | 'batch-mp4' | 'batch-mp3' | 'channel-md' | 'craft',
   label?: string,
 ): string => {
   const base = path.resolve(baseDir);

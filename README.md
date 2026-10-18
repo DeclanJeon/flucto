@@ -26,6 +26,7 @@
 - 🔒 **Anonymous Search Sessions**: Media processing stays local; keyword searches contact site APIs/public indexes without reusing your logged-in browser profile
 - 🎵 **Format Choice**: Save video (MP4), audio extraction (MP3), or Markdown transcript output
 - **Typed core:** Desktop and CLI share TypeScript media services.
+- **Reference-video craft analysis (experimental):** Break a reference video into shot/scene observations, optionally use your authenticated Codex CLI account for consented frame labeling, and export evidence-linked JSON/CSV reports. This creates a reviewable production-planning aid; it does not generate video or establish the original creator's intent.
 
 <p align="center">
   <img src="assets/demo/features/03-search-and-queue.gif" width="100%" alt="Actual Flucto 1.18 search, source attribution and reference queue demo" />
@@ -194,6 +195,17 @@ Brand assets live in:
 To download post images, paste a supported post URL, select **Images**, review the extracted image list, then run the queue. Files are saved in the configured downloads directory with sanitized post-title names and an index. Extraction uses image URLs exposed by the installed `yt-dlp` extractor or the Threads adapter; platforms or posts that expose no image URLs are unsupported. Flucto does not scrape logged-in pages or bypass access controls. Failed images remain queued for retry, and successful images are removed from the queue.
 
 Markdown conversion is caption-based. If a platform or video does not expose captions/subtitles through `yt-dlp`, Flucto reports the transcript as unavailable instead of silently falling back to speech-to-text. No Python/FastAPI server, Whisper runtime, or external transcription service is embedded.
+
+## Reference-video craft analysis (experimental)
+
+This feature analyzes a local or permitted reference video to help plan a similar production. Flucto uses FFmpeg/FFprobe signals for shot candidates and coarse visual/audio measurements; if you opt in, an image-capable model accessed through your own Codex CLI login can label sampled frames. Results are **inferences for human review**, not verified facts, calibrated confidence, or a promise of shot-for-shot reproduction.
+
+- **Privacy and consent:** Frames are sent to Codex only after you explicitly approve the run. Flucto passes frame data in memory and does not save frame images or Codex credentials. Codex-side handling/retention is governed by Codex policies.
+- **Setup:** Install and authenticate Codex CLI with `codex login`, then select an image-capable model in the desktop settings. CLI users set `FLUCTO_VISION_PROVIDER=codex-cli` and `FLUCTO_VISION_MODEL`; the CLI also requires `--allow-vision-api` for consent. Account access and quota are not guaranteed.
+- **Reviewable output:** `analysis.json` is canonical; CSV files provide review/export views. Evidence references, request outcomes and partial-analysis reasons are included.
+- **Early implementation limits:** Live Codex use has passed only a one-call integration smoke; this is not an accuracy benchmark. Only Linux x64 has passed real FFmpeg/FFprobe archive/runtime checks and a local AppImage/CLI package smoke. Other native platforms, the full release package matrix, and GPL redistribution/source obligations remain unresolved. Do not treat this feature as release-ready across platforms.
+
+See the [analysis guide](docs/cinematic-craft-analysis-user-guide.md) for setup, CLI examples, output details, and limitations.
 
 ## Video Search
 

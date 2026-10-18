@@ -86,7 +86,17 @@ export interface CraftBuildManifest {
 
 export type CutType = 'HARD-CUT' | 'ESTIMATED' | 'UNKNOWN';
 
+export interface BoundaryCandidate {
+  timeSeconds: number;
+  score: number;
+  method: 'ffmpeg-lavfi-scene-score';
+  verification: 'estimated';
+}
+
 export type ShotAnalysisStatus = 'labeled' | 'signal-only' | 'unknown';
+export type VisionShotOutcome = 'not-requested' | 'skipped' | 'labeled' | 'no-labels' | 'request-failed' | 'budget-exceeded';
+export type VisionFailureCode = 'timeout' | 'http-error' | 'network-error' | 'provider-unavailable' | 'provider-rejected' | 'malformed-response' | 'processing-error' | 'budget-exceeded';
+export type FrameRequestDestination = 'external-provider' | 'local-server' | 'codex-cli';
 
 /** Deterministic signal aggregates for one shot. Frame data never persists. */
 export interface ShotSignals {
@@ -128,8 +138,14 @@ export interface ShotObservation {
   startTimecode: string;
   endTimecode: string;
   cutType: CutType;
+  outgoingBoundaryCandidate: BoundaryCandidate | null;
   signals: ShotSignals;
   labels: ShotSemanticLabels;
+  visionOutcome?: VisionShotOutcome;
+  visionFailureCode?: VisionFailureCode;
+  frameRequestAttempted?: boolean;
+  frameRequestResponseReceived?: boolean;
+  frameRequestDestination?: FrameRequestDestination | null;
   matchedTechniqueIds: string[];
   matchedEvidence: string[];
   unmatchedAnchors: string[];
@@ -165,7 +181,9 @@ export interface AnalysisBudget {
 }
 
 export interface VisionProviderRequestConfig {
-  provider: 'openai' | 'opencode-local';
+  provider: 'openai' | 'opencode-local' | 'codex-cli';
+  /** Optional path to the user's authenticated Codex CLI executable. */
+  codexPath?: string;
   baseURL: string;
   model: string;
   apiKey: string;
@@ -215,6 +233,18 @@ export interface AnalysisResult {
   signalOnlyShots: number;
   unknownShots: number;
   budgetExceeded: boolean;
+  visionSummary?: {
+    attemptedModelCalls: number;
+    modelCallLimit: number;
+    labeledShots: number;
+    signalOnlyShots: number;
+    partialReasons: string[];
+    frameRequestAttempted: boolean;
+    frameRequestResponseReceived: boolean;
+    externalFrameRequestAttempted: boolean;
+    localServerFrameRequestAttempted: boolean;
+    externalOnwardTransmission: boolean | null;
+  };
   /** Distinct techniques present in techniques.csv (0 = header-only output). */
   matchedTechniqueCount: number;
   error?: string;

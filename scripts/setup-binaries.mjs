@@ -3,7 +3,9 @@ import path from 'path';
 import zlib from 'zlib';
 import { pipeline } from 'stream/promises';
 import { fileURLToPath } from 'url';
-import { execFileSync, execSync } from 'child_process';
+import { execFileSync, execSync, spawn } from 'child_process';
+import { Readable, Transform } from 'stream';
+import { createHash } from 'crypto';
 
 const BIN_DIR = path.join(process.cwd(), 'bin');
 const OS = process.platform; // 'win32', 'darwin', 'linux'
@@ -23,6 +25,9 @@ const WARN_ONLY =
   process.env.FLUCTO_BINARY_SETUP_WARN_ONLY === '1'
   || process.env.npm_lifecycle_event === 'postinstall';
 const DOWNLOAD_TIMEOUT_MS = 120000;
+const MAX_AV_ARCHIVE_BYTES = 512 * 1024 * 1024;
+const MAX_AV_DECOMPRESSED_TAR_BYTES = 1024 * 1024 * 1024;
+const MAX_AV_MEMBER_BYTES = 256 * 1024 * 1024;
 const OPENCODE_VERSION = '1.19.3';
 const OPENCODE_ASSET_SHA256 = {
   'opencode-darwin-arm64.zip': 'c2d0fecd27acf6e08be02c1f5d384614d07495587766bcc4a6bff3971749bb64',
@@ -36,6 +41,24 @@ const OPENCODE_ASSET_SHA256 = {
 const MAC_UNIVERSAL_ARCHES = ['x86_64', 'arm64'];
 const NODE_TO_MACHO_ARCH = { x64: 'x86_64', arm64: 'arm64' };
 
+// GPL-enabled binaries: redistribution/licensing review remains a release gate.
+const PINNED_AV = {
+  'win32/x64': {
+    ffmpeg: { url: 'https://github.com/GyanD/codexffmpeg/releases/download/8.1.2/ffmpeg-8.1.2-essentials_build.zip', sha256: 'db580001caa24ac104c8cb856cd113a87b0a443f7bdf47d8c12b1d740584a2ec' },
+    ffprobe: { url: 'https://github.com/GyanD/codexffmpeg/releases/download/8.1.2/ffmpeg-8.1.2-essentials_build.zip', sha256: 'db580001caa24ac104c8cb856cd113a87b0a443f7bdf47d8c12b1d740584a2ec' },
+  },
+  'linux/x64': { ffmpeg: { url: 'https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-18-13-01/ffmpeg-N-127651-gb60ab6c9a4-linux64-gpl.tar.xz', sha256: 'a5f2aed198efa8ef4c12d9112f42e7cefbdf11dced1b59a87503ca689bc52277' }, ffprobe: { url: 'https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-18-13-01/ffmpeg-N-127651-gb60ab6c9a4-linux64-gpl.tar.xz', sha256: 'a5f2aed198efa8ef4c12d9112f42e7cefbdf11dced1b59a87503ca689bc52277' } },
+  'linux/arm64': { ffmpeg: { url: 'https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-18-13-01/ffmpeg-N-127651-gb60ab6c9a4-linuxarm64-gpl.tar.xz', sha256: '3d1ccdb45b01635e8404da39869f3a0c7a535b9e63470439bc3e677cf12fe266' }, ffprobe: { url: 'https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-18-13-01/ffmpeg-N-127651-gb60ab6c9a4-linuxarm64-gpl.tar.xz', sha256: '3d1ccdb45b01635e8404da39869f3a0c7a535b9e63470439bc3e677cf12fe266' } },
+  'darwin/x64': { ffmpeg: { url: 'https://ffmpeg.martin-riedl.de/download/macos/amd64/1789931006_9.0.2/ffmpeg.zip', sha256: '7c6b4125b191cbf773832dc51f424cf2b6bb7da43007d1e066f95909e47cacd4' }, ffprobe: { url: 'https://ffmpeg.martin-riedl.de/download/macos/amd64/1789931006_9.0.2/ffprobe.zip', sha256: '2322438ed2f6319a691291b247d09c69dcaa3a982460d1f269a7e1af335cfdfd' } },
+  'darwin/arm64': { ffmpeg: { url: 'https://ffmpeg.martin-riedl.de/download/macos/arm64/1789931890_9.0.2/ffmpeg.zip', sha256: 'c8ed4c4e6978a03c485edbfe4e0a5dc2380f8a30bba5150531b31b094492d924' }, ffprobe: { url: 'https://ffmpeg.martin-riedl.de/download/macos/arm64/1789931890_9.0.2/ffprobe.zip', sha256: 'fcbe839537485eaee7a7a8bc5cbc0f90d53617e80943e8a5b2e31cb851197ea6' } },
+};
+
+export const pinnedAvSourceFor = (name, os = OS, arch = HOST_ARCH) => {
+  const source = PINNED_AV[`${os}/${arch}`]?.[name];
+  if (!source) throw new Error(`No pinned ${name} source for ${os}/${arch}`);
+  return source;
+};
+
 // URL configuration. Order matters: earlier entries are tried first and
 // fallbacks are only used when they are architecturally compatible with the
 // requested CPU. evermeet.cx only ships x86_64, so it is never offered to
@@ -48,39 +71,6 @@ const URLS = {
     linuxByArch: {
       x64: 'https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp_linux',
       arm64: 'https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp_linux_aarch64',
-    },
-  },
-  ffmpeg: {
-    win32: [
-      'https://github.com/GyanD/codexffmpeg/releases/download/8.1.2/ffmpeg-8.1.2-essentials_build.zip',
-      'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip',
-    ],
-    darwinByArch: {
-      x64: [
-        'https://evermeet.cx/ffmpeg/getrelease/zip',
-        'https://ffmpeg.martin-riedl.de/redirect/latest/macos/amd64/release/ffmpeg.zip',
-        'https://github.com/eugeneware/ffmpeg-static/releases/latest/download/ffmpeg-darwin-x64.gz',
-      ],
-      arm64: [
-        'https://ffmpeg.martin-riedl.de/redirect/latest/macos/arm64/release/ffmpeg.zip',
-        'https://github.com/eugeneware/ffmpeg-static/releases/latest/download/ffmpeg-darwin-arm64.gz',
-      ],
-    },
-    linuxByArch: {
-      x64: [
-        'https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz',
-        'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz',
-      ],
-      arm64: [
-        'https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-arm64-static.tar.xz',
-        'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linuxarm64-gpl.tar.xz',
-      ],
-      arm: [
-        'https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-armhf-static.tar.xz',
-      ],
-      ia32: [
-        'https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-i686-static.tar.xz',
-      ],
     },
   },
 };
@@ -113,34 +103,23 @@ export const openCodeAssetNameFor = (os, arch) => {
   throw new Error(`No OpenCode build for ${os}/${arch}`);
 };
 
-export const ffmpegSourcesFor = (os = OS, arch = HOST_ARCH) => {
-  if (os === 'win32') return URLS.ffmpeg.win32;
-  if (os === 'darwin') {
-    const urls = URLS.ffmpeg.darwinByArch[arch];
-    if (!urls) throw new Error(`No FFmpeg build is published for macOS/${arch}`);
-    return urls;
-  }
-  if (os === 'linux') {
-    const urls = URLS.ffmpeg.linuxByArch[arch];
-    if (!urls) throw new Error(`No FFmpeg static build is published for linux/${arch}`);
-    return urls;
-  }
-  throw new Error(`No FFmpeg download source for platform ${os}`);
-};
+export const ffmpegSourcesFor = (os = OS, arch = HOST_ARCH) => [pinnedAvSourceFor('ffmpeg', os, arch).url];
 
-async function downloadFile(url, destPath) {
+async function downloadFile(url, destPath, maxBytes = MAX_AV_ARCHIVE_BYTES) {
   const response = await fetch(url, {
-    headers: {
-      'User-Agent': `Flucto binary setup (${OS})`,
-      Accept: 'application/octet-stream,*/*',
-    },
-    signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
-    redirect: 'follow',
+    headers: { 'User-Agent': `Flucto binary setup (${OS})`, Accept: 'application/octet-stream,*/*' },
+    signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS), redirect: 'follow',
   });
-  if (!response.ok) {
-    throw new Error(`Failed to download ${url}: HTTP ${response.status}`);
-  }
-  await fs.promises.writeFile(destPath, Buffer.from(await response.arrayBuffer()));
+  if (!response.ok) throw new Error(`Failed to download ${url}: HTTP ${response.status}`);
+  const size = Number(response.headers.get('content-length'));
+  if (Number.isFinite(size) && size > maxBytes) throw new Error('Downloaded archive exceeds size limit');
+  if (!response.body) throw new Error('Download response has no body');
+  let total = 0;
+  const cap = new Transform({ transform(chunk, _encoding, callback) {
+    total += chunk.length;
+    callback(total > maxBytes ? new Error('Downloaded archive exceeds size limit') : null, chunk);
+  } });
+  await pipeline(Readable.fromWeb(response.body), cap, fs.createWriteStream(destPath, { flags: 'wx' }));
 }
 
 async function downloadFileWithRetry(url, destPath, { attempts = 3, delayMs = 1500 } = {}) {
@@ -151,6 +130,7 @@ async function downloadFileWithRetry(url, destPath, { attempts = 3, delayMs = 15
       return;
     } catch (error) {
       lastError = error;
+      fs.rmSync(destPath, { force: true });
       if (attempt < attempts) {
         console.warn(`⚠️  Download retry ${attempt}/${attempts - 1} for ${url}`);
         await new Promise((resolve) => setTimeout(resolve, delayMs * attempt));
@@ -224,28 +204,111 @@ async function installDownloadedBinary(archivePath, memberName, destPath) {
   fs.copyFileSync(archivePath, destPath);
 }
 
+const sha256File = (file) => createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+const pinnedSourceForUrl = (url) => Object.values(PINNED_AV).flatMap((pair) => Object.values(pair)).find((source) => source.url === url);
+const safeArchivePath = (value) => {
+  const p = value.replace(/\\/g, '/');
+  if (!p || p.startsWith('/') || /^[A-Za-z]:/.test(p) || p.split('/').includes('..')) throw new Error(`Unsafe archive member path: ${value}`);
+  return p;
+};
+
+export async function extractAvMember(archivePath, memberName, destination, decompressedTarCache) {
+  const lower = archivePath.toLowerCase();
+  if (lower.endsWith('.zip')) {
+    const { default: AdmZip } = await import('adm-zip');
+    const zip = new AdmZip(archivePath);
+    const entries = zip.getEntries();
+    for (const entry of entries) {
+      safeArchivePath(entry.entryName);
+      if (((entry.header.attr >>> 16) & 0xf000) === 0xa000) throw new Error(`Archive symlink rejected: ${entry.entryName}`);
+    }
+    const matches = entries.filter((entry) => {
+      const p = safeArchivePath(entry.entryName);
+      return p === memberName || p.endsWith(`/${memberName}`);
+    });
+    if (matches.length !== 1) throw new Error(`Expected exactly one ${memberName} archive member; found ${matches.length}`);
+    const entry = matches[0];
+    if (!Number.isFinite(entry.header.size) || entry.header.size > MAX_AV_MEMBER_BYTES || !Number.isFinite(entry.header.compressedSize)
+      || entry.header.size / Math.max(1, entry.header.compressedSize) > 1000) throw new Error('ZIP member size/compression ratio exceeds limit');
+    const data = entry.getData();
+    if (data.length !== entry.header.size || data.length > MAX_AV_MEMBER_BYTES) throw new Error('ZIP member actual size invalid');
+    fs.writeFileSync(destination, data);
+    return;
+  }
+  let tarFile = archivePath;
+  let ownsTarFile = false;
+  if (lower.endsWith('.tar.xz')) {
+    tarFile = decompressedTarCache?.get(archivePath) ?? path.join(path.dirname(destination), `archive-${decompressedTarCache?.size ?? 0}.decompressed.tar`);
+    const cached = decompressedTarCache?.has(archivePath) ?? false;
+    if (!cached) {
+      ownsTarFile = !decompressedTarCache;
+      const child = spawn('xz', ['-dc', '--', archivePath], { stdio: ['ignore', 'pipe', 'ignore'], shell: false });
+      const closed = new Promise((resolve, reject) => { child.once('error', reject); child.once('close', resolve); });
+      const timer = setTimeout(() => child.kill(), DOWNLOAD_TIMEOUT_MS);
+      let expandedBytes = 0;
+      const cap = new Transform({ transform(chunk, _encoding, callback) {
+        expandedBytes += chunk.length;
+        callback(expandedBytes > MAX_AV_DECOMPRESSED_TAR_BYTES ? new Error('Decompressed TAR exceeds size limit') : null, chunk);
+      } });
+      try {
+        await pipeline(child.stdout, cap, fs.createWriteStream(tarFile, { flags: 'wx' }));
+        const code = await closed;
+        if (code !== 0) throw new Error(`xz failed with exit code ${code}`);
+      } catch (error) {
+        child.kill(); await closed.catch(() => undefined); fs.rmSync(tarFile, { force: true }); throw error;
+      } finally { clearTimeout(timer); }
+      decompressedTarCache?.set(archivePath, tarFile);
+    }
+  }
+  const { x } = await import('tar');
+  const extractDir = `${destination}.extract`;
+  fs.mkdirSync(extractDir);
+  let count = 0;
+  let rejected = null;
+  try {
+    await x({ file: tarFile, cwd: extractDir, strict: true, filter: (raw, entry) => {
+      let p;
+      try { p = safeArchivePath(raw); } catch (error) { rejected = error; return false; }
+      if (entry.type && !['File', 'Directory'].includes(entry.type)) { rejected = new Error(`TAR link/special member rejected: ${raw}`); return false; }
+      if (p === memberName || p.endsWith(`/${memberName}`)) {
+        count += 1;
+        if (count !== 1 || entry.type !== 'File' || !Number.isFinite(entry.size) || entry.size > MAX_AV_MEMBER_BYTES) { rejected = new Error(`Ambiguous/invalid/oversized TAR member: ${raw}`); return false; }
+        return true;
+      }
+      return entry.type === 'Directory';
+    } });
+    if (rejected) throw rejected;
+    if (count !== 1) throw new Error(`Expected one TAR member ${memberName}`);
+    const entries = [];
+    const walk = (dir) => { for (const e of fs.readdirSync(dir, { withFileTypes: true })) { const p = path.join(dir, e.name); if (e.isDirectory()) walk(p); else entries.push(p); } };
+    walk(extractDir);
+    if (entries.length !== 1) throw new Error(`Unexpected TAR extraction entries: ${entries.length}`);
+    if (fs.statSync(entries[0]).size > MAX_AV_MEMBER_BYTES) throw new Error('Extracted TAR member exceeds size limit');
+    fs.copyFileSync(entries[0], destination);
+  } finally { fs.rmSync(extractDir, { recursive: true, force: true }); if (ownsTarFile) fs.rmSync(tarFile, { force: true }); }
+}
+
 async function provisionFromSources(sources, memberName, destPath) {
-  const errors = [];
-  const tempDir = fs.mkdtempSync(path.join(BIN_DIR, '.download-'));
+  const tempDir = fs.mkdtempSync(path.join(path.dirname(destPath), '.download-'));
   try {
     for (const url of sources) {
-      const leaf = path.basename(new URL(url).pathname) || `${memberName}.download`;
-      const archivePath = path.join(tempDir, leaf);
-      try {
-        console.log(`⬇️  Downloading from ${url}...`);
-        await downloadFileWithRetry(url, archivePath);
-        await installDownloadedBinary(archivePath, memberName, destPath);
-        return url;
-      } catch (error) {
-        errors.push(`${url}: ${error instanceof Error ? error.message : String(error)}`);
-        console.warn(`⚠️  Source failed: ${url}`);
-        fs.rmSync(archivePath, { force: true });
-      }
+      const source = pinnedSourceForUrl(url);
+      if (!source) throw new Error(`No pinned SHA-256 configured for ${url}`);
+      const archivePath = path.join(tempDir, path.basename(new URL(url).pathname));
+      const staged = path.join(tempDir, path.basename(destPath));
+      await downloadFileWithRetry(url, archivePath);
+      const actual = sha256File(archivePath);
+      if (actual !== source.sha256) throw new Error(`SHA-256 mismatch for ${url}`);
+      await extractAvMember(archivePath, memberName, staged);
+      if (OS !== 'win32') fs.chmodSync(staged, 0o755);
+      const args = memberName.toLowerCase().includes('ffprobe') ? ['-version'] : ['-version'];
+      if (!localBinaryVersion(staged, args)) throw new Error(`${memberName} failed staged version check`);
+      fs.mkdirSync(path.dirname(destPath), { recursive: true });
+      fs.renameSync(staged, destPath);
+      return url;
     }
-  } finally {
-    fs.rmSync(tempDir, { recursive: true, force: true });
-  }
-  throw new Error(`All download sources failed for ${memberName}:\n  ${errors.join('\n  ')}`);
+  } finally { fs.rmSync(tempDir, { recursive: true, force: true }); }
+  throw new Error(`No pinned source configured for ${memberName}`);
 }
 
 async function fetchLatestYtDlpVersion() {
@@ -505,6 +568,123 @@ async function setupOpenCode() {
   for (const arch of arches) await setupOpenCodeForArch(release, arch);
 }
 
+export function replaceAvPairAtomically(pairs, { rename = fs.renameSync, remove = fs.rmSync, exists = fs.existsSync } = {}) {
+  if (!pairs || pairs.length !== 2) throw new Error('FFmpeg/FFprobe replacement requires exactly two staged binaries');
+  const backupDir = fs.mkdtempSync(path.join(path.dirname(pairs[0].target), '.av-backup-'));
+  const backups = [];
+  const installed = [];
+  try {
+    for (const [index, pair] of pairs.entries()) {
+      if (exists(pair.target)) {
+        const backup = path.join(backupDir, `${index}-${path.basename(pair.target)}`);
+        rename(pair.target, backup);
+        backups.push({ target: pair.target, backup });
+      }
+    }
+    for (const pair of pairs) { rename(pair.staged, pair.target); installed.push(pair.target); }
+  } catch (error) {
+    const rollbackErrors = [];
+    for (const target of installed.reverse()) {
+      try { remove(target, { force: true }); } catch (rollbackError) { rollbackErrors.push(rollbackError); }
+    }
+    for (const item of backups.reverse()) {
+      try { rename(item.backup, item.target); } catch (rollbackError) { rollbackErrors.push(rollbackError); }
+    }
+    if (rollbackErrors.length) throw new AggregateError([error, ...rollbackErrors], `FFmpeg/FFprobe replacement failed and rollback was incomplete; preserved backups at ${backupDir}`);
+    remove(backupDir, { recursive: true, force: true });
+    throw error;
+  }
+  remove(backupDir, { recursive: true, force: true });
+}
+
+async function setupAvPair() {
+  const stageDir = fs.mkdtempSync(path.join(BIN_DIR, '.av-pair-'));
+  try {
+    const staged = [];
+    const arches = OS === 'darwin' && UNIVERSAL ? ['x64', 'arm64'] : [HOST_ARCH];
+    const sourcePairs = arches.flatMap((arch) => ['ffmpeg', 'ffprobe'].map((tool) => ({ tool, arch, source: pinnedAvSourceFor(tool, OS, arch) })));
+    const archives = new Map();
+    for (const { source } of sourcePairs) {
+      if (archives.has(source.url)) continue;
+      const archivePath = path.join(stageDir, `archive-${archives.size}-${path.basename(new URL(source.url).pathname)}`);
+      await downloadFileWithRetry(source.url, archivePath);
+      if (sha256File(archivePath) !== source.sha256) throw new Error(`SHA-256 mismatch for ${source.url}`);
+      archives.set(source.url, archivePath);
+    }
+    const decompressedTarCache = new Map();
+    const stageMember = async (tool, source, output) => {
+      const archivePath = archives.get(source.url);
+      if (!archivePath) throw new Error(`Pinned archive missing: ${source.url}`);
+      await extractAvMember(archivePath, tool, output, decompressedTarCache);
+      if (OS !== 'win32') fs.chmodSync(output, 0o755);
+      if (!localBinaryVersion(output, ['-version'])) throw new Error(`${tool} staged version validation failed`);
+    };
+    if (OS === 'darwin' && UNIVERSAL) {
+      const slices = { ffmpeg: [], ffprobe: [] };
+      for (const { tool, arch, source } of sourcePairs) {
+        const slice = path.join(stageDir, `${tool}-${arch}`);
+        await stageMember(tool, source, slice);
+        slices[tool].push(slice);
+      }
+      for (const tool of ['ffmpeg', 'ffprobe']) {
+        const output = path.join(stageDir, tool);
+        lipoCreateUniversal(slices[tool], output);
+        assertUniversalMachO(output, tool);
+        if (!localBinaryVersion(output, ['-version'])) throw new Error(`${tool} universal staged version check failed`);
+        staged.push({ staged: output, target: path.join(BIN_DIR, tool) });
+      }
+    } else {
+      for (const { tool, source } of sourcePairs) {
+        const executable = OS === 'win32' ? `${tool}.exe` : tool;
+        const output = path.join(stageDir, executable);
+        await stageMember(executable, source, output);
+        staged.push({ staged: output, target: path.join(BIN_DIR, executable) });
+      }
+    }
+    const versions = staged.map(({ staged: file }) => localBinaryVersion(file, ['-version']));
+    const versionTag = (value) => value?.match(/version ([^ ]+)/)?.[1];
+    if (!versions[0] || !versions[1] || versionTag(versions[0]) !== versionTag(versions[1])) throw new Error('Pinned FFmpeg/FFprobe staged versions do not match');
+    replaceAvPairAtomically(staged);
+    console.log(`✅ FFmpeg/FFprobe pinned pair installed (${versionTag(versions[0])}).`);
+  } finally { fs.rmSync(stageDir, { recursive: true, force: true }); }
+}
+
+async function setupFfprobeUniversal() {
+  const target = path.join(BIN_DIR, 'ffprobe');
+  const ffmpegVersion = localBinaryVersion(path.join(BIN_DIR, 'ffmpeg'), ['-version']);
+  if (fs.existsSync(target) && !FORCE) {
+    try {
+      assertUniversalMachO(target, 'FFprobe');
+      const current = localBinaryVersion(target, ['-version']);
+      if (current && ffmpegVersion && current.includes(ffmpegVersion.match(/version ([^ ]+)/)?.[1] ?? '\u0000')) return;
+    } catch { /* rebuild invalid or mismatched installed probe */ }
+  }
+  const slices = [];
+  for (const arch of ['x64', 'arm64']) {
+    const slice = path.join(BIN_DIR, `ffprobe-${arch}`);
+    await provisionFromSources([pinnedAvSourceFor('ffprobe', 'darwin', arch).url], 'ffprobe', slice);
+    slices.push(slice);
+  }
+  const staged = path.join(BIN_DIR, '.ffprobe-universal-staged');
+  lipoCreateUniversal(slices, staged);
+  assertUniversalMachO(staged, 'FFprobe');
+  if (!localBinaryVersion(staged, ['-version'])) throw new Error('Universal FFprobe failed version check');
+  fs.renameSync(staged, target);
+  for (const slice of slices) fs.rmSync(slice, { force: true });
+}
+
+async function setupFfprobe() {
+  if (OS === 'darwin' && UNIVERSAL) return setupFfprobeUniversal();
+  const target = path.join(BIN_DIR, OS === 'win32' ? 'ffprobe.exe' : 'ffprobe');
+  const ffmpegVersion = localBinaryVersion(path.join(BIN_DIR, OS === 'win32' ? 'ffmpeg.exe' : 'ffmpeg'), ['-version']);
+  if (fs.existsSync(target) && !FORCE) {
+    const currentVersion = localBinaryVersion(target, ['-version']);
+    if (currentVersion && ffmpegVersion && currentVersion.includes(ffmpegVersion.match(/version ([^ ]+)/)?.[1] ?? '\u0000')) return;
+  }
+  const source = pinnedAvSourceFor('ffprobe', OS, HOST_ARCH);
+  await provisionFromSources([source.url], OS === 'win32' ? 'ffprobe.exe' : 'ffprobe', target);
+}
+
 async function setupFfmpeg() {
   const ffmpegName = OS === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
   const ffmpegPath = path.join(BIN_DIR, ffmpegName);
@@ -550,7 +730,7 @@ export async function setup() {
 
   if (!OPENCODE_ONLY) {
     await setupYtDlp();
-    await setupFfmpeg();
+    await setupAvPair();
   }
   await setupOpenCode();
 

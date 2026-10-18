@@ -9,10 +9,13 @@
 
 import { FRAME_BUFFER_MAX_PX } from '../../shared/analysisTypes.js';
 import type {
+  FrameRequestDestination,
   ShotSemanticLabels,
   ShotSignals,
+  VisionFailureCode,
   VisionProviderRequestConfig,
 } from '../../shared/analysisTypes.js';
+import { CodexAppServerError, requestCodexVisionLabels } from './codexVisionRuntime.js';
 
 export const VISION_CONFIDENCE_FLOOR = 0.55;
 
@@ -25,28 +28,56 @@ export type VisionProviderConfig = VisionProviderRequestConfig;
 
 export class VisionBudgetExceededError extends Error {
   constructor(readonly used: number, readonly limit: number) {
-    super(`Vision API budget exceeded: ${used} calls used of ${limit} allowed.`);
+    super('Vision request budget exceeded.');
     this.name = 'VisionBudgetExceededError';
+  }
+}
+
+export class VisionProviderError extends Error {
+  constructor(readonly code: Exclude<VisionFailureCode, 'budget-exceeded'>) {
+    super(`Vision provider request failed (${code}).`);
+    this.name = 'VisionProviderError';
   }
 }
 
 /**
  * Env-contract (external API, not inferable from code):
  * provider=openai: BASE_URL + API_KEY + MODEL all required.
- * provider=opencode-local: local `opencode serve`; only MODEL required. BASE_URL
- * defaults to http://127.0.0.1:4096; MODEL drops a leading `opencode/`; VARIANT defaults to low.
+ * provider=opencode-local: local `opencode serve`; MODEL and authenticated loopback credentials required.
+ * provider=codex-cli: authenticated local Codex CLI app-server; MODEL required, no Flucto API key.
  */
+export const validateOpenCodeLocalEndpoint = (baseURL: string): void => {
+  let url: URL;
+  try { url = new URL(baseURL); } catch { throw new Error('OpenCode local server URL must be an HTTP loopback URL.'); }
+  if (url.protocol !== 'http:' || !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname.toLowerCase()) || url.username || url.password) {
+    throw new Error('OpenCode local server URL must be an HTTP loopback URL.');
+  }
+};
+
 export const resolveVisionProviderConfig = (env: NodeJS.ProcessEnv = process.env): VisionProviderConfig | null => {
   const providerRaw = env.FLUCTO_VISION_PROVIDER?.trim().toLowerCase() ?? '';
-  const provider = providerRaw === 'opencode-local' ? 'opencode-local' as const : 'openai' as const;
   const model = env.FLUCTO_VISION_MODEL?.trim() ?? '';
   if (!model) return null;
+  if (providerRaw === 'codex-cli') {
+    return {
+      provider: 'codex-cli', baseURL: '', model, apiKey: '',
+      ...(env.FLUCTO_CODEX_PATH?.trim() ? { codexPath: env.FLUCTO_CODEX_PATH.trim() } : {}),
+    };
+  }
+  const provider = providerRaw === 'opencode-local' ? 'opencode-local' as const : 'openai' as const;
   if (provider === 'opencode-local') {
+    const baseURL = env.FLUCTO_VISION_BASE_URL?.trim() || 'http://127.0.0.1:4096';
+    const serverUsername = env.FLUCTO_OPENCODE_SERVER_USERNAME?.trim() ?? '';
+    const serverPassword = env.FLUCTO_OPENCODE_SERVER_PASSWORD ?? '';
+    validateOpenCodeLocalEndpoint(baseURL);
+    if (!serverUsername || !serverPassword) return null;
     return {
       provider,
-      baseURL: env.FLUCTO_VISION_BASE_URL?.trim() || 'http://127.0.0.1:4096',
+      baseURL,
       model: model.replace(/^opencode\//i, ''),
       apiKey: env.FLUCTO_VISION_API_KEY?.trim() ?? '',
+      serverUsername,
+      serverPassword,
       variant: env.FLUCTO_VISION_VARIANT?.trim() || 'low',
     };
   }
@@ -120,7 +151,36 @@ export const parseVisionCompletionJson = (content: string): VisionCompletionJson
 export interface VisionApiCallResult {
   labels: ShotSemanticLabels | null;
   apiCallsUsed: number;
+  failureCode?: VisionFailureCode;
 }
+
+export interface VisionApiCallCounter {
+  used: number;
+  limit: number;
+  onFrameRequest?: (destination: FrameRequestDestination) => void;
+  onFrameResponseReceived?: () => void;
+}
+
+const hasSemanticLabels = (labels: ShotSemanticLabels | null): labels is ShotSemanticLabels => Boolean(
+  labels && Object.entries(labels).some(([key, value]) => key !== 'confidence' && typeof value === 'string' && value.trim().length > 0),
+);
+const failureCodeFor = (error: unknown): Exclude<VisionFailureCode, 'budget-exceeded'> => {
+  if (error instanceof VisionProviderError) return error.code;
+  if (error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError')) return 'timeout';
+  return 'network-error';
+};
+const safeHttpError = (status: number): VisionProviderError => new VisionProviderError(
+  status === 401 || status === 403 ? 'provider-rejected' : status === 404 || status === 503 ? 'provider-unavailable' : 'http-error',
+);
+
+const openCodeResponseFailure = (payload: unknown): VisionFailureCode | null => {
+  if (!payload || typeof payload !== 'object') return null;
+  const error = (payload as { info?: { error?: unknown } }).info?.error;
+  if (!error || typeof error !== 'object') return null;
+  const status = (error as { data?: { statusCode?: unknown } }).data?.statusCode;
+  if (typeof status !== 'number') return 'http-error';
+  return status === 401 || status === 403 ? 'provider-rejected' : status === 404 || status === 503 ? 'provider-unavailable' : 'http-error';
+};
 
 const dataUrl = (frame: VisionRequestFrame): { type: 'image_url'; image_url: { url: string } } => ({
   type: 'image_url',
@@ -159,57 +219,65 @@ export const labelShotFramesOpencodeLocal = async (
   config: VisionProviderConfig,
   frames: VisionRequestFrame[],
   signals: ShotSignals,
-  counter: { used: number; limit: number },
+  counter: VisionApiCallCounter,
   fetchImpl: typeof fetch = fetch,
 ): Promise<VisionApiCallResult> => {
   if (frames.length === 0) return { labels: null, apiCallsUsed: 0 };
+  validateOpenCodeLocalEndpoint(config.baseURL);
+  if (!config.serverUsername || !config.serverPassword) throw new Error('OpenCode local server credentials are required.');
   if (counter.used >= counter.limit) {
     throw new VisionBudgetExceededError(counter.used, counter.limit);
   }
   const headers: Record<string, string> = { 'content-type': 'application/json' };
-  if (config.serverUsername && config.serverPassword) {
-    headers.authorization = `Basic ${Buffer.from(`${config.serverUsername}:${config.serverPassword}`).toString('base64')}`;
-  } else if (config.apiKey.length > 0) {
-    headers.authorization = `Bearer ${config.apiKey}`;
-  }
+  headers.authorization = `Basic ${Buffer.from(`${config.serverUsername}:${config.serverPassword}`).toString('base64')}`;
   const base = config.baseURL.replace(/\/+$/, '');
   const requestTimeout = AbortSignal.timeout(120_000);
-  const sessionResponse = await fetchImpl(`${base}/session`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ title: 'flucto-vision' }),
-    signal: requestTimeout,
-  });
-  if (!sessionResponse.ok) {
-    const body = await sessionResponse.text().catch(() => '');
-    throw new Error(`Vision provider HTTP ${sessionResponse.status} (opencode session): ${body.slice(0, 300)}`);
-  }
-  const sessionId = (await sessionResponse.json() as { id?: unknown }).id;
+  let sessionResponse: Response;
+  try {
+    sessionResponse = await fetchImpl(`${base}/session`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ title: 'flucto-vision' }),
+      signal: requestTimeout,
+      redirect: 'manual',
+    });
+  } catch (error) { throw new VisionProviderError(failureCodeFor(error)); }
+  if (!sessionResponse.ok) throw safeHttpError(sessionResponse.status);
+  let sessionId: unknown;
+  try { sessionId = (await sessionResponse.json() as { id?: unknown }).id; } catch { throw new VisionProviderError('malformed-response'); }
   if (typeof sessionId !== 'string' || sessionId.length === 0) {
-    throw new Error('Vision provider opencode-local: session create returned no id');
+    throw new VisionProviderError('malformed-response');
   }
-  const messageResponse = await fetchImpl(`${base}/session/${sessionId}/message`, {
+  counter.used += 1;
+  counter.onFrameRequest?.('local-server');
+  let messageResponse: Response;
+  try {
+    messageResponse = await fetchImpl(`${base}/session/${sessionId}/message`, {
     method: 'POST',
     headers,
     body: JSON.stringify(buildOpencodePromptPayload(config, frames, signals)),
     signal: requestTimeout,
-  });
-  if (!messageResponse.ok) {
-    const body = await messageResponse.text().catch(() => '');
-    throw new Error(`Vision provider HTTP ${messageResponse.status} (opencode message): ${body.slice(0, 300)}`);
-  }
-  counter.used += 1;
-  const text = extractTextPart(await messageResponse.json());
-  if (text === null) return { labels: null, apiCallsUsed: 1 };
-  const { labels } = parseVisionCompletionJson(text);
-  return { labels: labels && Object.keys(labels).length > 0 ? labels : null, apiCallsUsed: 1 };
+    redirect: 'manual',
+    });
+  } catch (error) { throw new VisionProviderError(failureCodeFor(error)); }
+  counter.onFrameResponseReceived?.();
+  if (!messageResponse.ok) throw safeHttpError(messageResponse.status);
+  let payload: unknown;
+  try { payload = await messageResponse.json(); } catch { return { labels: null, apiCallsUsed: 1, failureCode: 'malformed-response' }; }
+  const responseFailure = openCodeResponseFailure(payload);
+  if (responseFailure) return { labels: null, apiCallsUsed: 1, failureCode: responseFailure };
+  const text = extractTextPart(payload);
+  if (text === null) return { labels: null, apiCallsUsed: 1, failureCode: 'malformed-response' };
+  const parsed = parseVisionCompletionJson(text);
+  if (!parsed.labels) return { labels: null, apiCallsUsed: 1, failureCode: parsed.rawConfidence === null ? 'malformed-response' : undefined };
+  return { labels: hasSemanticLabels(parsed.labels) ? parsed.labels : null, apiCallsUsed: 1 };
 };
 
 export const labelShotFramesOpenai = async (
   config: VisionProviderConfig,
   frames: VisionRequestFrame[],
   signals: ShotSignals,
-  counter: { used: number; limit: number },
+  counter: VisionApiCallCounter,
   fetchImpl: typeof fetch = fetch,
 ): Promise<VisionApiCallResult> => {
   if (frames.length === 0) return { labels: null, apiCallsUsed: 0 };
@@ -231,39 +299,79 @@ export const labelShotFramesOpenai = async (
     ],
   };
   const endpoint = `${config.baseURL.replace(/\/+$/, '')}/chat/completions`;
-  const response = await fetchImpl(endpoint, {
-    method: 'POST',
-    signal: AbortSignal.timeout(120_000),
-    headers: {
-      'content-type': 'application/json',
-      authorization: `Bearer ${config.apiKey}`,
-    },
-    body: JSON.stringify(requestBody),
-  });
-  if (!response.ok) {
-    const body = await response.text().catch(() => '');
-    throw new Error(`Vision provider HTTP ${response.status}: ${body.slice(0, 300)}`);
-  }
   counter.used += 1;
-  const payload: unknown = await response.json();
+  counter.onFrameRequest?.('external-provider');
+  let response: Response;
+  try {
+    response = await fetchImpl(endpoint, {
+      method: 'POST',
+      signal: AbortSignal.timeout(120_000),
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${config.apiKey}`,
+      },
+      body: JSON.stringify(requestBody),
+      redirect: 'manual',
+    });
+  } catch (error) { throw new VisionProviderError(failureCodeFor(error)); }
+  counter.onFrameResponseReceived?.();
+  if (!response.ok) throw safeHttpError(response.status);
+  let payload: unknown;
+  try { payload = await response.json(); } catch { return { labels: null, apiCallsUsed: 1, failureCode: 'malformed-response' }; }
   const choice = (payload as { choices?: Array<{ message?: { content?: unknown } }> }).choices?.[0];
   if (!choice || typeof choice !== 'object' || typeof choice.message?.content !== 'string') {
-    return { labels: null, apiCallsUsed: 1 };
+    return { labels: null, apiCallsUsed: 1, failureCode: 'malformed-response' };
   }
-  const { labels } = parseVisionCompletionJson(choice.message.content);
-  return { labels: labels && Object.keys(labels).length > 0 ? labels : null, apiCallsUsed: 1 };
+  const parsed = parseVisionCompletionJson(choice.message.content);
+  if (!parsed.labels) return { labels: null, apiCallsUsed: 1, failureCode: parsed.rawConfidence === null ? 'malformed-response' : undefined };
+  return { labels: hasSemanticLabels(parsed.labels) ? parsed.labels : null, apiCallsUsed: 1 };
+};
+
+export const labelShotFramesCodexCli = async (
+  config: VisionProviderConfig,
+  frames: VisionRequestFrame[],
+  signals: ShotSignals,
+  counter: VisionApiCallCounter,
+  codexOptions: import('./codexVisionRuntime.js').CodexAppServerOptions = {},
+): Promise<VisionApiCallResult> => {
+  if (!frames.length) return { labels: null, apiCallsUsed: 0 };
+  if (counter.used >= counter.limit) throw new VisionBudgetExceededError(counter.used, counter.limit);
+  const codexCounter = {
+    used: counter.used,
+    limit: counter.limit,
+    onFrameRequest: () => counter.onFrameRequest?.('codex-cli'),
+    onFrameResponseReceived: () => counter.onFrameResponseReceived?.(),
+  };
+  try {
+    const result = await requestCodexVisionLabels(
+      { model: config.model, ...(config.codexPath ? { binaryPath: config.codexPath } : {}) },
+      frames,
+      signals,
+      codexCounter,
+      codexOptions,
+    );
+    if (!result.text) return { labels: null, apiCallsUsed: result.apiCallsUsed, failureCode: 'malformed-response' };
+    const parsed = parseVisionCompletionJson(result.text);
+    if (!parsed.labels) return { labels: null, apiCallsUsed: result.apiCallsUsed, failureCode: parsed.rawConfidence === null ? 'malformed-response' : undefined };
+    return { labels: hasSemanticLabels(parsed.labels) ? parsed.labels : null, apiCallsUsed: result.apiCallsUsed };
+  } catch (error) {
+    if (error instanceof CodexAppServerError) throw new VisionProviderError(error.code);
+    throw new VisionProviderError(failureCodeFor(error));
+  } finally {
+    counter.used = codexCounter.used;
+  }
 };
 
 export const labelShotFrames = (
   config: VisionProviderConfig,
   frames: VisionRequestFrame[],
   signals: ShotSignals,
-  counter: { used: number; limit: number },
+  counter: VisionApiCallCounter,
   fetchImpl: typeof fetch = fetch,
+  codexOptions: import('./codexVisionRuntime.js').CodexAppServerOptions = {},
 ): ReturnType<typeof labelShotFramesOpenai> => {
-  if (config.provider === 'opencode-local') {
-    return labelShotFramesOpencodeLocal(config, frames, signals, counter, fetchImpl);
-  }
+  if (config.provider === 'opencode-local') return labelShotFramesOpencodeLocal(config, frames, signals, counter, fetchImpl);
+  if (config.provider === 'codex-cli') return labelShotFramesCodexCli(config, frames, signals, counter, codexOptions);
   return labelShotFramesOpenai(config, frames, signals, counter, fetchImpl);
 };
 

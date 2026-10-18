@@ -145,7 +145,7 @@ export const buildKeyframeArgs = ({ ffmpegPath, videoPath, startS, durationS, fr
     '-t', Math.max(0.05, durationS).toFixed(3),
     '-i', videoPath,
     '-vf', `select='isnan(prev_selected_t)+gte(t-prev_selected_t,${(Math.max(0.05, durationS) / Math.max(1, frameCount)).toFixed(3)})',scale='min(${FRAME_BUFFER_MAX_PX},iw)':-2,setsar=1`,
-    '-vsync', '0',
+    '-fps_mode', 'passthrough',
     '-frames:v', String(frameCount),
     '-vcodec', 'mjpeg',
     '-f', 'image2pipe',

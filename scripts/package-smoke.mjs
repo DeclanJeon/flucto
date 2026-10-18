@@ -4,7 +4,9 @@ import assert from 'node:assert/strict';
 import { execFile, spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 import http from 'node:http';
+import net from 'node:net';
 import os from 'node:os';
+import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import AdmZip from 'adm-zip';
@@ -50,6 +52,56 @@ const waitFor = async (probe, description, timeout = 60000) => {
   throw new Error(`Timed out waiting for ${description}: ${lastError?.message ?? 'not ready'}`);
 };
 
+const smokePackagedOpenCodeAuth = async (binary) => {
+  const port = await new Promise((resolve, reject) => {
+    const probe = net.createServer();
+    probe.once('error', reject);
+    probe.listen(0, '127.0.0.1', () => {
+      const address = probe.address();
+      probe.close((error) => error ? reject(error) : resolve(address.port));
+    });
+  });
+  const dataRoot = path.join(root, 'opencode-isolated');
+  const configDir = path.join(dataRoot, 'config');
+  const env = Object.fromEntries(['PATH', 'SYSTEMROOT', 'WINDIR', 'TEMP', 'TMP', 'LANG'].flatMap((key) => process.env[key] ? [[key, process.env[key]]] : []));
+  env.HOME = dataRoot; env.USERPROFILE = dataRoot;
+  env.APPDATA = path.join(dataRoot, 'AppData', 'Roaming');
+  env.LOCALAPPDATA = path.join(dataRoot, 'AppData', 'Local');
+  env.XDG_CONFIG_HOME = configDir; env.XDG_CONFIG_DIRS = configDir;
+  env.XDG_DATA_HOME = path.join(dataRoot, 'data'); env.XDG_STATE_HOME = path.join(dataRoot, 'state'); env.XDG_CACHE_HOME = path.join(dataRoot, 'cache');
+  env.OPENCODE_CONFIG_DIR = configDir;
+  env.OPENCODE_SERVER_USERNAME = `flucto-smoke-${randomBytes(8).toString('hex')}`;
+  env.OPENCODE_SERVER_PASSWORD = randomBytes(32).toString('base64url');
+  const username = env.OPENCODE_SERVER_USERNAME;
+  const password = env.OPENCODE_SERVER_PASSWORD;
+  await fs.mkdir(dataRoot, { recursive: true });
+  const child = spawn(binary, ['serve', '--hostname', '127.0.0.1', '--port', String(port)], { env, stdio: 'ignore', shell: false, windowsHide: true });
+  let spawnError;
+  child.once('error', (error) => { spawnError = error; });
+  const exited = new Promise((resolve) => { child.once('close', resolve); child.once('error', resolve); });
+  const endpoint = `http://127.0.0.1:${port}/provider`;
+  try {
+    await waitFor(async () => {
+      if (spawnError) throw spawnError;
+      if (child.exitCode !== null) throw new Error(`Bundled OpenCode server exited with code ${child.exitCode}`);
+      const unauth = await fetch(endpoint, { signal: AbortSignal.timeout(1000), redirect: 'error' });
+      const unauthStatus = unauth.status;
+      await unauth.body?.cancel();
+      if (unauthStatus === 200) throw new Error('Bundled OpenCode /provider accepted an unauthenticated request');
+      if (![401, 403].includes(unauthStatus)) return false;
+      const auth = await fetch(endpoint, { headers: { authorization: `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}` }, signal: AbortSignal.timeout(1000), redirect: 'error' });
+      const authStatus = auth.status;
+      await auth.body?.cancel();
+      return authStatus === 200;
+    }, 'bundled OpenCode authenticated /provider endpoint', 30000);
+  } finally {
+    if (child.exitCode === null) child.kill('SIGTERM');
+    const done = await Promise.race([exited.then(() => true), new Promise((resolve) => setTimeout(() => resolve(false), 3000))]);
+    if (!done && child.exitCode === null) child.kill('SIGKILL');
+    await exited;
+  }
+};
+
 const stopDesktop = async () => {
   socket?.close();
   socket = undefined;
@@ -93,6 +145,13 @@ try {
   assert.equal(health.valid, true, JSON.stringify(health));
   assert.equal(path.dirname(health.paths.ytDlpPath), path.join(cliHome, 'bin'));
   assert.equal(path.dirname(health.paths.ffmpegPath), path.join(cliHome, 'bin'));
+  assert.ok(health.paths.ffprobePath, 'CLI install did not provision FFprobe');
+  await run(health.paths.ffmpegPath, ['-version']);
+  await run(health.paths.ffprobePath, ['-version']);
+  const cliProbeFixture = path.join(root, 'cli-probe-fixture.nut');
+  await run(health.paths.ffmpegPath, ['-v', 'error', '-f', 'lavfi', '-i', 'color=c=black:s=64x64:r=10', '-t', '1', '-c:v', 'rawvideo', '-f', 'nut', cliProbeFixture]);
+  const cliProbe = JSON.parse(await run(health.paths.ffprobePath, ['-v', 'error', '-show_entries', 'format=duration', '-of', 'json', cliProbeFixture]));
+  assert.ok(Number(cliProbe.format?.duration) > 0, 'CLI-installed FFprobe failed to probe generated fixture');
   await fs.mkdir(mediaDir);
   const fixture = path.join(root, 'fixture.mp4');
   await run(health.paths.ffmpegPath, ['-v', 'error', '-f', 'lavfi', '-i', 'color=c=black:s=64x64:r=10', '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=mono', '-t', '1', '-c:v', 'libx264', '-c:a', 'aac', '-shortest', '-movflags', '+faststart', fixture]);
@@ -146,6 +205,24 @@ try {
     const bundledYt = path.join(resources, 'bin', process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp');
     await run(bundledYt, ['--version']);
     await run(bundledFfmpeg, ['-version']);
+    const bundledFfprobe = path.join(resources, 'bin', process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe');
+    await run(bundledFfprobe, ['-version']);
+    const probeFixture = path.join(root, 'probe-fixture.nut');
+    await run(bundledFfmpeg, ['-v', 'error', '-f', 'lavfi', '-i', 'color=c=black:s=64x64:r=10', '-t', '1', '-c:v', 'rawvideo', '-f', 'nut', probeFixture]);
+    const probeResult = JSON.parse(await run(bundledFfprobe, ['-v', 'error', '-show_entries', 'format=duration', '-of', 'json', probeFixture]));
+    assert.ok(Number(probeResult.format?.duration) > 0, 'Packaged FFprobe failed to probe generated fixture');
+    const opencodeArches = process.platform === 'darwin' ? ['x64', 'arm64'] : [process.arch];
+    for (const arch of opencodeArches) {
+      const opencodePath = path.join(resources, 'bin', 'opencode', arch, process.platform === 'win32' ? 'opencode.exe' : 'opencode');
+      const opencodeVersion = await run(opencodePath, ['--version']);
+      const parsedVersion = opencodeVersion.match(/(?:^|\s)v?(\d+\.\d+\.\d+)(?:\s|$)/)?.[1];
+      assert.equal(parsedVersion, '1.19.3', `Unexpected packaged OpenCode version for ${arch}: ${opencodeVersion}`);
+      if (arch === process.arch) await smokePackagedOpenCodeAuth(opencodePath);
+      if (process.platform === 'darwin') {
+        const arches = await run('lipo', ['-archs', opencodePath]);
+        assert.match(arches, arch === 'x64' ? /x86_64/ : /arm64/);
+      }
+    }
     const cpu = process.arch;
     const port = 38147;
     const screenshotPath = path.join(releaseDir, `package-smoke-${process.platform}-${cpu}.png`);

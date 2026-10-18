@@ -24,6 +24,7 @@ type FluctoSettingsStore = {
   /** safeStorage-encrypted GitHub token (or `plain:`-prefixed fallback) used to star the repo. */
   githubTokenCipher: string;
   /** OpenCode provider selection and safeStorage-encrypted user API key. */
+  codexVision: { modelID: string; binaryPath: string };
   openCodeVision: { providerID: string; modelID: string; variant: 'low' | 'medium' | 'high' };
   openCodeApiKeyCipher: string;
   openCodeApiKeyProvider: string;
@@ -45,6 +46,7 @@ export const settingsStore = new Store<FluctoSettingsStore>({
     updateSettings: getUpdateSettingsDefaults(),
     lastAppUpdateCheckAt: 0,
     githubTokenCipher: '',
+    codexVision: { modelID: '', binaryPath: '' },
     openCodeVision: { providerID: '', modelID: '', variant: 'low' },
     openCodeApiKeyCipher: '',
     openCodeApiKeyProvider: '',

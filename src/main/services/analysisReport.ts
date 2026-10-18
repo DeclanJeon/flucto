@@ -14,7 +14,11 @@ interface EvidenceRecord {
   summary: string;
   generator: string;
   modelVersion?: string | null;
-  transmittedExternally: boolean;
+  transmittedExternally: boolean | null;
+  frameRequestAttempted?: boolean;
+  frameRequestResponseReceived?: boolean;
+  requestDestination?: 'external-provider' | 'local-server' | 'codex-cli' | null;
+  externalOnwardTransmission?: boolean | null;
 }
 
 interface AnalysisValidator {
@@ -161,10 +165,31 @@ export const writeStructuredAnalysisReport = async (input: {
   taxonomyRows: CraftTaxonomyRow[];
   segmentationMode: SegmentationMode;
   startedAt: string;
+  visionSummary?: {
+    attemptedModelCalls: number;
+    modelCallLimit: number;
+    labeledShots: number;
+    signalOnlyShots: number;
+    partialReasons: string[];
+    frameRequestAttempted: boolean;
+    frameRequestResponseReceived: boolean;
+    externalFrameRequestAttempted: boolean;
+    localServerFrameRequestAttempted: boolean;
+    externalOnwardTransmission: boolean | null;
+  };
 }): Promise<StructuredReportResult> => {
-  const { request, probe, observations, taxonomyRows, segmentationMode, startedAt } = input;
+  const { request, probe, observations, taxonomyRows, segmentationMode, startedAt, visionSummary } = input;
   fs.mkdirSync(request.outputDir, { recursive: true });
-  const modelName = request.vision.provider ? `${request.vision.provider.providerID ?? 'opencode'}/${request.vision.provider.model}` : null;
+  const visionProvider = request.vision.provider;
+  const providerNamespace = visionProvider
+    ? visionProvider.providerID ?? (visionProvider.provider === 'codex-cli' ? 'codex-cli' : visionProvider.provider === 'openai' ? 'openai' : 'opencode')
+    : null;
+  const modelName = visionProvider && providerNamespace ? `${providerNamespace}/${visionProvider.model}` : null;
+  const visionGeneratorName = visionProvider?.provider === 'codex-cli'
+    ? 'Codex CLI vision'
+    : visionProvider?.provider === 'openai'
+      ? 'OpenAI-compatible vision'
+      : 'OpenCode vision';
   const evidence: EvidenceRecord[] = [];
   const taxonomyById = new Map(taxonomyRows.map((row) => [row.techniqueId, row]));
   const shots = observations.map((observation) => {
@@ -180,8 +205,7 @@ export const writeStructuredAnalysisReport = async (input: {
       transmittedExternally: false,
     });
     const frameEvidenceId = evidenceId(observation.shotId, 'VISION');
-    const hasVisionLabels = Object.keys(observation.labels).some((key) => key !== 'confidence');
-    if (hasVisionLabels) {
+    if (observation.frameRequestAttempted) {
       evidence.push({
         id: frameEvidenceId,
         kind: 'frame',
@@ -190,7 +214,11 @@ export const writeStructuredAnalysisReport = async (input: {
         summary: 'Representative frame samples were decoded in memory from this shot; pixels were not persisted.',
         generator: 'Flucto frame sampler',
         modelVersion: modelName,
-        transmittedExternally: true,
+        transmittedExternally: observation.frameRequestDestination === 'external-provider' && observation.frameRequestResponseReceived ? true : null,
+        frameRequestAttempted: true,
+        frameRequestResponseReceived: observation.frameRequestResponseReceived ?? false,
+        requestDestination: observation.frameRequestDestination ?? null,
+        externalOnwardTransmission: observation.frameRequestDestination === 'local-server' || observation.frameRequestDestination === 'codex-cli' ? null : false,
       });
     }
     const labelClaims: Record<string, ReturnType<typeof claim>> = {};
@@ -217,6 +245,12 @@ export const writeStructuredAnalysisReport = async (input: {
       range: secondsRange(observation.startS, observation.endS),
       boundaryType: observation.cutType === 'HARD-CUT' ? 'hard-cut' : 'unknown',
       boundaryConfidence: null,
+      visionOutcome: observation.visionOutcome ?? 'not-requested',
+      visionFailureCode: observation.visionFailureCode ?? null,
+      frameRequestAttempted: observation.frameRequestAttempted ?? false,
+      frameRequestResponseReceived: observation.frameRequestResponseReceived ?? false,
+      frameRequestDestination: observation.frameRequestDestination ?? null,
+      boundaryCandidate: observation.outgoingBoundaryCandidate,
       claims: signalClaims,
       techniqueApplicationIds: observation.matchedTechniqueIds.map((id) => `TA-${observation.shotId}-${id}`),
     };
@@ -361,6 +395,7 @@ export const writeStructuredAnalysisReport = async (input: {
       height: probe.height || null,
       frameRate: probe.fps || null,
     },
+    visionSummary: visionSummary ?? null,
     coverage: {
       mode: segmentationMode.mode,
       analyzedRanges: observations.map((shot) => secondsRange(shot.startS, shot.endS)),
@@ -385,7 +420,7 @@ export const writeStructuredAnalysisReport = async (input: {
       completedAt: new Date().toISOString(),
       generators: [
         { name: 'Flucto ffmpeg analysis', version: '1', model: null },
-        ...(modelName ? [{ name: 'OpenCode vision', version: 'runtime-managed', model: modelName }] : []),
+        ...(modelName ? [{ name: visionGeneratorName, version: 'runtime-managed', model: modelName }] : []),
       ],
     },
   };
@@ -405,15 +440,15 @@ export const writeStructuredAnalysisReport = async (input: {
     writeCsvFile(target, columns, rows.map((row) => columns.map((column) => csvCell(row[column]))));
     artifactPaths.push(target);
   };
-  emitCsv('shots.csv', shots.map((shot) => ({ shot_id: shot.id, scene_id: shot.sceneId, start_s: shot.range.startSeconds, end_s: shot.range.endSeconds, duration_s: shot.claims.durationSeconds.value as number, boundary_type: shot.boundaryType, boundary_confidence: shot.boundaryConfidence, claims: shot.claims, technique_application_ids: shot.techniqueApplicationIds })), ['shot_id', 'scene_id', 'start_s', 'end_s', 'duration_s', 'boundary_type', 'boundary_confidence', 'claims', 'technique_application_ids']);
+  emitCsv('shots.csv', shots.map((shot) => ({ shot_id: shot.id, scene_id: shot.sceneId, start_s: shot.range.startSeconds, end_s: shot.range.endSeconds, duration_s: shot.claims.durationSeconds.value as number, boundary_type: shot.boundaryType, boundary_confidence: shot.boundaryConfidence, boundary_candidate_time_s: shot.boundaryCandidate?.timeSeconds ?? null, boundary_candidate_score: shot.boundaryCandidate?.score ?? null, boundary_candidate_method: shot.boundaryCandidate?.method ?? null, boundary_candidate_verification: shot.boundaryCandidate?.verification ?? null, vision_outcome: shot.visionOutcome ?? 'not-requested', vision_failure_code: shot.visionFailureCode ?? null, frame_request_attempted: shot.frameRequestAttempted ?? false, frame_request_response_received: shot.frameRequestResponseReceived ?? false, frame_request_destination: shot.frameRequestDestination ?? null, claims: shot.claims, technique_application_ids: shot.techniqueApplicationIds })), ['shot_id', 'scene_id', 'start_s', 'end_s', 'duration_s', 'boundary_type', 'boundary_confidence', 'boundary_candidate_time_s', 'boundary_candidate_score', 'boundary_candidate_method', 'boundary_candidate_verification', 'vision_outcome', 'vision_failure_code', 'frame_request_attempted', 'frame_request_response_received', 'frame_request_destination', 'claims', 'technique_application_ids']);
   emitCsv('scenes.csv', scenes.map((scene) => ({ scene_id: scene.id, start_s: scene.range.startSeconds, end_s: scene.range.endSeconds, shot_ids: scene.shotIds, claims: scene.claims })), ['scene_id', 'start_s', 'end_s', 'shot_ids', 'claims']);
-  emitCsv('evidence.csv', evidence as unknown as Array<Record<string, unknown>>, ['id', 'kind', 'range', 'evidenceLevel', 'summary', 'generator', 'modelVersion', 'transmittedExternally']);
+  emitCsv('evidence.csv', evidence as unknown as Array<Record<string, unknown>>, ['id', 'kind', 'range', 'evidenceLevel', 'summary', 'generator', 'modelVersion', 'transmittedExternally', 'frameRequestAttempted', 'frameRequestResponseReceived', 'requestDestination', 'externalOnwardTransmission']);
   emitCsv('technique_applications.csv', techniqueApplications.map((row) => ({ ...row, claim: row.claim, reproductionNotes: row.reproductionNotes, failureModes: row.failureModes })), ['id', 'techniqueId', 'shotIds', 'claim', 'reproductionNotes', 'failureModes']);
   emitCsv('production_plan.csv', productionPlan as unknown as Array<Record<string, unknown>>, ['id', 'stage', 'dependsOn', 'instruction', 'input', 'output', 'acceptanceCriteria', 'promptDraft', 'evidenceIds', 'limitations', 'toolRecommendationIds']);
   emitCsv('tool_recommendations.csv', toolRecommendations, ['id', 'taskId', 'relatedTaskIds', 'category', 'name', 'version', 'catalogVersion', 'pricingStatus', 'licenseStatus', 'capability', 'claim', 'evidenceIds', 'sourceUrl', 'checkedAt', 'alternatives']);
   const toolRecommendationsPath = path.join(output, 'tool_recommendations.csv');
   const manifestPath = path.join(output, 'manifest.json');
-  fs.writeFileSync(manifestPath, `${JSON.stringify({ schemaVersion: '1.0.0', runId: analysis.runId, startedAt, completedAt: analysis.provenance.completedAt, sourceSha256, segmentationMode, shotCount: shots.length, sceneCount: scenes.length, evidenceCount: evidence.length, artifactFiles: [...artifactPaths.map((file) => path.basename(file)), 'manifest.json'], model: modelName, externalFrameTransmission: Boolean(request.vision.enabled && request.vision.provider) }, null, 2)}\n`, 'utf8');
+  fs.writeFileSync(manifestPath, `${JSON.stringify({ schemaVersion: '1.0.0', runId: analysis.runId, status: analysis.status, startedAt, completedAt: analysis.provenance.completedAt, sourceSha256, segmentationMode, shotCount: shots.length, sceneCount: scenes.length, evidenceCount: evidence.length, artifactFiles: [...artifactPaths.map((file) => path.basename(file)), 'manifest.json'], model: modelName, visionSummary: visionSummary ?? null, frameRequestAttempted: visionSummary?.frameRequestAttempted ?? false, frameRequestResponseReceived: visionSummary?.frameRequestResponseReceived ?? false, externalFrameRequestAttempted: visionSummary?.externalFrameRequestAttempted ?? false, localServerFrameRequestAttempted: visionSummary?.localServerFrameRequestAttempted ?? false, externalOnwardTransmission: visionSummary ? visionSummary.externalOnwardTransmission : false }, null, 2)}\n`, 'utf8');
   artifactPaths.push(manifestPath);
   return { analysisJsonPath, manifestPath, toolRecommendationsPath, artifactPaths };
 };
