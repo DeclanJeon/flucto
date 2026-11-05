@@ -69,6 +69,8 @@ export interface CliOptions {
   maxFramesPerShot: number;
   maxApiCalls: number;
   agent?: string;
+  skillName?: string;
+  ifMissing: boolean;
 }
 
 const videoQualities = new Set(['4k', '1440p', '1080p', '720p', '480p', '360p', 'worst']);
@@ -270,6 +272,8 @@ export const parseCliArgs = (argv: string[]): CliOptions => {
       'allow-download': { type: 'boolean' },
       'dry-run': { type: 'boolean' },
       agent: { type: 'string' },
+      skill: { type: 'string' },
+      'if-missing': { type: 'boolean' },
       history: { type: 'string' },
       'scene-threshold': { type: 'string' },
       'max-frames-per-shot': { type: 'string' },
@@ -359,6 +363,8 @@ const baseOptions = (
     allowDownload: booleanOption(values['allow-download']),
     dryRun: booleanOption(values['dry-run']),
     agent: stringOption(values.agent),
+    skillName: stringOption(values.skill),
+    ifMissing: booleanOption(values['if-missing']),
     history: stringOption(values.history),
     sceneThreshold: parseFloatOption(values['scene-threshold'], DEFAULT_SCENE_THRESHOLD, 0, 1, '--scene-threshold'),
     maxFramesPerShot: parseIntOption(values['max-frames-per-shot'], DEFAULT_FRAMES_PER_SHOT, 1, 10, '--max-frames-per-shot'),
@@ -436,11 +442,17 @@ const validateCommand = (options: CliOptions): void => {
 
   if (options.command === 'skill') {
     if (options.positional.length !== 1 || options.positional[0] !== 'install') {
-      throw new CliUsageError('skill supports: skill install --agent pi|codex|claude|all [--dry-run] [--force].');
+      throw new CliUsageError('skill supports: skill install --agent pi|codex|claude|all [--skill searching-social-media|flucto-media-research] [--dry-run] [--if-missing|--force] [--json].');
     }
     const agent = options.agent;
     if (!agent || !['pi', 'codex', 'claude', 'all'].includes(agent)) {
       throw new CliUsageError('skill install requires --agent pi, codex, claude, or all.');
+    }
+    if (options.skillName !== undefined && !['searching-social-media', 'flucto-media-research'].includes(options.skillName)) {
+      throw new CliUsageError('--skill must be searching-social-media or flucto-media-research.');
+    }
+    if (options.ifMissing && options.force) {
+      throw new CliUsageError('--if-missing preserves existing skills; do not combine it with --force.');
     }
   }
 
