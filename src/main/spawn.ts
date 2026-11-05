@@ -5,10 +5,15 @@ export interface ExecaResult {
   stderr: string;
   failed: boolean;
   command: string;
+  readonly timedOut?: boolean;
 }
 
 export interface ExecaOptions {
   reject?: boolean;
+}
+
+export interface ExecaProcessOptions extends ExecaOptions {
+  readonly timeoutMs?: number;
 }
 
 export interface ExecaChildProcess extends Promise<ExecaResult> {
@@ -20,14 +25,49 @@ export interface ExecaChildProcess extends Promise<ExecaResult> {
 export function execa(
   file: string,
   args?: string[],
-  options?: ExecaOptions
+  options?: ExecaProcessOptions
 ): ExecaChildProcess {
   const shouldReject = options?.reject !== false;
-  
+  const timeoutMs = options?.timeoutMs;
+  if (timeoutMs !== undefined && (!Number.isFinite(timeoutMs) || timeoutMs <= 0)) {
+    throw new RangeError('timeoutMs must be a positive finite number');
+  }
   const childProcess = spawn(file, args || [], {
     shell: false,
     windowsHide: true,
+    // Isolate bounded probes so a bootloader's child cannot keep their pipes open.
+    detached: timeoutMs !== undefined && process.platform !== 'win32',
   });
+  let timedOut = false;
+  let deadline: NodeJS.Timeout | undefined;
+  let forceKill: NodeJS.Timeout | undefined;
+  const clearDeadline = (): void => {
+    if (deadline) clearTimeout(deadline);
+    if (forceKill) clearTimeout(forceKill);
+  };
+  const killTree = (signal: NodeJS.Signals): void => {
+    const pid = childProcess.pid;
+    if (pid === undefined) return;
+    if (process.platform === 'win32') {
+      const killer = spawn('taskkill', ['/PID', String(pid), '/T', '/F'], { windowsHide: true });
+      killer.once('error', () => { childProcess.kill(signal); });
+      return;
+    }
+    try {
+      process.kill(-pid, signal);
+    } catch (error) {
+      if (!(error instanceof Error && 'code' in error && error.code === 'ESRCH')) {
+        childProcess.kill(signal);
+      }
+    }
+  };
+  if (timeoutMs !== undefined) {
+    deadline = setTimeout(() => {
+      timedOut = true;
+      killTree('SIGTERM');
+      forceKill = setTimeout(() => { killTree('SIGKILL'); }, 250);
+    }, timeoutMs);
+  }
 
   let stdout = '';
   let stderr = '';
@@ -42,6 +82,7 @@ export function execa(
 
   const promise = new Promise<ExecaResult>((resolve, reject) => {
     childProcess.on('error', (error) => {
+      clearDeadline();
       if (shouldReject) {
         reject(error);
       } else {
@@ -55,15 +96,20 @@ export function execa(
     });
 
     childProcess.on('close', (code) => {
-      if (code === 0 || !shouldReject) {
+      clearDeadline();
+      const failureText = timedOut
+        ? `${stderr}${stderr ? '\n' : ''}Process timed out after ${timeoutMs}ms`
+        : stderr;
+      if ((code === 0 && !timedOut) || !shouldReject) {
         resolve({
           stdout,
-          stderr,
-          failed: code !== 0,
+          stderr: failureText,
+          failed: timedOut || code !== 0,
           command: `${file} ${(args || []).join(' ')}`,
+          ...(timedOut ? { timedOut: true } : {}),
         });
       } else {
-        const error = new Error(`Command failed with exit code ${code}: ${stderr || stdout}`);
+        const error = new Error(timedOut ? failureText : `Command failed with exit code ${code}: ${stderr || stdout}`);
         const detailedError: Error & { stdout: string; stderr: string; code: number | null } = Object.assign(error, {
           stdout,
           stderr,

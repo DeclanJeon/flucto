@@ -26,6 +26,8 @@ ${c.bold('Usage')}
   flucto formats <url> [--json]
   flucto languages <url> [--json]
   flucto doctor [--json]
+  flucto skill install --agent pi|codex|claude|all [--dry-run] [--force]
+      ${c.dim('(installs the bundled social-search agent skill; opt-in, existing targets are backed up only with --force)')}
   flucto setup [--force] [--check-only] [--yt-dlp-only] [--bin-dir DIR] [--json]
   flucto update check [--json]
   flucto update download [--output-dir DIR] [--json]
@@ -88,6 +90,7 @@ ${c.bold('Global options')}
   --allow-download      Confirm permission to download an HTTPS video URL for analysis
   --allow-vision-api    Enable optional vision-LLM labeling (provider credentials required)
   --dry-run             Probe + segment only; estimate shots/frames/API calls without labeling
+                         For skill install, show destinations without writing.
   --scene-threshold N   ffmpeg scene-detect threshold 0..1 (default 0.3)
   --max-frames-per-shot N  Frames sampled per shot for vision labeling (default 3, max 10)
   --max-api-calls N     Vision API call budget for the run (default 400)

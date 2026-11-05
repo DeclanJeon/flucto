@@ -8,6 +8,7 @@ import { createRequire } from 'module';
 import { createHash } from 'crypto';
 import { spawn } from 'child_process';
 import { execa } from '../spawn.js';
+import { ytDlpRuntimeSources } from './ytDlpRuntimeSources.js';
 import { resolveCliBinaries, type BinaryResolver } from './binaryResolver.js';
 
 export type UtilityName = 'yt-dlp' | 'ffmpeg' | 'ffprobe';
@@ -199,6 +200,7 @@ const normalizeYtDlpVersion = (value: string | null | undefined): string | null 
 export const fetchLatestYtDlpVersion = async (): Promise<string | null> => {
   try {
     const response = await fetch('https://api.github.com/repos/yt-dlp/yt-dlp-nightly-builds/releases/latest', {
+      signal: AbortSignal.timeout(15000),
       headers: {
         'user-agent': `Flucto/${YT_DLP_VERSION}`,
         accept: 'application/vnd.github+json',
@@ -212,9 +214,9 @@ export const fetchLatestYtDlpVersion = async (): Promise<string | null> => {
   }
 };
 
-export const versionFor = async (filePath: string, args: string[]): Promise<string | null> => {
+export const versionFor = async (filePath: string, args: string[], timeoutMs = 15000): Promise<string | null> => {
   if (!isExecutable(filePath)) return null;
-  const result = await execa(filePath, args, { reject: false });
+  const result = await execa(filePath, args, { reject: false, timeoutMs });
   if (result.failed) return null;
   return (result.stdout || result.stderr).split(/\r?\n/).find((line) => line.trim())?.trim() ?? null;
 };
@@ -427,7 +429,10 @@ const provisionUtilityFromUrl = async (spec: UtilitySpec, url: string, targetPat
 
 export const provisionUtility = async (spec: UtilitySpec, targetPath: string, onStatus?: (message: string) => void, fetchImpl: typeof fetch = fetch): Promise<void> => {
   const errors: string[] = [];
-  for (const url of spec.downloadUrls) {
+  const sources = spec.name === 'yt-dlp'
+    ? await ytDlpRuntimeSources(spec.downloadUrls)
+    : spec.downloadUrls;
+  for (const url of sources) {
     try {
       await provisionUtilityFromUrl(spec, url, targetPath, onStatus, fetchImpl);
       return;

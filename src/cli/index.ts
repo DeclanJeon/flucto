@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import { fileURLToPath } from 'url';
 import { parseCliArgs, CliUsageError, type CliOptions } from './args.js';
 import {
@@ -177,6 +178,56 @@ const runDoctor = async (options: CliOptions): Promise<number> => {
   }
 
   return result.valid ? 0 : 3;
+};
+
+const installSocialSearchSkill = (options: CliOptions): number => {
+  const home = process.env.HOME ?? process.env.USERPROFILE ?? os.homedir();
+  const roots: Record<string, string> = {
+    pi: path.join(home, '.pi', 'agent', 'skills'),
+    codex: path.join(home, '.agents', 'skills'),
+    claude: path.join(home, '.claude', 'skills'),
+  };
+  // Pi discovers ~/.agents/skills too; share the Codex copy rather than create a duplicate skill name.
+  const agents = options.agent === 'all' ? ['codex', 'claude'] : [options.agent ?? ''];
+  const source = path.resolve(moduleDir, '../../skills/searching-social-media');
+  if (!fs.existsSync(path.join(source, 'SKILL.md')) || !fs.existsSync(path.join(source, 'scripts/social_search.py'))) {
+    writeError('Bundled searching-social-media skill is missing. Reinstall Flucto or use the source checkout.');
+    return 2;
+  }
+  const targets = agents.map((agent) => ({ agent, target: path.join(roots[agent], 'searching-social-media') }));
+  const exists = (target: string): boolean => { try { fs.lstatSync(target); return true; } catch { return false; } };
+  const conflicts = targets.filter(({ target }) => exists(target));
+  if (conflicts.length && !options.force && !options.dryRun) {
+    for (const { agent, target } of conflicts) writeError(`${agent}: destination exists (${target}); inspect it or use --force to back up and replace.`);
+    return 2;
+  }
+  if (options.dryRun) {
+    for (const { agent, target } of targets) info(`${agent}: ${source} -> ${target}${exists(target) ? ' (backup required)' : ''}`);
+    return 0;
+  }
+  for (const { agent, target } of targets) {
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    let backup: string | undefined;
+    if (exists(target)) {
+      if (!options.force) return 2;
+      backup = `${target}.backup-${new Date().toISOString().replace(/[:.]/g, '-')}`;
+      fs.renameSync(target, backup);
+    }
+    const stagingRoot = fs.mkdtempSync(path.join(path.dirname(target), '.flucto-skill-install-'));
+    const staging = path.join(stagingRoot, 'searching-social-media');
+    try {
+      fs.cpSync(source, staging, { recursive: true, errorOnExist: true, force: false });
+      fs.renameSync(staging, target);
+      fs.rmSync(stagingRoot, { recursive: true, force: true });
+      ok(`${agent}: installed ${target}`);
+    } catch (error) {
+      fs.rmSync(stagingRoot, { recursive: true, force: true });
+      if (backup && !fs.existsSync(target)) fs.renameSync(backup, target);
+      writeError(error instanceof Error ? error.message : String(error));
+      return 2;
+    }
+  }
+  return 0;
 };
 
 const runSetup = async (options: CliOptions): Promise<number> => {
@@ -862,6 +913,8 @@ const dispatch = async (options: CliOptions): Promise<number> => {
       return 0;
     case 'doctor':
       return runDoctor(options);
+    case 'skill':
+      return installSocialSearchSkill(options);
     case 'setup':
       return runSetup(options);
     case 'update':

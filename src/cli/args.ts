@@ -21,6 +21,7 @@ export type CliCommand =
   | 'craft'
   | 'analyze'
   | 'doctor'
+  | 'skill'
   | 'setup'
   | 'update'
   | 'help'
@@ -67,6 +68,7 @@ export interface CliOptions {
   sceneThreshold: number;
   maxFramesPerShot: number;
   maxApiCalls: number;
+  agent?: string;
 }
 
 const videoQualities = new Set(['4k', '1440p', '1080p', '720p', '480p', '360p', 'worst']);
@@ -95,6 +97,7 @@ const commandAliases: Record<string, CliCommand | 'channel'> = {
   an: 'analyze',
   doctor: 'doctor',
   doc: 'doctor',
+  skill: 'skill',
   setup: 'setup',
   s: 'setup',
   update: 'update',
@@ -256,6 +259,7 @@ export const parseCliArgs = (argv: string[]): CliOptions => {
       limit: { type: 'string' },
       force: { type: 'boolean' },
       'check-only': { type: 'boolean' },
+      'yt-dlp-only': { type: 'boolean' },
       platform: { type: 'string' },
       status: { type: 'string' },
       sort: { type: 'string' },
@@ -265,6 +269,7 @@ export const parseCliArgs = (argv: string[]): CliOptions => {
       'allow-vision-api': { type: 'boolean' },
       'allow-download': { type: 'boolean' },
       'dry-run': { type: 'boolean' },
+      agent: { type: 'string' },
       history: { type: 'string' },
       'scene-threshold': { type: 'string' },
       'max-frames-per-shot': { type: 'string' },
@@ -353,6 +358,7 @@ const baseOptions = (
     allowVisionApi: booleanOption(values['allow-vision-api']),
     allowDownload: booleanOption(values['allow-download']),
     dryRun: booleanOption(values['dry-run']),
+    agent: stringOption(values.agent),
     history: stringOption(values.history),
     sceneThreshold: parseFloatOption(values['scene-threshold'], DEFAULT_SCENE_THRESHOLD, 0, 1, '--scene-threshold'),
     maxFramesPerShot: parseIntOption(values['max-frames-per-shot'], DEFAULT_FRAMES_PER_SHOT, 1, 10, '--max-frames-per-shot'),
@@ -425,6 +431,16 @@ const validateCommand = (options: CliOptions): void => {
           ? '--allow-vision-api with codex-cli needs FLUCTO_VISION_MODEL and an authenticated Codex CLI installation (or FLUCTO_CODEX_PATH).'
           : '--allow-vision-api needs FLUCTO_VISION_BASE_URL, FLUCTO_VISION_API_KEY and FLUCTO_VISION_MODEL.');
       }
+    }
+  }
+
+  if (options.command === 'skill') {
+    if (options.positional.length !== 1 || options.positional[0] !== 'install') {
+      throw new CliUsageError('skill supports: skill install --agent pi|codex|claude|all [--dry-run] [--force].');
+    }
+    const agent = options.agent;
+    if (!agent || !['pi', 'codex', 'claude', 'all'].includes(agent)) {
+      throw new CliUsageError('skill install requires --agent pi, codex, claude, or all.');
     }
   }
 
