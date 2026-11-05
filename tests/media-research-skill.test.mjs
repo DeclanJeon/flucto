@@ -25,6 +25,23 @@ const runHook = (home, extra) => spawnSync(process.execPath, [hook], {
   cwd: root, env: env(home, extra), encoding: 'utf8', timeout: 20_000,
 });
 
+test('Windows-style Git checkout preserves the common archive skill bytes', (t) => {
+  // Given the tracked skill bundle and a Windows-style autocrlf checkout policy.
+  const home = sandbox(t);
+  const files = skillFiles.map((file) => `skills/${name}/${file}`);
+  // When Git materializes those files without changing the actual checkout or index.
+  const result = spawnSync('git', ['-c', 'core.autocrlf=true', 'checkout-index', `--prefix=${home.replaceAll('\\', '/')}/`, '--', ...files], {
+    cwd: root, encoding: 'utf8', timeout: 15_000,
+  });
+  // Then every byte matches the canonical Git blob used by the Linux-built archive.
+  assert.equal(result.status, 0, result.stderr);
+  for (const file of files) {
+    const canonical = spawnSync('git', ['show', `HEAD:${file}`], { cwd: root, timeout: 15_000 });
+    assert.equal(canonical.status, 0, canonical.stderr?.toString());
+    assert.deepEqual(fs.readFileSync(path.join(home, file)), canonical.stdout, file);
+  }
+});
+
 test('named research install writes the complete bundle to shared agent locations', (t) => {
   // Given an isolated home with no installed skills.
   const home = sandbox(t);
