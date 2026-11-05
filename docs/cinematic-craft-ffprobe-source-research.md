@@ -38,6 +38,21 @@ The actual Linux x64 binaries were extracted to temporary storage and executed. 
 
 That run also exposed an FFmpeg 9 command incompatibility: `-vsync 0` is rejected as an unknown option. The keyframe command now uses `-fps_mode passthrough`; the real binary smoke confirmed JPEG output and the CLI run returned a labeled shot. The run is still recorded as `partial` because onward transmission from the local mock is intentionally unknown. No live provider was contacted. Windows, Linux arm64, both macOS architectures, and GPL redistribution review remain open. A local clean Linux x64 AppImage + CLI package smoke later passed; it does not cover the other native targets.
 
+## Packaging repair (2026-11-05, PONS-6)
+
+The 2026-10-18 daily Linux release now returns HTTP 404 (release API and both archive HEAD requests). BtbN's [current retention policy](https://github.com/BtbN/FFmpeg-Builds#release-retention-policy) keeps only 14 daily builds, but keeps the last build of each month for two years. This is an expired pin, not a reason to retry indefinitely or relax integrity checks. Use an explicitly dated month-end release when refreshing these pins; check both architectures against publisher metadata, and rerun native archive/pair smoke before release. Month-end retention is finite, not a permanent availability guarantee.
+
+Packaging and runtime now select `autobuild-2026-10-31-12-59`, revision `N-128227-g4811625b5f`, still from BtbN's GPL archives:
+
+| Target | Asset | Publisher SHA-256 |
+|---|---|---|
+| Linux x64 | `ffmpeg-N-128227-g4811625b5f-linux64-gpl.tar.xz` | `67929be39bbb696f41d3295686597a439aeac902f61d82be660ccc1453c1fdfb` |
+| Linux arm64 | `ffmpeg-N-128227-g4811625b5f-linuxarm64-gpl.tar.xz` | `9064bc53f3b268865f5a5370c9f7e98d86bbdde5820ec7f6928df2beaa1d586e` |
+
+Read-only checks of the [exact release metadata](https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/tags/autobuild-2026-10-31-12-59) and archive HEAD responses matched both configured digests to publisher metadata and both content lengths (157360624 / 132627620 bytes), with HTTP 200. These are **metadata/availability checks only**: the replacement archives were not downloaded, installed or executed locally. The earlier 2026-10-19 real-archive smoke does not validate this new revision. Existing checksum rejection, extraction limits, pair identity checks and rollback remain mandatory and unchanged; native packaging stays an explicit validation gap.
+
+The same CI run exposed an independent Windows test-fixture defect: the common CLI archive is built on Linux (LF), while Windows Git checkout may convert skill Markdown to CRLF. `.gitattributes` now forces LF only under `skills/**`. The regression materializes tracked files with Git `core.autocrlf=true` and compares exact Git blob bytes. The package smoke's strict installed-file byte comparison is retained without normalization or skipping. This Git-policy simulation on Linux is not a Windows installer run.
+
 ## Requirements before adoption/release
 
 1. Independently reproduce exact archive digests, member paths, binary versions/configuration, architectures, release IDs, and source metadata.

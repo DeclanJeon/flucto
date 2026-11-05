@@ -186,6 +186,16 @@ info "Provisioning yt-dlp and FFmpeg (flucto setup)"
 info "Verifying install (flucto doctor --json)"
 "$FLUCTO" doctor --json || fail "flucto doctor reported an unhealthy install."
 
+# Explicit registration also covers npm configurations that disable lifecycle hooks.
+if [ "${FLUCTO_SKIP_AGENT_SKILLS:-0}" = "1" ]; then
+  info "Agent skill registration skipped (FLUCTO_SKIP_AGENT_SKILLS=1)."
+else
+  info "Registering Flucto research skill (existing agent skills are preserved)"
+  if ! "$FLUCTO" skill install --agent all --skill flucto-media-research --if-missing; then
+    info "WARNING: Agent skill registration incomplete. Retry: flucto skill install --agent all --skill flucto-media-research --if-missing"
+  fi
+fi
+
 info "Done. Installed command: $FLUCTO"
 if [ "$NO_PROFILE" -eq 0 ]; then
   info "Open a new terminal (or source your profile) and run: flucto doctor"

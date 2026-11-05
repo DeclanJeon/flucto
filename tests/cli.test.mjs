@@ -232,7 +232,7 @@ test('setupUtilities check-only validates provided bin dir without downloading',
   const ytDlp = path.join(temp, process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp');
   const ffmpeg = path.join(temp, process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg');
   writeExecutable(ytDlp, '2026.01.01');
-  const pinnedVersion = process.platform === 'win32' ? '8.1.2' : process.platform === 'darwin' ? '9.0.2' : 'N-127651-gb60ab6c9a4';
+  const pinnedVersion = process.platform === 'win32' ? '8.1.2' : process.platform === 'darwin' ? '9.0.2' : 'N-128227-g4811625b5f';
   writeExecutable(ffmpeg, `ffmpeg version ${pinnedVersion}`);
   writeExecutable(path.join(temp, process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe'), `ffprobe version ${pinnedVersion}`);
 

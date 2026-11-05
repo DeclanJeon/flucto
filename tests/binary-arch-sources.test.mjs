@@ -87,9 +87,18 @@ test('paired AV replacement rolls both old files back when second install fails'
   assert.equal(fs.readdirSync(dir).sort().join(','), 'ffmpeg,ffprobe,new-ffprobe');
 });
 
-test('Linux source selection is pinned to BtbN GPL assets by architecture', () => {
-  assert.match(ffmpegSourcesFor('linux', 'x64')[0], /linux64-gpl\.tar\.xz$/);
-  assert.match(ffmpegSourcesFor('linux', 'arm64')[0], /linuxarm64-gpl\.tar\.xz$/);
+test('Linux source selection uses retained month-end BtbN GPL assets by architecture', () => {
+  // Given both supported Linux CPU architectures.
+  for (const [arch, asset] of [['x64', 'linux64'], ['arm64', 'linuxarm64']]) {
+    // When selecting the pinned packaging source.
+    const source = setupPinnedAvSourceFor('ffmpeg', 'linux', arch);
+    // Then it is a month-end build (two-year retention, not a 14-day daily build).
+    assert.match(source.url, new RegExp(`${asset}-gpl\\.tar\\.xz$`));
+    const date = new URL(source.url).pathname.match(/\/autobuild-(\d{4})-(\d{2})-(\d{2})-\d{2}-\d{2}\//);
+    assert.ok(date, source.url);
+    const [, year, month, day] = date;
+    assert.equal(Number(day), new Date(Date.UTC(Number(year), Number(month), 0)).getUTCDate(), source.url);
+  }
 });
 
 test('runtime binary installer exposes the same per-arch sources', () => {
@@ -100,6 +109,8 @@ test('runtime binary installer exposes the same per-arch sources', () => {
   for (const [platform, arch] of [['win32', 'x64'], ['linux', 'x64'], ['linux', 'arm64'], ['darwin', 'x64'], ['darwin', 'arm64']]) {
     const ffmpeg = installerPinnedAvSourceFor('ffmpeg', platform, arch);
     const ffprobe = installerPinnedAvSourceFor('ffprobe', platform, arch);
+    assert.deepEqual(ffmpeg, setupPinnedAvSourceFor('ffmpeg', platform, arch));
+    assert.deepEqual(ffprobe, setupPinnedAvSourceFor('ffprobe', platform, arch));
     assert.match(ffmpeg.sha256, /^[a-f0-9]{64}$/);
     assert.match(ffprobe.sha256, /^[a-f0-9]{64}$/);
     assert.deepEqual(ffmpegDownloadUrlsFor(platform, arch), [ffmpeg.url]);

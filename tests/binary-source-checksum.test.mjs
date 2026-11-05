@@ -75,10 +75,10 @@ test('checkOnly rejects mismatched managed AV pair and explicit custom FFmpeg ne
 
 test('pinned source manifest exposes expected immutable archive digests', () => {
   assert.equal(pinnedAvSourceFor('ffmpeg', 'win32', 'x64').sha256, 'db580001caa24ac104c8cb856cd113a87b0a443f7bdf47d8c12b1d740584a2ec');
-  assert.equal(pinnedAvSourceFor('ffprobe', 'linux', 'arm64').sha256, '3d1ccdb45b01635e8404da39869f3a0c7a535b9e63470439bc3e677cf12fe266');
+  assert.equal(pinnedAvSourceFor('ffprobe', 'linux', 'arm64').sha256, '9064bc53f3b268865f5a5370c9f7e98d86bbdde5820ec7f6928df2beaa1d586e');
   assert.equal(pinnedAvSourceFor('ffprobe', 'darwin', 'x64').sha256, '2322438ed2f6319a691291b247d09c69dcaa3a982460d1f269a7e1af335cfdfd');
-  assert.equal(pinnedAvSourceFor('ffmpeg', 'linux', 'x64').sha256, 'a5f2aed198efa8ef4c12d9112f42e7cefbdf11dced1b59a87503ca689bc52277');
-  assert.equal(pinnedAvSourceFor('ffmpeg', 'linux', 'arm64').sha256, '3d1ccdb45b01635e8404da39869f3a0c7a535b9e63470439bc3e677cf12fe266');
+  assert.equal(pinnedAvSourceFor('ffmpeg', 'linux', 'x64').sha256, '67929be39bbb696f41d3295686597a439aeac902f61d82be660ccc1453c1fdfb');
+  assert.equal(pinnedAvSourceFor('ffmpeg', 'linux', 'arm64').sha256, '9064bc53f3b268865f5a5370c9f7e98d86bbdde5820ec7f6928df2beaa1d586e');
   assert.equal(pinnedAvSourceFor('ffmpeg', 'darwin', 'x64').sha256, '7c6b4125b191cbf773832dc51f424cf2b6bb7da43007d1e066f95909e47cacd4');
   assert.equal(pinnedAvSourceFor('ffmpeg', 'darwin', 'arm64').sha256, 'c8ed4c4e6978a03c485edbfe4e0a5dc2380f8a30bba5150531b31b094492d924');
   assert.equal(pinnedAvSourceFor('ffprobe', 'darwin', 'arm64').sha256, 'fcbe839537485eaee7a7a8bc5cbc0f90d53617e80943e8a5b2e31cb851197ea6');

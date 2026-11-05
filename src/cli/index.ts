@@ -180,7 +180,8 @@ const runDoctor = async (options: CliOptions): Promise<number> => {
   return result.valid ? 0 : 3;
 };
 
-const installSocialSearchSkill = (options: CliOptions): number => {
+const installAgentSkill = (options: CliOptions): number => {
+  const skillName = options.skillName ?? 'searching-social-media';
   const home = process.env.HOME ?? process.env.USERPROFILE ?? os.homedir();
   const roots: Record<string, string> = {
     pi: path.join(home, '.pi', 'agent', 'skills'),
@@ -189,23 +190,39 @@ const installSocialSearchSkill = (options: CliOptions): number => {
   };
   // Pi discovers ~/.agents/skills too; share the Codex copy rather than create a duplicate skill name.
   const agents = options.agent === 'all' ? ['codex', 'claude'] : [options.agent ?? ''];
-  const source = path.resolve(moduleDir, '../../skills/searching-social-media');
-  if (!fs.existsSync(path.join(source, 'SKILL.md')) || !fs.existsSync(path.join(source, 'scripts/social_search.py'))) {
-    writeError('Bundled searching-social-media skill is missing. Reinstall Flucto or use the source checkout.');
+  const source = path.resolve(moduleDir, '../../skills', skillName);
+  if (!fs.existsSync(path.join(source, 'SKILL.md')) || (skillName === 'searching-social-media' && !fs.existsSync(path.join(source, 'scripts/social_search.py')))) {
+    writeError(`Bundled ${skillName} skill is missing. Reinstall Flucto or use the source checkout.`);
     return 2;
   }
-  const targets = agents.map((agent) => ({ agent, target: path.join(roots[agent], 'searching-social-media') }));
-  const exists = (target: string): boolean => { try { fs.lstatSync(target); return true; } catch { return false; } };
+  const targets = agents.map((agent) => ({ agent, target: path.join(roots[agent], skillName) }));
+  const exists = (target: string): boolean => {
+    try { fs.lstatSync(target); return true; } catch (error) {
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return false;
+      throw error;
+    }
+  };
+  // Accumulate per-target outcomes so agents can distinguish preserved files from new installations.
+  const results: { readonly agent: string; readonly target: string; readonly status: 'planned' | 'installed' | 'skipped' }[] = [];
   const conflicts = targets.filter(({ target }) => exists(target));
-  if (conflicts.length && !options.force && !options.dryRun) {
+  if (conflicts.length && !options.force && !options.dryRun && !options.ifMissing) {
     for (const { agent, target } of conflicts) writeError(`${agent}: destination exists (${target}); inspect it or use --force to back up and replace.`);
     return 2;
   }
   if (options.dryRun) {
-    for (const { agent, target } of targets) info(`${agent}: ${source} -> ${target}${exists(target) ? ' (backup required)' : ''}`);
+    for (const { agent, target } of targets) {
+      results.push({ agent, target, status: 'planned' });
+      if (!options.json) info(`${agent}: ${source} -> ${target}${exists(target) ? (options.ifMissing ? ' (preserve existing)' : ' (backup required)') : ''}`);
+    }
+    if (options.json) writeJson({ skill: skillName, dryRun: true, results });
     return 0;
   }
   for (const { agent, target } of targets) {
+    if (options.ifMissing && exists(target)) {
+      results.push({ agent, target, status: 'skipped' });
+      if (!options.json) info(`${agent}: preserved existing ${target}; inspect it before an explicit --force update.`);
+      continue;
+    }
     fs.mkdirSync(path.dirname(target), { recursive: true });
     let backup: string | undefined;
     if (exists(target)) {
@@ -214,12 +231,13 @@ const installSocialSearchSkill = (options: CliOptions): number => {
       fs.renameSync(target, backup);
     }
     const stagingRoot = fs.mkdtempSync(path.join(path.dirname(target), '.flucto-skill-install-'));
-    const staging = path.join(stagingRoot, 'searching-social-media');
+    const staging = path.join(stagingRoot, skillName);
     try {
       fs.cpSync(source, staging, { recursive: true, errorOnExist: true, force: false });
       fs.renameSync(staging, target);
       fs.rmSync(stagingRoot, { recursive: true, force: true });
-      ok(`${agent}: installed ${target}`);
+      results.push({ agent, target, status: 'installed' });
+      if (!options.json) ok(`${agent}: installed ${target}`);
     } catch (error) {
       fs.rmSync(stagingRoot, { recursive: true, force: true });
       if (backup && !fs.existsSync(target)) fs.renameSync(backup, target);
@@ -227,6 +245,7 @@ const installSocialSearchSkill = (options: CliOptions): number => {
       return 2;
     }
   }
+  if (options.json) writeJson({ skill: skillName, results });
   return 0;
 };
 
@@ -914,7 +933,7 @@ const dispatch = async (options: CliOptions): Promise<number> => {
     case 'doctor':
       return runDoctor(options);
     case 'skill':
-      return installSocialSearchSkill(options);
+      return installAgentSkill(options);
     case 'setup':
       return runSetup(options);
     case 'update':

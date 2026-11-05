@@ -65,10 +65,11 @@ try {
   await fs.mkdir(setupDir);
   const profileHome = path.join(root, 'profile-home');
   await fs.mkdir(profileHome);
-  const cliEnv = process.platform === 'win32' ? process.env : { ...process.env, HOME: profileHome };
+  // CLI installation now registers agent skills: isolate their homes on every OS too.
+  const cliEnv = { ...process.env, HOME: profileHome, USERPROFILE: profileHome, FLUCTO_SKIP_AGENT_SKILLS: '0' };
   new AdmZip(await findFile(`-${version}-cli-setup.zip`)).extractAllTo(setupDir, true);
   if (process.platform === 'win32') {
-    console.log(await run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(setupDir, 'install.ps1'), '-InstallDir', cliHome, ...(cliOnly ? ['-NoProfile'] : [])]));
+    console.log(await run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(setupDir, 'install.ps1'), '-InstallDir', cliHome, ...(cliOnly ? ['-NoProfile'] : [])], { env: cliEnv }));
   } else {
     console.log(await run('bash', [path.join(setupDir, 'install.sh'), '--install-dir', cliHome, ...(cliOnly ? ['--no-profile'] : [])], { env: cliEnv }));
   }
@@ -76,11 +77,18 @@ try {
   const cliEntry = path.join(cliHome, process.platform === 'win32' ? 'node_modules' : 'lib/node_modules', 'flucto/dist-electron/cli/index.js');
   const cli = async (args) => run(privateNode, [cliEntry, ...args], { env: cliEnv });
   assert.equal(await cli(['--version']), version);
+  for (const base of ['.agents/skills', '.claude/skills']) {
+    for (const file of ['SKILL.md', 'references/commands.md', 'references/install.md']) {
+      assert.deepEqual(await fs.readFile(path.join(profileHome, base, 'flucto-media-research', file)), await fs.readFile(path.resolve('skills/flucto-media-research', file)));
+    }
+  }
+  const registration = JSON.parse(await cli(['skill', 'install', '--agent', 'all', '--skill', 'flucto-media-research', '--if-missing', '--json']));
+  assert.deepEqual(registration.results.map((item) => item.status), ['skipped', 'skipped'], 'Installer must have registered skills before manual retry');
   if (process.platform === 'win32') {
     const launcherVersions = await run('powershell.exe', [
       '-NoProfile', '-ExecutionPolicy', 'Restricted', '-Command',
       `$ErrorActionPreference='Stop'; $env:PATH='${cliHome};'+$env:SystemRoot+'\\System32'; flucto --version; fl.cmd --version`,
-    ]);
+    ], { env: cliEnv });
     assert.deepEqual(launcherVersions.split(/\r?\n/), [version, version]);
   } else if (!cliOnly) {
     const profile = path.join(profileHome, process.platform === 'darwin' ? '.bash_profile' : '.profile');

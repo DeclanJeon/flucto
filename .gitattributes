@@ -1,0 +1,2 @@
+# Common CLI archives are built on Linux; keep installed skill bytes identical on Windows.
+skills/** text eol=lf
