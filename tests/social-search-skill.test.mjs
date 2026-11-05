@@ -82,7 +82,7 @@ test('installed tree contains the complete bundled source file set', (t) => {
   const result = run(home, '--agent', 'claude');
   assert.equal(result.status, 0, result.stderr);
   const installed = walk(path.join(home, '.claude', 'skills', 'searching-social-media'))
-    .map((file) => path.relative(path.join(home, '.claude', 'skills', 'searching-social-media'), file)).sort();
+    .map((file) => path.relative(path.join(home, '.claude', 'skills', 'searching-social-media'), file).split(path.sep).join('/')).sort();
   const source = ['SKILL.md', 'references/flucto-contract.md', 'references/search-workflow.md', 'scripts/social_search.py'].sort();
   assert.deepEqual(installed, source);
 });

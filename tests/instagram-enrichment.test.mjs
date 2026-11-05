@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { instagramTarget, inputTargets, profileFromObservation, authorFromObservation,
   externalLink, classifyLink, hubLinks, parseObservation, observeInstagramPage, multipleLinksRef, isLinkHub } from '../scripts/instagram-profile-model.mjs';
 import { optionsFromArgs } from '../scripts/instagram-enrichment.mjs';
@@ -171,7 +172,7 @@ test('exits with usage error through the real CLI when the batch exceeds its cap
   // Given
   const script = new URL('../scripts/instagram-enrichment.mjs', import.meta.url);
   // When
-  const result = spawnSync(process.execPath, [script.pathname, '--input', 'missing.json', '--output', 'unused.jsonl', '--limit', '1100'], { encoding: 'utf8' });
+  const result = spawnSync(process.execPath, [fileURLToPath(script), '--input', 'missing.json', '--output', 'unused.jsonl', '--limit', '1100'], { encoding: 'utf8' });
   // Then
   assert.equal(result.status, 2);
   assert.equal(JSON.parse(result.stderr).code, 'usage');
