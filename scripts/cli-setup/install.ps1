@@ -159,6 +159,17 @@ Write-Info 'Verifying install (flucto doctor --json)'
 & $flucto doctor --json
 if ($LASTEXITCODE -ne 0) { Fail "flucto doctor reported an unhealthy install (exit $LASTEXITCODE)." }
 
+# Explicit registration also covers npm configurations that disable lifecycle hooks.
+if ($env:FLUCTO_SKIP_AGENT_SKILLS -eq '1') {
+    Write-Info 'Agent skill registration skipped (FLUCTO_SKIP_AGENT_SKILLS=1).'
+} else {
+    Write-Info 'Registering Flucto research skill (existing agent skills are preserved)'
+    & $flucto skill install --agent all --skill flucto-media-research --if-missing
+    if ($LASTEXITCODE -ne 0) {
+        Write-Info 'WARNING: Agent skill registration incomplete. Retry: flucto skill install --agent all --skill flucto-media-research --if-missing'
+    }
+}
+
 Write-Info "Done. Installed command: $flucto"
 if (-not $NoProfile) {
     Write-Info 'Open a new terminal (or refresh PATH) and run: flucto doctor'
