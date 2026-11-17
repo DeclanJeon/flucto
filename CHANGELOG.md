@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.21.0](https://github.com/DeclanJeon/flucto/compare/v1.19.0...v1.21.0) (2026-11-17)
+
+### Features
+
+* add cinematic reference analysis pipeline ([211aac2](https://github.com/DeclanJeon/flucto/commit/211aac234d7f765adc0186b1f699dc6167f5803b))
+* add Codex-powered cinematic reference analysis ([3e305ef](https://github.com/DeclanJeon/flucto/commit/3e305efb987ef5949066cf6eb8ba3e670e33f0fa))
+* add social search skill and runtime safeguards ([87d79c7](https://github.com/DeclanJeon/flucto/commit/87d79c7ba86666fb76bc9840e31f63392c429e15))
+* add Threads profile batch downloads ([8a1e403](https://github.com/DeclanJeon/flucto/commit/8a1e403c9b6ab31282eaae797b7847b4917a2659))
+* default analysis exports to Documents/Flucto ([f0cfd5f](https://github.com/DeclanJeon/flucto/commit/f0cfd5fca16334f9d9fe3a15bd5c40a3489d7aac))
+* **images:** add post image download support ([666c8a0](https://github.com/DeclanJeon/flucto/commit/666c8a0e929cae20b8b74633e47feb12a3ed8380))
+
+### Bug Fixes
+
+* **binaries:** repin Linux FFmpeg to a published autobuild ([262a12d](https://github.com/DeclanJeon/flucto/commit/262a12d60a6df1c440d03e99eb712b734da83bcc))
+* make new tests pass on Windows ([b27db90](https://github.com/DeclanJeon/flucto/commit/b27db902ed8aef835784a6b7782958cc4d6cb217))
+* preserve cinematic analysis confidence and match precision ([bf03cde](https://github.com/DeclanJeon/flucto/commit/bf03cde749ba9a123fd9d36f5bf37cba5bdd04e1))
+* report analysis dependencies and deduplicate tools ([c40a5b9](https://github.com/DeclanJeon/flucto/commit/c40a5b9ebea61e94dc980e5ef2f5a49130b0282c))
+* **threads:** normalize shared post URLs before extraction ([cefd10d](https://github.com/DeclanJeon/flucto/commit/cefd10d4355254ef6a80e43da0e929d78a1fcc80))
+
 ## [1.19.0](https://github.com/DeclanJeon/flucto/compare/v1.18.0...v1.19.0) (2026-10-10)
 
 ### Features
