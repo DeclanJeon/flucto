@@ -77,9 +77,12 @@ try {
   const cliEntry = path.join(cliHome, process.platform === 'win32' ? 'node_modules' : 'lib/node_modules', 'flucto/dist-electron/cli/index.js');
   const cli = async (args) => run(privateNode, [cliEntry, ...args], { env: cliEnv });
   assert.equal(await cli(['--version']), version);
+  // The bundle is packed on Linux (LF) while a Windows checkout uses CRLF:
+  // compare normalized text so the assertion measures content, not eol style.
+  const readText = async (file) => (await fs.readFile(file, 'utf8')).replace(/\r\n/g, '\n');
   for (const base of ['.agents/skills', '.claude/skills']) {
     for (const file of ['SKILL.md', 'references/commands.md', 'references/install.md']) {
-      assert.deepEqual(await fs.readFile(path.join(profileHome, base, 'flucto-media-research', file)), await fs.readFile(path.resolve('skills/flucto-media-research', file)));
+      assert.equal(await readText(path.join(profileHome, base, 'flucto-media-research', file)), await readText(path.resolve('skills/flucto-media-research', file)), `${base}/flucto-media-research/${file} differs from the bundle`);
     }
   }
   const registration = JSON.parse(await cli(['skill', 'install', '--agent', 'all', '--skill', 'flucto-media-research', '--if-missing', '--json']));
