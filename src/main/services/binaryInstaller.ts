@@ -85,8 +85,8 @@ const GYAN_WIN_X64: PinnedAvSource = {
   sha256: 'db580001caa24ac104c8cb856cd113a87b0a443f7bdf47d8c12b1d740584a2ec',
 };
 const BTBN_LINUX: Record<string, PinnedAvSource> = {
-  x64: { url: 'https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-18-13-01/ffmpeg-N-127651-gb60ab6c9a4-linux64-gpl.tar.xz', sha256: 'a5f2aed198efa8ef4c12d9112f42e7cefbdf11dced1b59a87503ca689bc52277' },
-  arm64: { url: 'https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-18-13-01/ffmpeg-N-127651-gb60ab6c9a4-linuxarm64-gpl.tar.xz', sha256: '3d1ccdb45b01635e8404da39869f3a0c7a535b9e63470439bc3e677cf12fe266' },
+  x64: { url: 'https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-11-16-15-29/ffmpeg-N-128959-g4dbee3b241-linux64-gpl.tar.xz', sha256: '098bdc14d7a5a62d7f5a1452e748a192cef66e045146e869a15ae20d1ab50544' },
+  arm64: { url: 'https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-11-16-15-29/ffmpeg-N-128959-g4dbee3b241-linuxarm64-gpl.tar.xz', sha256: '59c27c4fbf895c12fa2e2add1847e90ade02582ace8dd58bda07089407033633' },
 };
 const MARTIN_MAC: Record<string, { ffmpeg: PinnedAvSource; ffprobe: PinnedAvSource }> = {
   x64: {
@@ -446,7 +446,7 @@ export const provisionUtility = async (spec: UtilitySpec, targetPath: string, on
 const managedTargetPath = (binDir: string, name: UtilityName): string => path.join(binDir, executableName(name));
 
 const expectedAvVersionIdentity = (platform: NodeJS.Platform): string =>
-  platform === 'win32' ? '8.1.2' : platform === 'darwin' ? '9.0.2' : 'N-127651-gb60ab6c9a4';
+  platform === 'win32' ? '8.1.2' : platform === 'darwin' ? '9.0.2' : 'N-128959-g4dbee3b241';
 const versionIdentity = (value: string | null): string | null => value?.match(/version ([^ ]+)/)?.[1] ?? null;
 const versionsMatch = (left: string | null, right: string | null): boolean => {
   const leftIdentity = versionIdentity(left);
