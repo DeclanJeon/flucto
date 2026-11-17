@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.22.0](https://github.com/DeclanJeon/flucto/compare/v1.21.0...v1.22.0) (2026-11-17)
+
+### Features
+
+* **cli-setup:** register the research skill during CLI installation ([743332e](https://github.com/DeclanJeon/flucto/commit/743332ea9bc0ae977e1e68a6eee7bce57670bf4c))
+* **cli:** install any bundled agent skill with --skill and --if-missing ([96635a1](https://github.com/DeclanJeon/flucto/commit/96635a1228e04e0371725e3f28092f4293118817))
+* **skills:** bundle the flucto-media-research agent skill ([f19cb05](https://github.com/DeclanJeon/flucto/commit/f19cb05ae6c03df3e5c7de9fad6f51e7a7071e91))
+
+### Bug Fixes
+
+* **package-smoke:** compare installed skill files without eol sensitivity ([72a56da](https://github.com/DeclanJeon/flucto/commit/72a56da531f2926107ddc6b7c49c9044a9c82cbb))
+
 ## [1.21.0](https://github.com/DeclanJeon/flucto/compare/v1.19.0...v1.21.0) (2026-11-17)
 
 ### Features
