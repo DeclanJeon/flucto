@@ -26,8 +26,8 @@ ${c.bold('Usage')}
   flucto formats <url> [--json]
   flucto languages <url> [--json]
   flucto doctor [--json]
-  flucto skill install --agent pi|codex|claude|all [--dry-run] [--force]
-      ${c.dim('(installs the bundled social-search agent skill; opt-in, existing targets are backed up only with --force)')}
+  flucto skill install --agent pi|codex|claude|all [--skill searching-social-media|flucto-media-research] [--dry-run] [--if-missing|--force] [--json]
+      ${c.dim('(research skill: natural-language search/download/caption Markdown; --if-missing preserves existing targets)')}
   flucto setup [--force] [--check-only] [--yt-dlp-only] [--bin-dir DIR] [--json]
   flucto update check [--json]
   flucto update download [--output-dir DIR] [--json]

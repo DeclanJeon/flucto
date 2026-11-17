@@ -30,6 +30,7 @@
     "dist-electron/",
     "schemas/",
     "skills/",
+    "scripts/install-agent-skills.mjs",
     "README.md",
     "CHANGELOG.md"
   ],
@@ -48,6 +49,7 @@
     "build:renderer": "vite build",
     "build:electron": "tsc -p tsconfig.electron.json",
     "prepack": "npm run build:electron",
+    "postinstall": "node scripts/install-agent-skills.mjs",
     "build:cli-release": "node scripts/build-cli-release.mjs",
     "dist": "npm run build && electron-builder",
     "dist:linux": "npm run build && electron-builder --linux --publish never",
