@@ -40,7 +40,8 @@
 
 - **Smart Media Engine:** Flucto parses single video, playlist, and social-media URLs while sharing platform-specific `yt-dlp` headers, referers, and retry behavior across preview, download, and transcript flows.
 - **Integrated Video Search:** Search all 12 registered sites together or select one site, see native/index source attribution and partial failures, then add results to the existing MP4/MP3 download queue. Desktop and CLI share the same service.
-- **Social-search agent skill:** The Flucto CLI package bundles an opt-in `searching-social-media` skill for Pi, Codex, and Claude. Install it explicitly with `flucto skill install`; it performs bounded candidate search only, not downloads or media analysis.
+- **Built-in AI/agent research workflow:** Ask a compatible agent to find YouTube/SNS references, download selected media, or save available captions as Markdown. CLI/global npm installation automatically registers the bundled `flucto-media-research` skill for Pi/Codex and Claude, without overwriting existing skills. Search-only requests never trigger downloads. See [natural-language usage and installation](docs/media-research-skill-guide.md).
+- **Search-only skill (optional):** The existing `searching-social-media` adapter remains available through explicit `flucto skill install`; its bounded retrieval-only contract is unchanged.
 - **Post image downloads:** In the desktop app, choose **Images** to preview and save image URLs exposed by supported post extractors, including Threads. Partial failures remain in the queue; image coverage depends on the platform extractor.
 - **Extensible Platform Architecture:** Plugin-based `PlatformAdapter` system — adding a new platform is one file. Supports yt-dlp-based platforms, custom API extraction, and browser-based fallback strategies.
 - **Caption-to-Markdown Conversion:** Uses `yt-dlp` subtitle/caption output when available, parses JSON3, XML/SRV3, and VTT captions, cleans caption markup, groups nearby captions into readable paragraphs, and writes filesystem-safe `.md` files.
@@ -229,7 +230,18 @@ flucto download "<originalUrl from a search result>" --format mp4 --output-dir .
 
 `--limit` is a **total** result cap of 1–50 (default 20), not a per-site output quota. Integrated search interleaves source ranks and removes duplicate original URLs. Search does not provision media binaries. JSON contains `platform`, `query`, annotated `videos` (`platform`, `searchMethod`), and `sources` (`platform`, `method`, `count`, `searchUrl`, optional `error` and `nativeError`). Source counts describe fetched results before the integrated cap, so their sum can exceed the displayed total. Single-site responses also include `searchUrl`. Partial failures and successful empty searches exit 0; an entirely failed search includes top-level `error` and exits 4.
 
-For coding-agent workflows, Flucto also ships a separate opt-in skill adapter. It defaults to one YouTube search, preserves per-platform errors and metric/date uncertainty, and does not download candidates. See the [social-search skill setup and usage guide](docs/social-search-skill-guide.md).
+### Ask your AI agent — 자연어로 검색·다운로드·MD 저장
+
+Flucto includes the `flucto-media-research` Agent Skill. In a compatible agent, ask naturally:
+
+- “유튜브에서 제품 촬영 레퍼런스 5개 찾아줘.” → search and return real source URLs; no download.
+- “위 결과 중 이 두 영상을 다운로드해줘.” → download the selected MP4s (or MP3 when requested).
+- “이 영상 내용을 md 파일로 저장해줘.” → save available captions/subtitles as Markdown.
+- “인스타 검색 결과를 링크와 함께 md로 정리해줘.” → save a metadata-based research note, not an invented transcript.
+
+The agent checks for Flucto and, when installation is authorized and the CLI is missing, follows the official GitHub installer instructions. The skill chooses CLI actions from the request; Flucto does not bundle an LLM or run autonomously without an agent host. Reload/restart your agent after installation. Automatic skill selection depends on that host's discovery and execution permissions.
+
+Markdown content conversion is **caption-based**. Missing captions, private/blocked media, and partial search failures are reported instead of fabricated or silently sent to a paid transcription service. SNS search retrieves supported public video-post candidates, not every text/image/comment. See the [full research skill guide](docs/media-research-skill-guide.md). The [optional search-only adapter](docs/social-search-skill-guide.md) remains separate and never downloads candidates.
 
 ### AI video discovery
 
@@ -295,6 +307,8 @@ For CLI installation, extract the ZIP into a writable directory and:
 
 No existing Node.js installation or administrator access is required. The bootstrap downloads Node.js 24 from nodejs.org, verifies its SHA256, installs the bundled CLI tarball and provisions native yt-dlp/FFmpeg under a private user prefix. Internet access is required. Open a new shell afterward and run `flucto doctor --json`.
 
+In versions containing this skill, global npm/CLI-bundle installation also registers `flucto-media-research` under `~/.agents/skills/` (shared by Pi and Codex) and `~/.claude/skills/`. Existing targets are preserved. Set `FLUCTO_SKIP_AGENT_SKILLS=1` before installation to opt out. For direct npm installs, `--ignore-scripts` or an npm lifecycle-script policy also disables the install hook; retry the explicit registration command if needed. The CLI ZIP installers perform their own registration step, even when npm hooks are disabled. `--no-profile` / `-NoProfile` controls PATH registration only, not agent-skill registration. Local development dependency installs do not write agent homes. Registration warnings do not break the CLI install; see the [manual registration command](docs/media-research-skill-guide.md). Already-published older releases are not retroactively changed.
+
 Use `-InstallDir DIR -NoProfile` with `install.ps1`, or `--install-dir DIR --no-profile` with `install.sh`, for an isolated installation without persistent PATH changes. Windows bootstrap execution policy is process-scoped; it does not change the user's policy. CLI launchers use `.cmd`, so subsequent commands work in restricted PowerShell. PowerShell reserves `fl` for `Format-List`: use `flucto` or `fl.cmd` there; `fl` works in cmd.exe and POSIX shells.
 
 
@@ -322,7 +336,8 @@ Packaged releases expose both commands through `package.json`'s `bin` entry. Sho
 | Command | Short form | Purpose | Typical output |
 | --- | --- | --- | --- |
 | `flucto doctor` | `fl doc` | Verify `yt-dlp` and `ffmpeg` discovery | Binary paths and versions |
-| `flucto skill install --agent <pi|codex|claude|all>` | — | Explicitly install bundled social-search agent skill (no media binary setup or network call) | Agent skill directory; refuses existing targets unless `--force` backs them up |
+| `flucto skill install --agent all --skill flucto-media-research --if-missing` | — | Register the search/download/caption-Markdown workflow; no media/network action during registration | Agent skill directories; existing targets preserved; `--json` reports installed/skipped outcomes |
+| `flucto skill install --agent all` | — | Explicitly install the legacy search-only skill (`pi`, `codex`, `claude`, or `all`) | Existing targets refused unless `--force` backs them up |
 | `flucto setup` | `fl s` | Provision missing managed `yt-dlp` and `ffmpeg` binaries | Setup status, paths, versions, and fix guidance |
 | `flucto info <url>` | `fl i <url>` | Read media metadata | id, title, thumbnail, duration, uploader, view count |
 | `flucto search "<keyword>" --platform <site>` | — | Search all 12 registered video sites or one selected site | Annotated video metadata, original URLs and per-source status |
