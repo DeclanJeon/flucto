@@ -32,6 +32,36 @@ const THREADS_API_URL = 'https://www.threadsdl.app/api/threads';
 const THREADS_PROXY_URL = 'https://www.threadsdl.app/api/proxy';
 const REQUEST_TIMEOUT_MS = 15_000;
 
+const THREADS_HOST_PATTERN = /^(?:www\.)?threads\.(?:com|net)$/i;
+const THREADS_POST_PATH_PATTERN = /^\/@([^/]+)\/(?:post|tv)\/([A-Za-z0-9_-]+)/;
+
+// ---------------------------------------------------------------------------
+// URL normalization
+// ---------------------------------------------------------------------------
+
+/**
+ * Reduces a shared Threads link to the canonical post URL the extraction API
+ * accepts. Mobile share sheets produce `…/@user/post/<code>/media?xmt=…`, and
+ * that form makes the API answer 400 ("Invalid Threads URL format"). Profile
+ * URLs and anything that is not a Threads post are returned untouched.
+ */
+export const normalizeThreadsUrl = (url: string): string => {
+  let parsed: URL;
+  try {
+    parsed = new URL(url.trim());
+  } catch {
+    return url;
+  }
+
+  if (!THREADS_HOST_PATTERN.test(parsed.hostname)) return url;
+
+  const postMatch = parsed.pathname.match(THREADS_POST_PATH_PATTERN);
+  if (!postMatch) return url;
+
+  const [, username, code] = postMatch;
+  return `https://www.threads.com/@${username}/post/${code}`;
+};
+
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
@@ -48,7 +78,7 @@ const fetchThreadsApi = async (url: string, signal?: AbortSignal): Promise<Threa
   fetch(THREADS_API_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url }),
+    body: JSON.stringify({ url: normalizeThreadsUrl(url) }),
     signal: controller.signal,
   })
     .then(async (res) => {
